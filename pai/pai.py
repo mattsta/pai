@@ -19,6 +19,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from prompt_toolkit import PromptSession
+from prompt_toolkit.application import get_app
 from prompt_toolkit.formatted_text import HTML
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -37,41 +38,6 @@ ADAPTER_MAP = {
 }
 
 
-# --- [NEW] Spinner Class for Loading Indication ---
-class Spinner:
-    """A simple threaded spinner to indicate background activity."""
-
-    def __init__(self, message: str = "Working..."):
-        self.message = message
-        self.running = False
-        self.thread = None
-        self.spinner_chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"  # Braille spinner
-
-    def _spin(self):
-        while self.running:
-            for char in self.spinner_chars:
-                if not self.running:
-                    break
-                sys.stdout.write(f"\r{char} {self.message}")
-                sys.stdout.flush()
-                time.sleep(0.1)
-
-    def start(self):
-        """Starts the spinner in a separate thread."""
-        self.running = True
-        self.thread = threading.Thread(target=self._spin, daemon=True)
-        self.thread.start()
-
-    def stop(self):
-        """Stops the spinner and clears the line."""
-        if not self.running:
-            return
-        self.running = False
-        if self.thread:
-            self.thread.join(timeout=0.2)
-        # Clear the line
-        sys.stdout.write("\r" + " " * (len(self.message) + 5) + "\r")
-        sys.stdout.flush()
 
 
 # --- Data Classes for State Management ---
@@ -235,84 +201,118 @@ class TestSession:
         }
 
 
-# --- [MODIFIED] StreamingDisplay now manages the Spinner ---
+# --- [REFACTORED] StreamingDisplay for Stable UI ---
 class StreamingDisplay:
+    """Manages all console output, ensuring prompt-toolkit UI is not corrupted."""
+
     def __init__(self, debug_mode: bool = False):
         self.debug_mode = debug_mode
+        self._printer = print  # Default to standard print
+        self._is_interactive = False
+        # State for UI
+        self.status = "Idle"
+        self.live_tok_per_sec = 0.0
+        # Response tracking
         self.start_time: Optional[float] = None
         self.ttft: Optional[float] = None
         self.line_count: int = 0
         self.chunk_count: int = 0
         self.current_response: str = ""
-        self.spinner = Spinner("Waiting for first token...")
         self.first_token_received = False
+        self.last_chunk_time: Optional[float] = None
+
+    def set_printer(self, printer: callable, is_interactive: bool):
+        """Sets the function used for printing to the console."""
+        self._printer = printer
+        self._is_interactive = is_interactive
 
     def start_response(self):
-        """Starts the spinner and prepares for a new response."""
+        """Prepares for a new response stream."""
         self.current_response = ""
         self.ttft = None
         self.start_time = time.time()
+        self.last_chunk_time = self.start_time
         self.line_count = 0
         self.chunk_count = 0
+        self.live_tok_per_sec = 0.0
         self.first_token_received = False
-        if not self.debug_mode:
-            self.spinner.start()
+        self.status = "Waiting..."
+
+    def _print(self, *args, **kwargs):
+        """Internal print-router."""
+        if self._is_interactive and "flush" in kwargs:
+            # prompt-toolkit's printer handles flushing and thread safety.
+            # a "flush" kwarg will cause it to crash.
+            kwargs.pop("flush")
+        self._printer(*args, **kwargs)
 
     def show_raw_line(self, line: str):
         if self.debug_mode:
-            # In debug mode, we stop the spinner immediately and show the debug header
             if not self.first_token_received:
-                self.spinner.stop()  # Stop spinner if running
-                print("🔍 DEBUG MODE: Showing raw protocol traffic\n" + "=" * 60)
-                self.first_token_received = (
-                    True  # Prevent header from printing multiple times
-                )
+                self._print("🔍 DEBUG MODE: Showing raw protocol traffic\n" + "=" * 60)
+                self.first_token_received = True  # Prevent header from printing multiple times
             self.line_count += 1
             timestamp = time.time() - (self.start_time or 0)
             prefix = f"⚪ [{timestamp:6.2f}s] L{self.line_count:03d}: "
             if line.startswith("data: "):
                 prefix = f"🔵 [{timestamp:6.2f}s] L{self.line_count:03d}: "
-            print(f"{prefix}{repr(line)}")
+            self._print(f"{prefix}{repr(line)}")
 
     def show_parsed_chunk(self, chunk_data: Dict, chunk_text: str):
-        """Stops the spinner on the first chunk, then prints content."""
-        if not self.first_token_received and not self.debug_mode:
-            self.spinner.stop()
+        """Handles printing a parsed chunk of text from the stream."""
+        if not self.first_token_received:
+            self.status = "Streaming"
             if self.start_time:
                 self.ttft = time.time() - self.start_time
-            print("\n🤖 Assistant: ", end="", flush=True)
+            if self._is_interactive: # Don't print assistant header in non-interactive
+                self._print("\n🤖 Assistant: ", end="")
             self.first_token_received = True
+
+        self._print(chunk_text, end="", flush=True)
 
         self.chunk_count += 1
         self.current_response += chunk_text
+
+        # Update live stats
+        now = time.time()
+        if self.last_chunk_time and now > self.last_chunk_time:
+            # A simple way to calculate live tokens/sec for the UI
+            chunk_tokens = len(chunk_text.split())
+            self.live_tok_per_sec = chunk_tokens / (now - self.last_chunk_time)
+        self.last_chunk_time = now
+
         if self.debug_mode:
             timestamp = time.time() - (self.start_time or 0)
-            print(
+            self._print(
                 f"🟢 [{timestamp:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
             )
-        else:
-            print(chunk_text, end="", flush=True)
 
     def finish_response(self) -> tuple[float, int, Optional[float]]:
-        """Ensures spinner is stopped and calculates final stats for the turn."""
-        self.spinner.stop()  # Ensure spinner is always stopped at the end
+        """Finalizes the response, prints stats, and resets the display state."""
+        self.status = "Done"
         elapsed = time.time() - (self.start_time or 0)
-        # TODO: This is a poor way to count tokens. Replace with tiktoken or similar.
         tokens_received = len(self.current_response.split())
+
         if self.debug_mode:
-            print(
+            self._print(
                 "=" * 60
                 + f"\n🔍 DEBUG SUMMARY: {self.line_count} lines, {self.chunk_count} chunks, {elapsed:.2f}s\n"
                 + "=" * 60
             )
-        elif (
-            self.first_token_received
-        ):  # Only print stats if we actually received something
+        elif self.first_token_received:
             tok_per_sec = tokens_received / max(elapsed, 0.1)
-            ttft_str = f" | TTFT: {self.ttft:.2f}s" if self.ttft else ""
-            print(
-                f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
-            )
+            ttft_str = f" | TTFT: {self.ttft:.2f}s" if self.ttft is not None else ""
+            # In interactive mode, the toolbar shows stats. In non-interactive, print them.
+            if not self._is_interactive:
+                self._print(
+                    f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
+                )
+            else:
+                 # Print a newline to separate from the next prompt.
+                 self._print("")
+
+        self.status = "Idle"
+        self.live_tok_per_sec = 0.0
         return elapsed, tokens_received, self.ttft
 
 
@@ -337,11 +337,11 @@ class PolyglotClient:
             (e for e in self.all_endpoints if e["name"].lower() == name.lower()), None
         )
         if not endpoint_data:
-            print(f"❌ Error: Endpoint '{name}' not found in configuration file.")
+            self.display._print(f"❌ Error: Endpoint '{name}' not found in configuration file.")
             return
         api_key = os.getenv(endpoint_data["api_key_env"])
         if not api_key:
-            print(
+            self.display._print(
                 f"❌ Error: API key for '{name}' not found. Set {endpoint_data['api_key_env']}."
             )
             return
@@ -366,7 +366,7 @@ class PolyglotClient:
                 "Content-Type": "application/json",
             }
         )
-        print(f"✅ Switched to endpoint: {self.config.name}")
+        self.display._print(f"✅ Switched to endpoint: {self.config.name}")
 
     def generate(
         self, request: Union[CompletionRequest, ChatRequest], verbose: bool
@@ -380,11 +380,11 @@ class PolyglotClient:
                 f"Endpoint '{self.config.name}' does not support {'chat' if is_chat else 'completion'} mode."
             )
         if verbose:
-            print(
+            self.display._print(
                 f"\n🚀 Sending request via endpoint '{self.config.name}' using adapter '{type(adapter).__name__}'"
             )
-            print(f"📝 Model: {self.config.model_name}")
-            print(
+            self.display._print(f"📝 Model: {self.config.model_name}")
+            self.display._print(
                 f"🎛️ Parameters: temp={request.temperature}, max_tokens={request.max_tokens}, stream={request.stream}"
             )
 
@@ -402,18 +402,18 @@ def print_banner():
     print("🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶")
 
 
-def print_stats(stats: TestSession):
+def print_stats(stats: TestSession, printer: callable = print):
     stat_dict = stats.get_stats()
-    print("\n📊 SESSION STATISTICS\n" + "=" * 50)
+    printer("\n📊 SESSION STATISTICS\n" + "=" * 50)
     for key, value in stat_dict.items():
-        print(f"{key.replace('_', ' ').title():<22}{value}")
-    print("=" * 50)
+        printer(f"{key.replace('_', ' ').title():<22}{value}")
+    printer("=" * 50)
 
 
-def closing(stats: TestSession):
-    print("\n\n📊 Final Statistics:")
-    print_stats(stats)
-    print("\n👋 Session ended.")
+def closing(stats: TestSession, printer: callable = print):
+    printer("\n\n📊 Final Statistics:")
+    print_stats(stats, printer=printer)
+    printer("\n👋 Session ended.")
     sys.exit(0)
 
 
@@ -463,48 +463,55 @@ def save_conversation_formats(conversation: "Conversation", session_dir: pathlib
 def get_toolbar_text(
     client: "PolyglotClient", args: argparse.Namespace, session_dir: pathlib.Path
 ) -> HTML:
-    """Generates the HTML for the bottom toolbar in interactive mode."""
+    """Generates the HTML for the multi-line bottom toolbar."""
     endpoint = client.config.name
     model = client.config.model_name
     total_tokens = client.stats.total_tokens_sent + client.stats.total_tokens_received
-
-    # Session tokens/sec
-    session_tok_per_sec = client.stats.total_tokens_received / max(
-        client.stats.total_response_time, 1
-    )
-
-    # Last request stats
-    last_ttft = client.stats.last_ttft
-    last_tok_per_sec = (
-        client.stats.last_tokens_received / max(client.stats.last_response_time, 1)
-        if client.stats.last_response_time > 0
-        else 0
-    )
-
-    tools_status = "ON" if client.tools_enabled else "OFF"
-    debug_status = "ON" if client.display.debug_mode else "OFF"
-    stream_status = "ON" if args.stream else "OFF"
-    interface_mode = "Chat" if args.chat else "Completion"
-
-    # Using prompt_toolkit's style attributes for colors
-    # ref: https://python-prompt-toolkit.readthedocs.io/en/master/pages/printing_text.html#style-attributes
-    parts = [
-        f"<b><style bg='ansiblack' fg='white'> {endpoint}:{model} </style></b>",
+    stats = client.stats
+    display = client.display
+    
+    # Line 1: Core session info
+    line1_parts = [
+        f"<b><style bg='ansiblack' fg='white'> {endpoint.upper()}:{model} </style></b>",
         f"<b>Total Tokens:</b> {total_tokens}",
-        f"<b>Session Tok/s:</b> {session_tok_per_sec:.1f}",
-        f"<b>Last TTFT:</b> {last_ttft:.2f}s",
-        f"<b>Last Tok/s:</b> {last_tok_per_sec:.1f}",
-        f"<b>Tools:</b> {tools_status}",
-        f"<b>Debug:</b> {debug_status}",
-        f"<b>Stream:</b> {stream_status}",
-        f"<b>Mode:</b> {interface_mode}",
-        f"<style fg='grey'>{session_dir}</style>",
+        f"<b>Avg Tok/s:</b> {stats.get_stats()['tokens_per_second']}",
     ]
 
-    return HTML(" ∙ ".join(parts))
+    # Line 2: Last request & live status
+    last_tok_per_sec = (
+        stats.last_tokens_received / max(stats.last_response_time, 1)
+        if stats.last_response_time > 0 else 0.0
+    )
+    status_color = "ansigreen" if display.status == "Streaming" else "ansiyellow"
+    live_tps_str = f"<b><style fg='{status_color}'>Live Tok/s: {display.live_tok_per_sec:.1f}</style></b>"
+
+    line2_parts = [
+        f"<style fg='ansimagenta'><b>Status: {display.status}</b></style>",
+        live_tps_str if display.status == "Streaming" else "",
+        f"<b>Last TTFT:</b> {stats.last_ttft:.2f}s",
+        f"<b>Last Tok/s:</b> {last_tok_per_sec:.1f}",
+    ]
+    
+    # Line 3: Toggles and session path
+    tools_status = f"<style fg='ansigreen'>ON</style>" if client.tools_enabled else f"<style fg='ansired'>OFF</style>"
+    debug_status = f"<style fg='ansiyellow'>ON</style>" if display.debug_mode else "OFF"
+
+    line3_parts = [
+        f"<b>Tools:</b> {tools_status}",
+        f"<b>Debug:</b> {debug_status}",
+        f"<b>Mode:</b> {'Chat' if args.chat else 'Completion'}",
+        f"<style fg='grey'>Log: {session_dir}</style>"
+    ]
+    
+    # Filter out empty strings and join
+    line1 = " | ".join(p for p in line1_parts if p)
+    line2 = " | ".join(p for p in line2_parts if p)
+    line3 = " | ".join(p for p in line3_parts if p)
+
+    return HTML(f"{line1}\n{line2}\n{line3}")
 
 
-def print_help():
+def print_help(printer: callable = print):
     print("""
 🔧 AVAILABLE COMMANDS (ALL ORIGINAL FEATURES ARE PRESENT):
   /help                  - Show this help message
@@ -539,19 +546,24 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     )
     session_dir.mkdir(parents=True, exist_ok=True)
 
-    print(
+    # --- Setup prompt-toolkit session and graceful exit ---
+    # Use a lambda to get the app's print_text method, which is thread-safe.
+    pt_printer = lambda *p_args, **p_kwargs: get_app().print_text(*p_args, **p_kwargs)
+    client.display.set_printer(pt_printer, is_interactive=True)
+
+    pt_printer(
         f"🎯 {'Chat' if is_chat_mode else 'Completion'} Mode | Endpoint: {client.config.name} | Model: {client.config.model_name}"
     )
-    print(f"💾 Session logs will be saved to: {session_dir}")
-    print("Type '/help' for commands, '/quit' to exit.")
-    print("-" * 60)
+    pt_printer(f"💾 Session logs will be saved to: {session_dir}")
+    pt_printer("Type '/help' for commands, '/quit' to exit.")
+    pt_printer("-" * 60)
 
     while True:
         try:
             user_input = session.prompt(
-                f"\n👤 ({client.config.name}) User: ",
+                HTML(f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "),
                 bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
-                refresh_interval=0.5,
+                refresh_interval=0.1, # Faster refresh for live stats
             ).strip()
             if not user_input:
                 continue
@@ -562,61 +574,59 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                 if cmd in ["quit", "exit", "q"]:
                     break
                 elif cmd == "stats":
-                    print_stats(client.stats)
+                    print_stats(client.stats, printer=pt_printer)
                 elif cmd == "help":
-                    print_help()
+                    print_help(printer=pt_printer)
                 elif cmd == "endpoints":
-                    print("Available Endpoints:")
-                    [print(f" - {ep['name']}") for ep in client.all_endpoints]
+                    pt_printer("Available Endpoints:")
+                    [pt_printer(f" - {ep['name']}") for ep in client.all_endpoints]
                 elif cmd == "switch" and params:
                     client.switch_endpoint(params)
                 elif cmd == "model" and params:
                     client.config.model_name = params
-                    print(f"✅ Model set to: {params}")
+                    pt_printer(f"✅ Model set to: {params}")
                 elif cmd == "temp" and params:
                     try:
                         args.temperature = float(params)
-                        print(
+                        pt_printer(
                             f"✅ Temperature for next request set to: {args.temperature}"
                         )
                     except ValueError:
-                        print("❌ Invalid value.")
+                        pt_printer("❌ Invalid value.")
                 elif cmd == "tokens" and params:
                     try:
                         args.max_tokens = int(params)
-                        print(
-                            f"✅ Max tokens for next request set to: {args.max_tokens}"
-                        )
+                        pt_printer(f"✅ Max tokens for next request set to: {args.max_tokens}")
                     except ValueError:
-                        print("❌ Invalid value.")
+                        pt_printer("❌ Invalid value.")
                 elif cmd == "stream":
                     args.stream = not args.stream
-                    print(f"✅ Streaming {'enabled' if args.stream else 'disabled'}.")
+                    pt_printer(f"✅ Streaming {'enabled' if args.stream else 'disabled'}.")
                 elif cmd == "verbose":
                     args.verbose = not args.verbose
-                    print(
+                    pt_printer(
                         f"✅ Verbose mode {'enabled' if args.verbose else 'disabled'}."
                     )
                 elif cmd == "debug":
                     client.display.debug_mode = not client.display.debug_mode
-                    print(
+                    pt_printer(
                         f"✅ Debug mode {'enabled' if client.display.debug_mode else 'disabled'}."
                     )
                 elif cmd == "tools":
                     client.tools_enabled = not client.tools_enabled
-                    print(
+                    pt_printer(
                         f"✅ Tool calling {'enabled' if client.tools_enabled else 'disabled'}."
                     )
                 elif is_chat_mode and cmd == "history":
-                    print(json.dumps(conversation.get_history(), indent=2))
+                    pt_printer(json.dumps(conversation.get_history(), indent=2))
                 elif is_chat_mode and cmd == "clear":
                     conversation.clear()
-                    print("🧹 History cleared.")
+                    pt_printer("🧹 History cleared.")
                 elif is_chat_mode and cmd == "system" and params:
                     conversation.set_system_prompt(params)
-                    print(f"🤖 System prompt set.")
+                    pt_printer(f"🤖 System prompt set.")
                 else:
-                    print("❌ Unknown command.")
+                    pt_printer("❌ Unknown command.")
                 continue
 
             request: Union[ChatRequest, CompletionRequest]
@@ -663,15 +673,15 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     print(f"\n⚠️  Warning: Could not save session turn: {e}")
 
         except KeyboardInterrupt:
-            client.display.spinner.stop()
-            print()
+            client.display.finish_response() # Gracefully stop display on ctrl-c
+            pt_printer("\nKeyboardInterrupt")
             continue
         except EOFError:
             break
         except Exception as e:
-            client.display.spinner.stop()
-            print(f"\n❌ ERROR: {e}")
-    closing(client.stats)
+            client.display.finish_response() # Gracefully stop display on other errors
+            pt_printer(f"\n❌ ERROR: {e}")
+    closing(client.stats, printer=pt_printer)
 
 
 def main():

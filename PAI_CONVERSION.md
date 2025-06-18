@@ -45,10 +45,10 @@ The current `messages` list in `pai`'s `interactive_mode` is brittle. We will re
 We will implement `gptwink`'s most useful UI feature: a live status bar.
 
 -   [x] **Modify `interactive_mode`:** The `PromptSession` will be configured with a `bottom_toolbar`.
--   [ ] **Overhaul Toolbar and Streaming Display:** The current toolbar and display logic will be completely refactored to create a stable, more informative, and real-time UI.
-    -   **Fix Toolbar Disappearance:** The core issue of the toolbar vanishing during responses will be solved. All direct `print()` and `sys.stdout.write()` calls will be removed from the response generation loop and replaced with `prompt-toolkit`'s thread-safe display mechanisms. This will ensure the toolbar remains visible at all times.
-    -   **Multi-Line, Readable Layout:** The `get_toolbar_text()` function will be updated to produce a multi-line display, giving stats more room to breathe and making them easier to read at a glance.
-    -   **Live Tokens/Second:** A new "live tokens/second" metric for the *current* response stream will be added to the toolbar. This will be calculated in real-time as tokens arrive, providing immediate feedback on model performance for the active generation task.
+-   [x] **Overhaul Toolbar and Streaming Display:** The current toolbar and display logic has been completely refactored to create a stable, more informative, and real-time UI.
+    -   **Fix Toolbar Disappearance:** The core issue of the toolbar vanishing during responses has been solved. All direct `print()` and `sys.stdout.write()` calls have been removed from the response generation loop and replaced with `prompt-toolkit`'s thread-safe display mechanisms. This ensures the toolbar remains visible at all times.
+    -   **Multi-Line, Readable Layout:** The `get_toolbar_text()` function has been updated to produce a multi-line display, giving stats more room to breathe and making them easier to read at a glance.
+    -   **Live Tokens/Second:** A new "live tokens/second" metric for the *current* response stream has been added to the toolbar. This is calculated in real-time as tokens arrive, providing immediate feedback on model performance for the active generation task.
 -   [x] This provides the user with immediate, persistent context about their session state.
 
 ### Step 4: Add a File-Based Prompt System

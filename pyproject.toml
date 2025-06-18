@@ -10,6 +10,7 @@ dependencies = [
     "requests>=2.32.4",
     "toml>=0.10.2",
     "typer>=0.16.0",
+    "ulid-py>=1.1.0",
 ]
 
 

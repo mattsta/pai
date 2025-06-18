@@ -20,8 +20,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
         for iteration in range(max_iterations):
             # MODIFIED: Access all state via the context object.
             url = f"{context.config.base_url}/chat/completions"
-            payload = request.to_dict(context.config.model_name)
-            payload["messages"] = messages
+            final_request_payload = request.to_dict(context.config.model_name)
+            final_request_payload["messages"] = messages
+            payload = final_request_payload
 
             if context.tools_enabled and get_tool_schemas():
                 payload["tools"] = get_tool_schemas()
@@ -110,7 +111,35 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
                 elapsed, tokens_received = context.display.finish_response()
                 context.stats.add_request(tokens_sent, tokens_received, elapsed)
-                return {"text": context.display.current_response}
+
+                # Construct a response object that mimics the non-streaming API
+                response_data = {
+                    "id": f"chatcmpl-pai-{time.time()}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": context.config.model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": context.display.current_response,
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": tokens_sent,
+                        "completion_tokens": tokens_received,
+                        "total_tokens": tokens_sent + tokens_received,
+                    },
+                }
+
+                return {
+                    "request": final_request_payload,
+                    "response": response_data,
+                    "text": context.display.current_response,
+                }
 
             except Exception as e:
                 elapsed = time.time() - start_time

@@ -10,6 +10,7 @@ import json
 import time
 import argparse
 import threading
+import ulid
 from typing import Optional, Dict, Any, Union, List
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -68,6 +69,58 @@ class Spinner:
         # Clear the line
         sys.stdout.write("\r" + " " * (len(self.message) + 5) + "\r")
         sys.stdout.flush()
+
+
+# --- Data Classes for State Management ---
+@dataclass
+class Turn:
+    """Represents a single request-response cycle in a conversation."""
+
+    turn_id: ulid.ULID = field(default_factory=ulid.new)
+    timestamp: datetime = field(default_factory=datetime.now)
+    request_data: Dict[str, Any] = field(default_factory=dict)
+    response_data: Dict[str, Any] = field(default_factory=dict)
+    assistant_message: str = ""
+
+
+@dataclass
+class Conversation:
+    """Manages the full conversation history, composed of multiple turns."""
+
+    conversation_id: ulid.ULID = field(default_factory=ulid.new)
+    turns: List[Turn] = field(default_factory=list)
+    # The messages list represents the state of the conversation *before* the next user input
+    _messages: List[Dict[str, str]] = field(default_factory=list)
+
+    def add_turn(self, turn: Turn):
+        """Adds a completed turn and updates the message history."""
+        self.turns.append(turn)
+        # The new message history is the request's messages + the assistant's reply
+        self._messages = turn.request_data.get("messages", [])
+        if turn.assistant_message:
+            self._messages.append(
+                {"role": "assistant", "content": turn.assistant_message}
+            )
+
+    def get_messages_for_next_turn(self, user_input: str) -> List[Dict[str, str]]:
+        """Returns the list of messages for the next API call, including the new user input."""
+        next_messages = list(self._messages)
+        next_messages.append({"role": "user", "content": user_input})
+        return next_messages
+
+    def get_history(self) -> List[Dict[str, str]]:
+        """Returns the current message history."""
+        return self._messages
+
+    def clear(self):
+        """Clears the conversation, keeping any system prompt."""
+        self.turns = []
+        self._messages = [m for m in self._messages if m["role"] == "system"]
+
+    def set_system_prompt(self, system_prompt: str):
+        """Sets a new system prompt, clearing all subsequent history."""
+        self.turns = []
+        self._messages = [{"role": "system", "content": system_prompt}]
 
 
 # --- Data Classes (Identical to original) ---
@@ -358,9 +411,9 @@ def print_help():
 
 def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     is_chat_mode = args.chat
-    messages = []
+    conversation = Conversation()
     if is_chat_mode and args.system:
-        messages.append({"role": "system", "content": args.system})
+        conversation.set_system_prompt(args.system)
 
     print(
         f"🎯 {'Chat' if is_chat_mode else 'Completion'} Mode | Endpoint: {client.config.name} | Model: {client.config.model_name}"
@@ -426,12 +479,12 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                         f"✅ Tool calling {'enabled' if client.tools_enabled else 'disabled'}."
                     )
                 elif is_chat_mode and cmd == "history":
-                    print(json.dumps(messages, indent=2))
+                    print(json.dumps(conversation.get_history(), indent=2))
                 elif is_chat_mode and cmd == "clear":
-                    messages = [m for m in messages if m["role"] == "system"]
+                    conversation.clear()
                     print("🧹 History cleared.")
                 elif is_chat_mode and cmd == "system" and params:
-                    messages = [{"role": "system", "content": params}]
+                    conversation.set_system_prompt(params)
                     print(f"🤖 System prompt set.")
                 else:
                     print("❌ Unknown command.")
@@ -439,15 +492,16 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
 
             request: Union[ChatRequest, CompletionRequest]
             if is_chat_mode:
-                messages.append({"role": "user", "content": user_input})
+                next_messages = conversation.get_messages_for_next_turn(user_input)
                 request = ChatRequest(
-                    messages=list(messages),
+                    messages=next_messages,
                     model=client.config.model_name,
                     max_tokens=args.max_tokens,
                     temperature=args.temperature,
                     stream=args.stream,
                 )
             else:
+                # Completion mode does not have conversation history
                 request = CompletionRequest(
                     prompt=user_input,
                     model=client.config.model_name,
@@ -457,8 +511,15 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                 )
 
             result = client.generate(request, args.verbose)
-            if is_chat_mode and result and result.get("text"):
-                messages.append({"role": "assistant", "content": result["text"]})
+
+            # For chat mode, create a Turn and add it to the conversation
+            if is_chat_mode and result:
+                turn = Turn(
+                    request_data=result.get("request", {}),
+                    response_data=result.get("response", {}),
+                    assistant_message=result.get("text", ""),
+                )
+                conversation.add_turn(turn)
 
         except KeyboardInterrupt:
             client.display.spinner.stop()

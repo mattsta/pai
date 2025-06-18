@@ -21,14 +21,14 @@ The following changes will be made to the `pai` codebase.
 
 The current `messages` list in `pai`'s `interactive_mode` is brittle. We will replace it with a more robust, object-oriented approach inspired by `gptwink`'s `Answer` class.
 
--   **Create `Conversation` Class:** A new class to manage the full conversation history. It will hold a list of `Turn` objects.
--   **Create `Turn` Class:** A dataclass representing a single request-response cycle. It will contain:
+-   [x] **Create `Conversation` Class:** A new class to manage the full conversation history. It will hold a list of `Turn` objects.
+-   [x] **Create `Turn` Class:** A dataclass representing a single request-response cycle. It will contain:
     -   `turn_id`: A unique ID (using `ulid`).
     -   `timestamp`: The time of the turn.
     -   `request_data`: The payload sent to the API.
     -   `response_data`: The full response from the API.
     -   `assistant_message`: The final extracted text content from the assistant.
--   **Integration:** The `interactive_mode` loop will now append new `Turn` objects to the `Conversation` object instead of managing a raw list of dictionaries.
+-   [x] **Integration:** The `interactive_mode` loop will now append new `Turn` objects to the `Conversation` object instead of managing a raw list of dictionaries.
 
 ### Step 2: Implement Session Persistence
 

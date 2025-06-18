@@ -9,15 +9,13 @@ import sys
 import json
 import time
 import argparse
-import threading
+import asyncio
+import httpx
 import ulid
 import pathlib
 from typing import Optional, Dict, Any, Union, List
 from dataclasses import dataclass, field
 from datetime import datetime
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application import get_app
 from prompt_toolkit.formatted_text import HTML
@@ -321,12 +319,17 @@ class APIError(Exception):
 
 
 class PolyglotClient:
-    def __init__(self, args: argparse.Namespace, loaded_config: Dict):
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        loaded_config: Dict,
+        http_session: httpx.AsyncClient,
+    ):
         self.all_endpoints = loaded_config.get("endpoints", [])
         self.config = EndpointConfig()
         self.stats = TestSession()
         self.display = StreamingDisplay(args.debug)
-        self.http_session = requests.Session()
+        self.http_session = http_session
         self.tools_enabled = args.tools
         self.switch_endpoint(args.endpoint)
         if self.config and args.model:
@@ -352,23 +355,16 @@ class PolyglotClient:
         self.config.completion_adapter = ADAPTER_MAP.get(
             endpoint_data.get("completion_adapter")
         )
-        retry_strategy = Retry(
-            total=self.config.max_retries,
-            backoff_factor=self.config.backoff_factor,
-            status_forcelist=[429, 500, 502, 503, 504],
-        )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        self.http_session.mount("https://", adapter)
-        self.http_session.mount("http://", adapter)
-        self.http_session.headers.update(
-            {
-                "Authorization": f"Bearer {self.config.api_key}",
-                "Content-Type": "application/json",
-            }
-        )
+        # Configure the httpx client for the selected endpoint
+        self.http_session.base_url = self.config.base_url
+        self.http_session.headers = {
+            "Authorization": f"Bearer {self.config.api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "PolyglotAI/0.1.0",
+        }
         self.display._print(f"✅ Switched to endpoint: {self.config.name}")
 
-    def generate(
+    async def generate(
         self, request: Union[CompletionRequest, ChatRequest], verbose: bool
     ) -> Dict[str, Any]:
         is_chat = isinstance(request, ChatRequest)
@@ -395,7 +391,7 @@ class PolyglotClient:
             config=self.config,
             tools_enabled=self.tools_enabled,
         )
-        return adapter.generate(context, request, verbose)
+        return await adapter.generate(context, request, verbose)
 
 
 def print_banner():
@@ -534,7 +530,7 @@ def print_help(printer: callable = print):
     """)
 
 
-def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
+async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     is_chat_mode = args.chat
     conversation = Conversation()
     if is_chat_mode and args.system:
@@ -560,10 +556,10 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
 
     while True:
         try:
-            user_input = session.prompt(
+            user_input = await session.prompt_async(
                 HTML(f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "),
                 bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
-                refresh_interval=0.1, # Faster refresh for live stats
+                refresh_interval=0.1,  # Faster refresh for live stats
             ).strip()
             if not user_input:
                 continue
@@ -649,7 +645,7 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     stream=args.stream,
                 )
 
-            result = client.generate(request, args.verbose)
+            result = await client.generate(request, args.verbose)
 
             # For chat mode, create a Turn and add it to the conversation
             if is_chat_mode and result:
@@ -684,12 +680,60 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     closing(client.stats, printer=pt_printer)
 
 
+async def async_main(args: argparse.Namespace):
+    """The async entrypoint for the application."""
+    try:
+        with open(args.config, "r", encoding="utf-8") as f:
+            loaded_config = toml.load(f)
+    except FileNotFoundError:
+        sys.exit(f"❌ FATAL: Config file not found at '{args.config}'")
+    except Exception as e:
+        sys.exit(f"❌ FATAL: Could not parse '{args.config}': {e}")
+
+    # Use a single httpx client session for the application's lifecycle
+    transport = httpx.AsyncHTTPTransport(retries=3)
+    # Default timeout is 5 seconds. Set a longer one for model generation.
+    async with httpx.AsyncClient(transport=transport, timeout=30.0) as http_session:
+        try:
+            client = PolyglotClient(args, loaded_config, http_session)
+            if args.prompt:
+                # Non-interactive mode
+                if args.chat:
+                    messages = (
+                        [{"role": "system", "content": args.system}]
+                        if args.system
+                        else []
+                    )
+                    messages.append({"role": "user", "content": args.prompt})
+                    request = ChatRequest(
+                        messages=messages,
+                        model=client.config.model_name,
+                        max_tokens=args.max_tokens,
+                        temperature=args.temperature,
+                        stream=args.stream,
+                    )
+                else:
+                    request = CompletionRequest(
+                        prompt=args.prompt,
+                        model=client.config.model_name,
+                        max_tokens=args.max_tokens,
+                        temperature=args.temperature,
+                        stream=args.stream,
+                    )
+                await client.generate(request, args.verbose)
+                print_stats(client.stats)
+            else:
+                # Interactive mode
+                await interactive_mode(client, args)
+        except (APIError, ValueError, httpx.RequestError, ConnectionError) as e:
+            sys.exit(f"❌ Error: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Polyglot AI: A Universal CLI for the OpenAI API Format",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    # The rest of the main function is identical to the last correct version.
     parser.add_argument(
         "--config", default="polyglot.toml", help="Path to the TOML configuration file."
     )
@@ -728,43 +772,8 @@ def main():
 
     print_banner()
     try:
-        with open(args.config, "r") as f:
-            loaded_config = toml.load(f)
-    except FileNotFoundError:
-        sys.exit(f"❌ FATAL: Config file not found at '{args.config}'")
-    except Exception as e:
-        sys.exit(f"❌ FATAL: Could not parse '{args.config}': {e}")
-
-    try:
-        client = PolyglotClient(args, loaded_config)
-        if args.prompt:
-            if args.chat:
-                messages = (
-                    [{"role": "system", "content": args.system}] if args.system else []
-                )
-                messages.append({"role": "user", "content": args.prompt})
-                request = ChatRequest(
-                    messages=messages,
-                    model=client.config.model_name,
-                    max_tokens=args.max_tokens,
-                    temperature=args.temperature,
-                    stream=args.stream,
-                )
-            else:
-                request = CompletionRequest(
-                    prompt=args.prompt,
-                    model=client.config.model_name,
-                    max_tokens=args.max_tokens,
-                    temperature=args.temperature,
-                    stream=args.stream,
-                )
-            client.generate(request, args.verbose)
-            print_stats(client.stats)
-        else:
-            interactive_mode(client, args)
-    except (APIError, ValueError, ConnectionError) as e:
-        sys.exit(f"❌ Error: {e}")
-    except KeyboardInterrupt:
+        asyncio.run(async_main(args))
+    except (KeyboardInterrupt, EOFError):
         print("\n👋 Goodbye!")
     except Exception as e:
         print(f"❌ An unexpected error occurred: {e}", file=sys.stderr)

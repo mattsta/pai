@@ -6,7 +6,7 @@ This document outlines the strategy and steps to merge the best features of the 
 
 | Feature                | `gptwink` (Legacy)                              | `pai` (Modern)                               | Plan                                                                                          |
 | :--------------------- | :---------------------------------------------- | :------------------------------------------- | :-------------------------------------------------------------------------------------------- |
-| **Architecture**       | Single monolithic file, async with `aiohttp`.   | Modular, protocol-based, sync with `requests`. | **Keep `pai`'s architecture.** Its modularity is a core strength.                             |
+| **Architecture**       | Single monolithic file, async with `aiohttp`.   | Modular, protocol-based, async with `httpx`.   | **Keep `pai`'s architecture.** Its modularity is a core strength. The sync `requests` library has been replaced with `httpx` to support a non-blocking UI. |
 | **Configuration**      | `.env` file for API keys, hardcoded logic.      | `polyglot.toml` for multiple endpoints.      | **Keep `pai`'s configuration.** It is superior for managing multiple providers.               |
 | **Conversation History** | Stateful `Answer` object.                         | Simple list of dicts in `interactive_mode`.    | **Adopt `gptwink`'s OOP approach.** Create a stateful `Conversation` class in `pai` to manage history turns. |
 | **Session Persistence**  | Saves every Q/A pair to a unique folder.        | None.                                        | **Implement `gptwink`'s persistence.** Every interactive session will be saved for review.    |

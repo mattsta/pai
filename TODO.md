@@ -19,6 +19,6 @@ This is a list of concrete, near-term tasks to improve the framework.
 
 ### Low Priority / Research
 
-- [ ] Investigate `httpx` for a future migration to async I/O.
+- [x] ~~Investigate `httpx` for a future migration to async I/O.~~ (Completed)
 - [ ] Design a system for managing multiple `system` prompts within a session.
 - [ ] Add a `--log-file` option to write all debug output to a file for later analysis.

@@ -44,15 +44,15 @@ The current `messages` list in `pai`'s `interactive_mode` is brittle. We will re
 
 We will implement `gptwink`'s most useful UI feature: a live status bar.
 
--   **Modify `interactive_mode`:** The `PromptSession` will be configured with a `bottom_toolbar`.
--   **Create `get_toolbar_text()` function:** This function will be responsible for generating the content for the toolbar. It will use `prompt_toolkit.formatted_text.HTML` to display:
+-   [x] **Modify `interactive_mode`:** The `PromptSession` will be configured with a `bottom_toolbar`.
+-   [x] **Create `get_toolbar_text()` function:** This function is responsible for generating the content for the toolbar. It uses `prompt_toolkit.formatted_text.HTML` to display:
     -   Current endpoint and model.
     -   Session token usage (total sent/received).
-    -   Session statistics (TTFB, TTFT, live tokens per second for entire session, live tokens per second for current completion)
+    -   Session statistics (TTFT, live tokens per second for entire session, live tokens per second for current completion).
     -   Status of modes (`tools`, `debug`, `stream`).
     -   Current interface (chat or completion).
     -   The path to the current session's save directory.
--   This provides the user with immediate, persistent context about their session state.
+-   [x] This provides the user with immediate, persistent context about their session state.
 
 ### Step 4: Add a File-Based Prompt System
 

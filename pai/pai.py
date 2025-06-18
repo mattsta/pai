@@ -19,6 +19,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from prompt_toolkit import PromptSession
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import toml
 
@@ -398,56 +399,34 @@ def closing(stats: TestSession):
 
 
 def save_conversation_as_html(conversation: "Conversation", file_path: pathlib.Path):
-    """Serializes a conversation object to a styled HTML file for review using an external template."""
-    message_html_parts = []
-    for message in conversation.get_history():
-        role = message.get("role", "unknown")
-        header = f"<strong>{role.capitalize()}</strong>"
-        content_html = ""
-
-        if role == "system":
-            content = message.get("content", "").strip()
-            content_html = f"<div>{content}</div>"
-        elif role == "user":
-            content = message.get("content", "").strip()
-            content_html = f"<div>{content}</div>"
-        elif role == "assistant":
-            content = message.get("content")
-            tool_calls = message.get("tool_calls")
-            parts = []
-            if content:
-                parts.append(f"<div>{content.strip()}</div>")
-            if tool_calls:
-                pretty_tools = json.dumps(tool_calls, indent=2)
-                parts.append(f"<div>Tool Call Request:</div><pre>{pretty_tools}</pre>")
-            content_html = "".join(parts)
-        elif role == "tool":
-            tool_name = message.get("name")
-            tool_content = message.get("content", "").strip()
-            header = f"<strong>Tool: {tool_name}</strong>"
-            content_html = f"<pre>{tool_content}</pre>"
-
-        message_html_parts.append(
-            f'<div class="message {role}">{header}{content_html}</div>'
-        )
-
-    messages_html = "\n".join(message_html_parts)
-
+    """Serializes a conversation object to a styled HTML file for review using a Jinja2 template."""
     try:
-        # Templates are located relative to this script file
         script_dir = pathlib.Path(__file__).parent
-        template_path = script_dir / "templates" / "conversation.html"
-        template_string = template_path.read_text(encoding="utf-8")
+        template_dir = script_dir / "templates"
 
-        final_html = template_string.format(
-            conversation_id=conversation.conversation_id, messages_html=messages_html
+        env = Environment(
+            loader=FileSystemLoader(template_dir),
+            autoescape=select_autoescape(["html", "xml"]),
+        )
+        env.filters["prettyjson"] = lambda v: json.dumps(v, indent=2)
+
+        template = env.get_template("conversation.html")
+
+        history = conversation.get_history()
+        final_html = template.render(
+            conversation_id=conversation.conversation_id, history=history
         )
         file_path.write_text(final_html, encoding="utf-8")
-    except FileNotFoundError:
-        print(f"\n⚠️ Warning: HTML template not found at '{template_path}'.")
-        # As a fallback, just write the message content without a full template.
-        file_path.write_text(messages_html, encoding="utf-8")
-        return
+    except Exception as e:
+        print(f"\n⚠️ Warning: Could not render HTML template: {e}")
+        # As a fallback, just write the raw turn data as JSON.
+        try:
+            all_turns = [turn.to_dict() for turn in conversation.turns]
+            fallback_path = file_path.with_suffix(".json")
+            fallback_path.write_text(json.dumps(all_turns, indent=2), encoding="utf-8")
+            print(f"  -> Fallback data saved to {fallback_path}")
+        except Exception as fallback_e:
+            print(f"  -> Could not even save fallback JSON: {fallback_e}")
 
 
 def print_help():

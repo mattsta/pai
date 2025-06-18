@@ -17,7 +17,24 @@
     </style>
 </head>
 <body>
-    <h1>PAI Conversation ({conversation_id})</h1>
-    {messages_html}
+    <h1>PAI Conversation ({{ conversation_id }})</h1>
+
+    {% for message in history %}
+    <div class="message {{ message.role }}">
+        {% if message.role == 'tool' %}
+            <strong>Tool: {{ message.name }}</strong>
+            <pre>{{ message.content }}</pre>
+        {% else %}
+            <strong>{{ message.role | capitalize }}</strong>
+            {% if message.content %}
+            <div>{{ message.content.strip() }}</div>
+            {% endif %}
+            {% if message.tool_calls %}
+            <div>Tool Call Request:</div>
+            <pre>{{ message.tool_calls | prettyjson }}</pre>
+            {% endif %}
+        {% endif %}
+    </div>
+    {% endfor %}
 </body>
 </html>

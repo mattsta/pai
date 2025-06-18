@@ -11,6 +11,7 @@ dependencies = [
     "toml>=0.10.2",
     "typer>=0.16.0",
     "ulid-py>=1.1.0",
+    "jinja2>=3.1.4",
 ]
 
 

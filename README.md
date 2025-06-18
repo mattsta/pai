@@ -144,27 +144,26 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 
 ### Core Components
 
-1.  **`main.py` (The Orchestrator)**
+1.  **`pai/pai.py` (The Orchestrator)**
     *   **Entrypoint:** Contains the `main()` function that parses command-line arguments using `argparse`.
-    *   **Interactive Loop:** Manages the main `while` loop for interactive mode, using `prompt_toolkit` for user input.
-    *   **Command Parser:** Handles all `/` commands, modifying the session state (e.g., changing models, toggling debug mode).
-    *   **`FeatherlessClient` Class:** This is the central controller. It holds the session state (`TestSession`), the display handler (`StreamingDisplay`), and the currently active `provider`. It is responsible for orchestrating the flow from user input to provider execution.
+    *   **Interactive Loop:** The `interactive_mode` function manages the main `while` loop, using `prompt_toolkit` for user input.
+    *   **Command Parser:** Handles all `/` commands within the interactive loop, modifying session state.
+    *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`TestSession`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It orchestrates the flow from user input to protocol adapter execution.
 
-2.  **Provider System (`providers/`)**
-    *   **`base_provider.py`:** Defines the `BaseProvider` abstract class. This is the contract that all providers must adhere to. It requires a `name` property and a `generate()` method, ensuring a consistent interface for the `FeatherlessClient`.
-    *   **Concrete Providers (`featherless.py`, `openai.py`):** Each file implements a specific provider. They are responsible for:
-        *   Knowing their endpoint URL.
-        *   Formatting the request payload according to the provider's API spec.
-        *   Parsing the provider's response stream (or non-streamed response).
-        *   Handling provider-specific features, like OpenAI's `tool_calls`.
-        *   Updating the `TestSession` with statistics after a request.
+2.  **Protocol Adapter System (`pai/protocols/`)**
+    *   **`base_adapter.py`:** Defines the `BaseProtocolAdapter` abstract class and the `ProtocolContext` data structure. This is the contract that all protocol adapters must adhere to. It requires a `generate()` method, ensuring a consistent interface for the `PolyglotClient`.
+    *   **Concrete Adapters (`openai_chat_adapter.py`, etc.):** Each file implements a specific protocol handler. They are responsible for:
+        *   Formatting the request payload for a specific API schema (e.g., OpenAI-compatible `/chat/completions`).
+        *   Parsing the response stream.
+        *   Handling protocol-specific features, like OpenAI's `tool_calls`.
+        *   Calling back to the `ProtocolContext` to update stats and display output.
 
-3.  **Tool System (`tools.py`)**
+3.  **Tool System (`pai/tools.py`)**
     *   A standalone, decoupled module for defining and executing local functions.
     *   `@tool` Decorator: Registers functions into a `TOOL_REGISTRY`. It introspects the function's signature and docstring to automatically generate a JSON Schema that provider APIs (like OpenAI's) can understand.
     *   `execute_tool()`: A simple function that takes a tool name and arguments, runs the corresponding Python function, and returns the result.
 
-4.  **Core Classes (within `pai/pai.py`)**
+4.  **Core Data Classes (within `pai/pai.py`)**
     *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. a `Conversation` holds a list of `Turn` objects, and each `Turn` captures a single, complete request/response cycle, including all request/response data and metadata.
     *   **`TestSession`:** A dataclass for tracking all metrics of a session. It's a simple accumulator for requests, tokens, and timings.
     *   **`StreamingDisplay`:** Manages all console output during a streaming response. It crucially contains the `debug_mode` logic to print raw protocol traffic, which is vital for research and debugging new provider integrations.
@@ -187,17 +186,19 @@ This system ensures that no data is lost and provides multiple, easy-to-review f
 ### Data Flow: A User Prompt with Tool Use
 
 1.  User enters a prompt in the CLI: `What is the weather in Tokyo?`
-2.  `interactive_mode()` in `main.py` captures the input.
-3.  It appends `{"role": "user", "content": ...}` to the `messages` history.
-4.  `client.generate()` is called, which delegates to the active provider's (`OpenAIProvider`) `.generate()` method.
-5.  `OpenAIProvider` formats the payload, including the message history and the JSON schemas of all registered tools from `tools.py`.
-6.  It makes a streaming POST request to the OpenAI API.
-7.  The API responds. Instead of text, it sends back a `tool_calls` object requesting to run `get_current_weather(location="Tokyo")`.
-8.  The provider parses this, and instead of finishing, it calls `execute_tool("get_current_weather", ...)` from `tools.py`.
-9.  The tool runs and returns a JSON string: `{"location": "Tokyo", ...}`.
-10. The provider appends both the model's `tool_calls` request and the local `tool` result to the `messages` history.
-11. It **loops**, sending the *entire new history* back to the API in a second request.
-12. The model, now having the weather data, generates the final text response: "The weather in Tokyo is 15°C and cloudy."
-13. This text is streamed to the `StreamingDisplay`. A `Turn` object is created containing the request, response, and final text. It is added to the `Conversation` object, updating the history.
-14. **`save_conversation_formats()` is called**, writing the new `Turn` to a JSON file and re-rendering the HTML log files in the session directory.
+2.  `interactive_mode()` in `pai.py` captures the input.
+3.  It calls `conversation.get_messages_for_next_turn()` to construct the message history for the API call.
+4.  A `ChatRequest` object is created with this history.
+5.  `client.generate()` is called. It looks up the correct protocol adapter for the current endpoint (e.g., `OpenAIChatAdapter`) and calls its `.generate()` method, passing a `ProtocolContext` object.
+6.  The `OpenAIChatAdapter` formats the final payload, including the message history and the JSON schemas of all registered tools from `tools.py`.
+7.  It makes a streaming POST request to the provider's API via the shared `http_session` from the context.
+8.  The API responds. Instead of text, it sends back a `tool_calls` object requesting to run `get_current_weather(location="Tokyo")`.
+9.  The adapter parses this tool call. Instead of finishing, it calls `execute_tool("get_current_weather", ...)` from `tools.py`.
+10. The tool runs and returns a JSON string: `{"location": "Tokyo", ...}`.
+11. The adapter appends both the model's `tool_calls` request and the local `tool` result to its internal message list for the next iteration.
+12. It **loops**, sending the *entire new history* back to the API in a second request.
+13. The model, now having the weather data, generates the final text response: "The weather in Tokyo is 15°C and cloudy."
+14. This text is streamed to the `StreamingDisplay`. The adapter returns the final request data, response data, and assistant text.
+15. Back in `interactive_mode`, a `Turn` object is created with this data. It is added to the `Conversation` object, updating the managed history.
+16. **`save_conversation_formats()` is called**, writing the new `Turn` to a JSON file and re-rendering the HTML log files in the session directory.
 ```

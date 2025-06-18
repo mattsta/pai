@@ -1,13 +1,13 @@
 # protocols/base_adapter.py
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Union, NamedTuple
-import requests
+import httpx
 
 
 # NEW: Define a simple data structure to pass context from the client to the adapters.
 # This avoids the need for adapters to import the main client class, breaking the circular dependency.
 class ProtocolContext(NamedTuple):
-    http_session: requests.Session
+    http_session: httpx.AsyncClient
     display: "StreamingDisplay"
     stats: "TestSession"
     config: "EndpointConfig"
@@ -27,7 +27,7 @@ class BaseProtocolAdapter(ABC):
     """Abstract Base Class for all protocol adapters."""
 
     @abstractmethod
-    def generate(
+    async def generate(
         self,
         # MODIFIED: The method now accepts the clean context object.
         context: ProtocolContext,

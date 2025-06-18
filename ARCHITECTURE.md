@@ -40,7 +40,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 
 1.  **`pai/pai.py` (The Orchestrator)**
     *   **Entrypoint:** Contains the `main()` function that parses command-line arguments using `argparse`.
-    *   **Interactive Loop:** The `interactive_mode` function manages the main `while` loop, using `prompt_toolkit` for user input.
+    *   **Interactive Loop:** The `interactive_mode` function manages the main `while` loop, using `prompt_toolkit` for user input. It now features a dynamic status toolbar showing live session metrics.
     *   **Command Parser:** Handles all `/` commands within the interactive loop, modifying session state.
     *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`TestSession`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It orchestrates the flow from user input to protocol adapter execution.
 
@@ -59,7 +59,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 
 4.  **Core Data Classes (within `pai/pai.py`)**
     *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. a `Conversation` holds a list of `Turn` objects, and each `Turn` captures a single, complete request/response cycle, including all request/response data and metadata.
-    *   **`TestSession`:** A dataclass for tracking all metrics of a session. It's a simple accumulator for requests, tokens, and timings.
+    *   **`TestSession`:** A dataclass for tracking all metrics of a session. It's an accumulator for requests, tokens, and timings. It also stores statistics for the most recent request (like TTFT and tokens/sec) to power the live UI toolbar.
     *   **`StreamingDisplay`:** Manages all console output during a streaming response. It crucially contains the `debug_mode` logic to print raw protocol traffic, which is vital for research and debugging new provider integrations.
 
 ### Session Persistence and Logging

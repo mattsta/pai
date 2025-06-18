@@ -53,8 +53,10 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                             except (json.JSONDecodeError, IndexError):
                                 continue
 
-            elapsed, tokens_received = context.display.finish_response()
-            context.stats.add_request(tokens_sent, tokens_received, elapsed)
+            elapsed, tokens_received, ttft = context.display.finish_response()
+            context.stats.add_request(
+                tokens_sent, tokens_received, elapsed, ttft=ttft
+            )
             return {"text": context.display.current_response}
 
         except Exception as e:

@@ -18,7 +18,7 @@ It is a single, powerful, and transparent command-line interface that provides a
 
 1.  **Provider Agnostic, Not Abstracted Away:** We will support any provider, but we will not hide their unique features. The goal is to provide a common *interface*, not a lowest-common-denominator abstraction. If a provider supports unique features like tool-calling, we will expose them.
 
-2.  **Interactivity and Introspection First:** The primary use case is a human-in-the-loop. The user must always have the ability to inspect the state, view the raw data flow (`debug` mode), and understand exactly what the system is doing. There will be no "magic."
+2.  **Interactivity and Introspection First:** The primary use case is a human-in-the-loop. The user must always have the ability to inspect the state, view the raw data flow (`debug` mode), and understand exactly what the system is doing. There will be no "magic." This is reinforced by features like the live status toolbar, which gives the user constant, immediate feedback on the session's performance and state.
 
 3.  **Extensibility is a Core Feature:** The framework's value grows with the number of providers it supports. Adding a new provider should be a trivial, well-documented process. The architecture will always prioritize this modularity.
 

@@ -109,8 +109,8 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         )
                     continue
 
-                elapsed, tokens_received = context.display.finish_response()
-                context.stats.add_request(tokens_sent, tokens_received, elapsed)
+                elapsed, tokens_received, ttft = context.display.finish_response()
+                context.stats.add_request(tokens_sent, tokens_received, elapsed, ttft=ttft)
 
                 # Construct a response object that mimics the non-streaming API
                 response_data = {

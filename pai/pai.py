@@ -19,6 +19,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from prompt_toolkit import PromptSession
+from prompt_toolkit.formatted_text import HTML
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import toml
@@ -193,6 +194,10 @@ class TestSession:
     total_tokens_received: int = 0
     total_response_time: float = 0.0
     errors: int = 0
+    # Stats for the most recent request
+    last_ttft: float = 0.0
+    last_response_time: float = 0.0
+    last_tokens_received: int = 0
 
     def add_request(
         self,
@@ -200,6 +205,7 @@ class TestSession:
         tokens_received: int,
         response_time: float,
         success: bool = True,
+        ttft: Optional[float] = None,
     ):
         self.requests_sent += 1
         self.total_tokens_sent += tokens_sent
@@ -207,6 +213,12 @@ class TestSession:
         self.total_response_time += response_time
         if not success:
             self.errors += 1
+        else:
+            # Only update last request stats on success
+            if ttft is not None:
+                self.last_ttft = ttft
+            self.last_response_time = response_time
+            self.last_tokens_received = tokens_received
 
     def get_stats(self) -> Dict[str, Any]:
         successful_requests = self.requests_sent - self.errors
@@ -228,6 +240,7 @@ class StreamingDisplay:
     def __init__(self, debug_mode: bool = False):
         self.debug_mode = debug_mode
         self.start_time: Optional[float] = None
+        self.ttft: Optional[float] = None
         self.line_count: int = 0
         self.chunk_count: int = 0
         self.current_response: str = ""
@@ -237,6 +250,7 @@ class StreamingDisplay:
     def start_response(self):
         """Starts the spinner and prepares for a new response."""
         self.current_response = ""
+        self.ttft = None
         self.start_time = time.time()
         self.line_count = 0
         self.chunk_count = 0
@@ -264,6 +278,8 @@ class StreamingDisplay:
         """Stops the spinner on the first chunk, then prints content."""
         if not self.first_token_received and not self.debug_mode:
             self.spinner.stop()
+            if self.start_time:
+                self.ttft = time.time() - self.start_time
             print("\n🤖 Assistant: ", end="", flush=True)
             self.first_token_received = True
 
@@ -277,10 +293,11 @@ class StreamingDisplay:
         else:
             print(chunk_text, end="", flush=True)
 
-    def finish_response(self) -> (float, int):
-        """Ensures spinner is stopped and calculates final stats."""
+    def finish_response(self) -> tuple[float, int, Optional[float]]:
+        """Ensures spinner is stopped and calculates final stats for the turn."""
         self.spinner.stop()  # Ensure spinner is always stopped at the end
         elapsed = time.time() - (self.start_time or 0)
+        # TODO: This is a poor way to count tokens. Replace with tiktoken or similar.
         tokens_received = len(self.current_response.split())
         if self.debug_mode:
             print(
@@ -291,10 +308,12 @@ class StreamingDisplay:
         elif (
             self.first_token_received
         ):  # Only print stats if we actually received something
+            tok_per_sec = tokens_received / max(elapsed, 0.1)
+            ttft_str = f" | TTFT: {self.ttft:.2f}s" if self.ttft else ""
             print(
-                f"\n\n📊 Response in {elapsed:.2f}s (~{tokens_received} tokens, {tokens_received / max(elapsed, 0.1):.1f} tok/s)"
+                f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
             )
-        return elapsed, tokens_received
+        return elapsed, tokens_received, self.ttft
 
 
 class APIError(Exception):
@@ -441,6 +460,50 @@ def save_conversation_formats(conversation: "Conversation", session_dir: pathlib
             print(f"  -> Could not even save fallback JSON: {fallback_e}")
 
 
+def get_toolbar_text(
+    client: "PolyglotClient", args: argparse.Namespace, session_dir: pathlib.Path
+) -> HTML:
+    """Generates the HTML for the bottom toolbar in interactive mode."""
+    endpoint = client.config.name
+    model = client.config.model_name
+    total_tokens = client.stats.total_tokens_sent + client.stats.total_tokens_received
+
+    # Session tokens/sec
+    session_tok_per_sec = client.stats.total_tokens_received / max(
+        client.stats.total_response_time, 1
+    )
+
+    # Last request stats
+    last_ttft = client.stats.last_ttft
+    last_tok_per_sec = (
+        client.stats.last_tokens_received / max(client.stats.last_response_time, 1)
+        if client.stats.last_response_time > 0
+        else 0
+    )
+
+    tools_status = "ON" if client.tools_enabled else "OFF"
+    debug_status = "ON" if client.display.debug_mode else "OFF"
+    stream_status = "ON" if args.stream else "OFF"
+    interface_mode = "Chat" if args.chat else "Completion"
+
+    # Using prompt_toolkit's style attributes for colors
+    # ref: https://python-prompt-toolkit.readthedocs.io/en/master/pages/printing_text.html#style-attributes
+    parts = [
+        f"<b><style bg='ansiblack' fg='white'> {endpoint}:{model} </style></b>",
+        f"<b>Total Tokens:</b> {total_tokens}",
+        f"<b>Session Tok/s:</b> {session_tok_per_sec:.1f}",
+        f"<b>Last TTFT:</b> {last_ttft:.2f}s",
+        f"<b>Last Tok/s:</b> {last_tok_per_sec:.1f}",
+        f"<b>Tools:</b> {tools_status}",
+        f"<b>Debug:</b> {debug_status}",
+        f"<b>Stream:</b> {stream_status}",
+        f"<b>Mode:</b> {interface_mode}",
+        f"<style fg='grey'>{session_dir}</style>",
+    ]
+
+    return HTML(" ∙ ".join(parts))
+
+
 def print_help():
     print("""
 🔧 AVAILABLE COMMANDS (ALL ORIGINAL FEATURES ARE PRESENT):
@@ -485,7 +548,11 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
 
     while True:
         try:
-            user_input = session.prompt(f"\n👤 ({client.config.name}) User: ").strip()
+            user_input = session.prompt(
+                f"\n👤 ({client.config.name}) User: ",
+                bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
+                refresh_interval=0.5,
+            ).strip()
             if not user_input:
                 continue
 

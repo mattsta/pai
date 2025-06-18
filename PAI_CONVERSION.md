@@ -34,11 +34,11 @@ The current `messages` list in `pai`'s `interactive_mode` is brittle. We will re
 
 `pai` sessions will be automatically saved for review, a key feature from `gptwink`.
 
--   **Create `sessions/` directory:** All interactive sessions will be saved here.
--   **Unique Session Folders:** On starting interactive mode, a new directory will be created, e.g., `sessions/2025-06-24-10-30-00-interactive/`.
--   **Save Turns as JSON:** After each `Turn` is completed, it will be serialized to a JSON file and saved within the session folder, e.g., `01J3QZ...-turn.json`. This provides a complete, reviewable log of the entire conversation.
-- Also conversations will be serialized to the gptwink html format as well.
--   **Add Dependency:** The `ulid-py` library will be added to `pyproject.toml` to generate unique, sortable IDs for turns.
+-   [x] **Create `sessions/` directory:** All interactive sessions will be saved here.
+-   [x] **Unique Session Folders:** On starting interactive mode, a new directory will be created, e.g., `sessions/2025-06-24-10-30-00-interactive/`.
+-   [x] **Save Turns as JSON:** After each `Turn` is completed, it will be serialized to a JSON file and saved within the session folder, e.g., `01J3QZ...-turn.json`. This provides a complete, reviewable log of the entire conversation.
+-   [x] Also conversations will be serialized to the gptwink html format as well.
+-   [x] **Add Dependency:** The `ulid-py` library will be added to `pyproject.toml` to generate unique, sortable IDs for turns.
 
 ### Step 3: Enhance the UI with a Status Toolbar
 

@@ -11,6 +11,7 @@ import time
 import argparse
 import threading
 import ulid
+import pathlib
 from typing import Optional, Dict, Any, Union, List
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -81,6 +82,16 @@ class Turn:
     request_data: Dict[str, Any] = field(default_factory=dict)
     response_data: Dict[str, Any] = field(default_factory=dict)
     assistant_message: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializes the turn to a dictionary, handling non-native JSON types."""
+        return {
+            "turn_id": str(self.turn_id),
+            "timestamp": self.timestamp.isoformat(),
+            "request_data": self.request_data,
+            "response_data": self.response_data,
+            "assistant_message": self.assistant_message,
+        }
 
 
 @dataclass
@@ -386,6 +397,59 @@ def closing(stats: TestSession):
     sys.exit(0)
 
 
+def save_conversation_as_html(conversation: "Conversation", file_path: pathlib.Path):
+    """Serializes a conversation object to a styled HTML file for review."""
+    html_parts = [
+        "<!DOCTYPE html>",
+        '<html><head><meta charset="UTF-8"><title>PAI Conversation</title><style>',
+        "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; background-color: #fdfdfd; color: #333; }",
+        ".message { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }",
+        ".user { background-color: #e6f3ff; }",
+        ".assistant { background-color: #f9f9f9; }",
+        ".tool { background-color: #fff8e1; border-left: 4px solid #ffc107; }",
+        ".system { background-color: #e8f5e9; border-left: 4px solid #4caf50; font-style: italic;}",
+        "strong { font-weight: 600; color: #000; }",
+        "div, pre { white-space: pre-wrap; word-wrap: break-word; }",
+        "pre { background-color: #2d2d2d; color: #f2f2f2; padding: 15px; border-radius: 4px; }",
+        "h1 { color: #444; }",
+        f"</style></head><body><h1>PAI Conversation ({conversation.conversation_id})</h1>",
+    ]
+
+    for message in conversation.get_history():
+        role = message.get("role", "unknown")
+        header = f"<strong>{role.capitalize()}</strong>"
+        content_html = ""
+
+        if role == "system":
+            content = message.get("content", "").strip()
+            content_html = f"<div>{content}</div>"
+        elif role == "user":
+            content = message.get("content", "").strip()
+            content_html = f"<div>{content}</div>"
+        elif role == "assistant":
+            content = message.get("content")
+            tool_calls = message.get("tool_calls")
+            parts = []
+            if content:
+                parts.append(f"<div>{content.strip()}</div>")
+            if tool_calls:
+                pretty_tools = json.dumps(tool_calls, indent=2)
+                parts.append(f"<div>Tool Call Request:</div><pre>{pretty_tools}</pre>")
+            content_html = "".join(parts)
+        elif role == "tool":
+            tool_name = message.get("name")
+            tool_content = message.get("content", "").strip()
+            header = f"<strong>Tool: {tool_name}</strong>"
+            content_html = f"<pre>{tool_content}</pre>"
+
+        html_parts.append(
+            f'<div class="message {role}">{header}{content_html}</div>'
+        )
+
+    html_parts.append("</body></html>")
+    file_path.write_text("\n".join(html_parts), encoding="utf-8")
+
+
 def print_help():
     print("""
 🔧 AVAILABLE COMMANDS (ALL ORIGINAL FEATURES ARE PRESENT):
@@ -415,9 +479,16 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     if is_chat_mode and args.system:
         conversation.set_system_prompt(args.system)
 
+    # --- Session Persistence ---
+    session_dir = pathlib.Path("sessions") / datetime.now().strftime(
+        "%Y-%m-%d_%H-%M-%S-interactive"
+    )
+    session_dir.mkdir(parents=True, exist_ok=True)
+
     print(
         f"🎯 {'Chat' if is_chat_mode else 'Completion'} Mode | Endpoint: {client.config.name} | Model: {client.config.model_name}"
     )
+    print(f"💾 Session logs will be saved to: {session_dir}")
     print("Type '/help' for commands, '/quit' to exit.")
     print("-" * 60)
 
@@ -520,6 +591,19 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     assistant_message=result.get("text", ""),
                 )
                 conversation.add_turn(turn)
+
+                # --- Save Turn & Conversation ---
+                try:
+                    # Save the raw Turn object to its own file
+                    turn_file = session_dir / f"{turn.turn_id}-turn.json"
+                    with open(turn_file, "w", encoding="utf-8") as f:
+                        json.dump(turn.to_dict(), f, indent=2)
+
+                    # Save the full conversation to a browseable HTML file
+                    html_file = session_dir / "conversation.html"
+                    save_conversation_as_html(conversation, html_file)
+                except Exception as e:
+                    print(f"\n⚠️  Warning: Could not save session turn: {e}")
 
         except KeyboardInterrupt:
             client.display.spinner.stop()

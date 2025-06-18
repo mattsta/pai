@@ -37,6 +37,7 @@ The current `messages` list in `pai`'s `interactive_mode` is brittle. We will re
 -   **Create `sessions/` directory:** All interactive sessions will be saved here.
 -   **Unique Session Folders:** On starting interactive mode, a new directory will be created, e.g., `sessions/2025-06-24-10-30-00-interactive/`.
 -   **Save Turns as JSON:** After each `Turn` is completed, it will be serialized to a JSON file and saved within the session folder, e.g., `01J3QZ...-turn.json`. This provides a complete, reviewable log of the entire conversation.
+- Also conversations will be serialized to the gptwink html format as well.
 -   **Add Dependency:** The `ulid-py` library will be added to `pyproject.toml` to generate unique, sortable IDs for turns.
 
 ### Step 3: Enhance the UI with a Status Toolbar
@@ -47,7 +48,9 @@ We will implement `gptwink`'s most useful UI feature: a live status bar.
 -   **Create `get_toolbar_text()` function:** This function will be responsible for generating the content for the toolbar. It will use `prompt_toolkit.formatted_text.HTML` to display:
     -   Current endpoint and model.
     -   Session token usage (total sent/received).
+    -   Session statistics (TTFB, TTFT, live tokens per second for entire session, live tokens per second for current completion)
     -   Status of modes (`tools`, `debug`, `stream`).
+    -   Current interface (chat or completion).
     -   The path to the current session's save directory.
 -   This provides the user with immediate, persistent context about their session state.
 
@@ -60,6 +63,7 @@ We will implement `gptwink`'s most useful UI feature: a live status bar.
 -   **New Commands:**
     -   `/prompts`: Lists all available prompt files in the `prompts/` directory.
     -   `/prompt <name>`: Loads the content of the specified file. This can either start a new conversation with that content as the system prompt or insert it into the current one.
+- Retain both chat and completion mode endpoints for maximum experimental compatibility.
 
 ### Step 5: Cleanup and Finalization
 

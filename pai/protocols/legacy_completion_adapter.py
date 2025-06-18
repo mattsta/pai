@@ -12,7 +12,7 @@ from .base_adapter import BaseProtocolAdapter, ProtocolContext, CompletionReques
 class LegacyCompletionAdapter(BaseProtocolAdapter):
     """Handles the legacy /completions endpoint format."""
 
-    def generate(
+    async def generate(
         self, context: ProtocolContext, request: CompletionRequest, verbose: bool
     ) -> Dict[str, Any]:
         # MODIFIED: All client properties are now accessed through the context object.

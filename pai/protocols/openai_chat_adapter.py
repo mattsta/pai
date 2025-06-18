@@ -11,7 +11,7 @@ from ..tools import get_tool_schemas, execute_tool
 class OpenAIChatAdapter(BaseProtocolAdapter):
     """Handles any OpenAI-compatible /chat/completions endpoint."""
 
-    def generate(
+    async def generate(
         self, context: ProtocolContext, request: ChatRequest, verbose: bool
     ) -> Dict[str, Any]:
         messages = list(request.messages)

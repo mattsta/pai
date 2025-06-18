@@ -7,7 +7,7 @@ This document outlines potential features and improvements for the future develo
 *   **Async Support:** Refactor the provider HTTP calls to use an async library like `httpx` to improve performance, especially if a future Web UI is considered.
 *   **Pydantic Configuration:** Replace `argparse.Namespace` and manual config management with `Pydantic Settings` for automatic environment variable loading, type validation, and cleaner code.
 *   **Profile Management:** Allow users to define and save profiles in a local config file (e.g., `~/.polyglot/config.yaml`) that store provider, model, and parameter presets (e.g., `polyglot --profile research_claude`).
-*   **Session Persistence:** Add commands to save an interactive session's message history to a file (`/save <filename>`) and load it back later (`/load <filename>`).
+*   **Manual Session Management:** While sessions are now logged automatically, add commands to manually save the current conversation state to a named file (`/save <filename>`) and load a previous session to continue it (`/load <filename>`).
 
 ### Advanced Agent & Tool Features
 

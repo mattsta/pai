@@ -13,31 +13,35 @@ Polyglot AI is an interactive, provider-agnostic CLI designed for developers, re
 *   **Powerful Debugging:** A first-class, verbose debug mode to inspect raw API traffic, essential for development and research.
 *   **Tool & Function Calling:** An integrated system for allowing models to use local Python functions to answer questions (e.g., for real-time data or actions).
 *   **Agentic Looping:** The framework supports basic agentic loops where the model can use tools iteratively to solve complex problems.
+*   **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in the `sessions/` directory. Each turn is saved as a structured JSON file, and the entire conversation is rendered into multiple browseable HTML formats.
 *   **Extensible by Design:** Adding a new provider is as simple as creating a new class and registering it.
 
 ### Getting Started
 
 #### 1. Prerequisites
 
-*   Python 3.8+
-*   `requests` and `prompt_toolkit` libraries
-
-```bash
-pip install requests prompt_toolkit
-```
+*   Python 3.12+
+*   See `pyproject.toml` for a full list of dependencies.
 
 #### 2. Project Structure
 
-Clone or download the repository. The structure is simple:
+Clone or download the repository. The core structure is:
 
-```/PolyglotAI/
-|-- main.py              # The main script you run
-|-- providers/
-|   |-- __init__.py
-|   |-- base_provider.py
-|   |-- featherless.py
-|   |-- openai.py
+```
+/pai/
+|-- pai.py                # The main script and orchestrator
+|-- protocols/
+|   |-- base_adapter.py
+|   |-- openai_chat_adapter.py
+|   |-- ...
+|-- templates/
+|   |-- conversation.html
+|   |-- gptwink_format.html
 |-- tools.py
+/sessions/                # Auto-generated for session logs
+/docs/                    # Detailed documentation
+polyglot.toml             # Endpoint configuration
+pyproject.toml            # Project dependencies and definition
 ```
 
 #### 3. API Key Configuration
@@ -51,24 +55,30 @@ export OPENAI_API_KEY="sk-your-openai-key"
 
 #### 4. Running the Framework
 
-**Start in Interactive Mode (Default: Featherless)**
+**Install the package in editable mode:**
 ```bash
-python main.py
+pip install -e .
+```
+This will install the `pai` command.
+
+**Start in Interactive Mode (Default: OpenAI)**
+```bash
+pai --chat
 ```
 
-**Start with a Different Provider (e.g., OpenAI)**
+**Start with a Different Endpoint (e.g., Featherless)**
 ```bash
-python main.py --provider openai --model gpt-4o
+pai --chat --endpoint featherless --model featherless/claude-3-opus
 ```
 
 **Run a Single, Non-Interactive Prompt**
 ```bash
-python main.py --provider openai --prompt "Explain quantum computing in one sentence."
+pai --endpoint openai --prompt "Explain quantum computing in one sentence."
 ```
 
 **Enable Tool Calling**
 ```bash
-python main.py --provider openai --model gpt-4o --tools
+pai --chat --endpoint openai --model gpt-4o --tools
 ```
 Inside the interactive session, you can then ask: `What is the weather like in Paris?`
 
@@ -85,6 +95,8 @@ Once in interactive mode, use `/` commands to control the session:
 *   `/history`: View the JSON conversation history.
 *   `/clear`: Clear the current conversation history.
 *   `/quit`: Exit the application.
+
+For more details on session logging, see `docs/LOGGING.md`.
 ```
 
 ---
@@ -152,9 +164,25 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   `@tool` Decorator: Registers functions into a `TOOL_REGISTRY`. It introspects the function's signature and docstring to automatically generate a JSON Schema that provider APIs (like OpenAI's) can understand.
     *   `execute_tool()`: A simple function that takes a tool name and arguments, runs the corresponding Python function, and returns the result.
 
-4.  **Core Classes (within `main.py`)**
+4.  **Core Classes (within `pai/pai.py`)**
+    *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. a `Conversation` holds a list of `Turn` objects, and each `Turn` captures a single, complete request/response cycle, including all request/response data and metadata.
     *   **`TestSession`:** A dataclass for tracking all metrics of a session. It's a simple accumulator for requests, tokens, and timings.
     *   **`StreamingDisplay`:** Manages all console output during a streaming response. It crucially contains the `debug_mode` logic to print raw protocol traffic, which is vital for research and debugging new provider integrations.
+
+### Session Persistence and Logging
+
+A key feature of the framework is its ability to automatically log all interactive sessions for review and debugging. This process is handled by a few key components:
+
+*   **`sessions/` directory:** When `interactive_mode` starts, it creates a unique, timestamped subdirectory within `sessions/`. This folder contains all artifacts for that specific session.
+*   **`save_conversation_formats()`:** After every successful turn in `interactive_mode`, this function is called.
+*   **`pai/templates/`:** This directory contains `Jinja2` templates for rendering conversation logs.
+    *   `conversation.html`: A modern, styled view of the conversation.
+    *   `gptwink_format.html`: A legacy-compatible format.
+*   **Output Files:** `save_conversation_formats` generates:
+    1.  A JSON file for each individual `Turn` (`<turn_id>-turn.json`).
+    2.  An HTML file for each registered template, which is overwritten and updated after every turn.
+
+This system ensures that no data is lost and provides multiple, easy-to-review formats for every interaction. For more details, see the `docs/LOGGING.md` file.
 
 ### Data Flow: A User Prompt with Tool Use
 
@@ -170,5 +198,6 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 10. The provider appends both the model's `tool_calls` request and the local `tool` result to the `messages` history.
 11. It **loops**, sending the *entire new history* back to the API in a second request.
 12. The model, now having the weather data, generates the final text response: "The weather in Tokyo is 15°C and cloudy."
-13. This text is streamed to the `StreamingDisplay`, and the final result is added to the history.
+13. This text is streamed to the `StreamingDisplay`. A `Turn` object is created containing the request, response, and final text. It is added to the `Conversation` object, updating the history.
+14. **`save_conversation_formats()` is called**, writing the new `Turn` to a JSON file and re-rendering the HTML log files in the session directory.
 ```

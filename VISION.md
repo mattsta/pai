@@ -22,6 +22,6 @@ It is a single, powerful, and transparent command-line interface that provides a
 
 3.  **Extensibility is a Core Feature:** The framework's value grows with the number of providers it supports. Adding a new provider should be a trivial, well-documented process. The architecture will always prioritize this modularity.
 
-4.  **Local-First and User-Controlled:** This is not a cloud service. It is a tool that runs on your machine, using your API keys, and keeping your session history local. You are in complete control.
+4.  **Local-First and User-Controlled:** This is not a cloud service. It is a tool that runs on your machine, using your API keys. All conversation data, including comprehensive session logs, is stored locally in the `sessions/` directory. You are in complete control of your data.
 
 5.  **Pragmatic, Not Prescriptive:** Polyglot AI is a tool, not an opinionated framework like LangChain. It gives you the power to construct agentic loops and complex interactions, but it does not force you into a specific way of thinking. It provides the building blocks; you provide the creativity.

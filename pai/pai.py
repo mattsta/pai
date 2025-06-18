@@ -512,7 +512,7 @@ def get_toolbar_text(
 
 
 def print_help(printer: callable = print):
-    print("""
+    printer("""
 🔧 AVAILABLE COMMANDS (ALL ORIGINAL FEATURES ARE PRESENT):
   /help                  - Show this help message
   /stats                 - Show session statistics

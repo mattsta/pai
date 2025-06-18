@@ -1,0 +1,12 @@
+{% for message in history %}
+{%- if (message.role == 'system' or message.role == 'user') and message.content %}
+<div class="user">
+{{ message.role }}> {{ message.content.strip() }}
+</div>
+{% elif message.role == 'assistant' and message.content %}
+<div class="agent">
+assistant> {{ message.content.strip() }}
+</div>
+{%- endif %}
+
+{% endfor %}

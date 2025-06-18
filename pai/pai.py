@@ -398,8 +398,8 @@ def closing(stats: TestSession):
     sys.exit(0)
 
 
-def save_conversation_as_html(conversation: "Conversation", file_path: pathlib.Path):
-    """Serializes a conversation object to a styled HTML file for review using a Jinja2 template."""
+def save_conversation_formats(conversation: "Conversation", session_dir: pathlib.Path):
+    """Serializes a conversation to multiple HTML formats using Jinja2 templates."""
     try:
         script_dir = pathlib.Path(__file__).parent
         template_dir = script_dir / "templates"
@@ -409,20 +409,32 @@ def save_conversation_as_html(conversation: "Conversation", file_path: pathlib.P
             autoescape=select_autoescape(["html", "xml"]),
         )
         env.filters["prettyjson"] = lambda v: json.dumps(v, indent=2)
-
-        template = env.get_template("conversation.html")
-
         history = conversation.get_history()
-        final_html = template.render(
-            conversation_id=conversation.conversation_id, history=history
-        )
-        file_path.write_text(final_html, encoding="utf-8")
+
+        # Defines the templates to render and their output filenames.
+        formats = {
+            "conversation.html": "conversation.html",
+            "gptwink_format.html": "gptwink_conversation.html",
+        }
+
+        for template_name, output_filename in formats.items():
+            try:
+                template = env.get_template(template_name)
+                final_html = template.render(
+                    conversation_id=conversation.conversation_id, history=history
+                )
+                output_path = session_dir / output_filename
+                output_path.write_text(final_html, encoding="utf-8")
+            except Exception as e:
+                print(f"\n⚠️ Warning: Could not render template '{template_name}': {e}")
+                # Don't fallback here, just try the next template
+
     except Exception as e:
-        print(f"\n⚠️ Warning: Could not render HTML template: {e}")
-        # As a fallback, just write the raw turn data as JSON.
+        print(f"\n⚠️ Warning: Could not initialize template environment: {e}")
+        # As a global fallback, just write the raw turn data as JSON.
         try:
             all_turns = [turn.to_dict() for turn in conversation.turns]
-            fallback_path = file_path.with_suffix(".json")
+            fallback_path = session_dir / "conversation_fallback.json"
             fallback_path.write_text(json.dumps(all_turns, indent=2), encoding="utf-8")
             print(f"  -> Fallback data saved to {fallback_path}")
         except Exception as fallback_e:
@@ -578,9 +590,8 @@ def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     with open(turn_file, "w", encoding="utf-8") as f:
                         json.dump(turn.to_dict(), f, indent=2)
 
-                    # Save the full conversation to a browseable HTML file
-                    html_file = session_dir / "conversation.html"
-                    save_conversation_as_html(conversation, html_file)
+                    # Save the full conversation to all configured HTML formats
+                    save_conversation_formats(conversation, session_dir)
                 except Exception as e:
                     print(f"\n⚠️  Warning: Could not save session turn: {e}")
 

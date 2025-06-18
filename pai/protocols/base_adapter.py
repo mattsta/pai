@@ -1,7 +1,10 @@
 # protocols/base_adapter.py
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Union, NamedTuple
+from typing import TYPE_CHECKING, Dict, Any, Union, NamedTuple
 import httpx
+
+if TYPE_CHECKING:
+    from ..pai import EndpointConfig, StreamingDisplay, TestSession
 
 
 # NEW: Define a simple data structure to pass context from the client to the adapters.

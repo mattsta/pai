@@ -30,11 +30,11 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
         try:
             context.display.start_response()
             full_text = ""
-            with context.http_session.post(
-                url, json=payload, stream=True, timeout=context.config.timeout
+            async with context.http_session.stream(
+                "POST", url, json=payload, timeout=context.config.timeout
             ) as response:
                 response.raise_for_status()
-                for line in response.iter_lines():
+                async for line in response.aiter_lines():
                     if line:
                         line_str = line.decode("utf-8")
                         context.display.show_raw_line(line_str)

@@ -398,23 +398,8 @@ def closing(stats: TestSession):
 
 
 def save_conversation_as_html(conversation: "Conversation", file_path: pathlib.Path):
-    """Serializes a conversation object to a styled HTML file for review."""
-    html_parts = [
-        "<!DOCTYPE html>",
-        '<html><head><meta charset="UTF-8"><title>PAI Conversation</title><style>',
-        "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; background-color: #fdfdfd; color: #333; }",
-        ".message { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }",
-        ".user { background-color: #e6f3ff; }",
-        ".assistant { background-color: #f9f9f9; }",
-        ".tool { background-color: #fff8e1; border-left: 4px solid #ffc107; }",
-        ".system { background-color: #e8f5e9; border-left: 4px solid #4caf50; font-style: italic;}",
-        "strong { font-weight: 600; color: #000; }",
-        "div, pre { white-space: pre-wrap; word-wrap: break-word; }",
-        "pre { background-color: #2d2d2d; color: #f2f2f2; padding: 15px; border-radius: 4px; }",
-        "h1 { color: #444; }",
-        f"</style></head><body><h1>PAI Conversation ({conversation.conversation_id})</h1>",
-    ]
-
+    """Serializes a conversation object to a styled HTML file for review using an external template."""
+    message_html_parts = []
     for message in conversation.get_history():
         role = message.get("role", "unknown")
         header = f"<strong>{role.capitalize()}</strong>"
@@ -442,12 +427,27 @@ def save_conversation_as_html(conversation: "Conversation", file_path: pathlib.P
             header = f"<strong>Tool: {tool_name}</strong>"
             content_html = f"<pre>{tool_content}</pre>"
 
-        html_parts.append(
+        message_html_parts.append(
             f'<div class="message {role}">{header}{content_html}</div>'
         )
 
-    html_parts.append("</body></html>")
-    file_path.write_text("\n".join(html_parts), encoding="utf-8")
+    messages_html = "\n".join(message_html_parts)
+
+    try:
+        # Templates are located relative to this script file
+        script_dir = pathlib.Path(__file__).parent
+        template_path = script_dir / "templates" / "conversation.html"
+        template_string = template_path.read_text(encoding="utf-8")
+
+        final_html = template_string.format(
+            conversation_id=conversation.conversation_id, messages_html=messages_html
+        )
+        file_path.write_text(final_html, encoding="utf-8")
+    except FileNotFoundError:
+        print(f"\n⚠️ Warning: HTML template not found at '{template_path}'.")
+        # As a fallback, just write the message content without a full template.
+        file_path.write_text(messages_html, encoding="utf-8")
+        return
 
 
 def print_help():

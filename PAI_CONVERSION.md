@@ -1,0 +1,72 @@
+# PAI Conversion: Merging `gptwink` into `pai`
+
+This document outlines the strategy and steps to merge the best features of the legacy `gptwink` tool into the new, more robust `pai` framework. The goal is to create a single, superior command-line interface that combines `pai`'s extensible architecture with `gptwink`'s powerful user experience and data persistence features.
+
+## 1. High-Level Analysis
+
+| Feature                | `gptwink` (Legacy)                              | `pai` (Modern)                               | Plan                                                                                          |
+| :--------------------- | :---------------------------------------------- | :------------------------------------------- | :-------------------------------------------------------------------------------------------- |
+| **Architecture**       | Single monolithic file, async with `aiohttp`.   | Modular, protocol-based, sync with `requests`. | **Keep `pai`'s architecture.** Its modularity is a core strength.                             |
+| **Configuration**      | `.env` file for API keys, hardcoded logic.      | `polyglot.toml` for multiple endpoints.      | **Keep `pai`'s configuration.** It is superior for managing multiple providers.               |
+| **Conversation History** | Stateful `Answer` object.                         | Simple list of dicts in `interactive_mode`.    | **Adopt `gptwink`'s OOP approach.** Create a stateful `Conversation` class in `pai` to manage history turns. |
+| **Session Persistence**  | Saves every Q/A pair to a unique folder.        | None.                                        | **Implement `gptwink`'s persistence.** Every interactive session will be saved for review.    |
+| **UI & Interactivity**   | Rich `prompt-toolkit` bottom toolbar with live stats. | Basic `prompt-toolkit` input.                | **Implement `gptwink`'s UI.** Add a live status toolbar to `pai`.                             |
+| **Prompt Management**    | Hardcoded shortcuts (`/normcode`, `/tutor`).        | Basic `/system` command.                     | **Implement a file-based prompt system.** This is an improvement on `gptwink`'s concept.      |
+
+## 2. Detailed Implementation Plan
+
+The following changes will be made to the `pai` codebase.
+
+### Step 1: Improve Conversation State Management
+
+The current `messages` list in `pai`'s `interactive_mode` is brittle. We will replace it with a more robust, object-oriented approach inspired by `gptwink`'s `Answer` class.
+
+-   **Create `Conversation` Class:** A new class to manage the full conversation history. It will hold a list of `Turn` objects.
+-   **Create `Turn` Class:** A dataclass representing a single request-response cycle. It will contain:
+    -   `turn_id`: A unique ID (using `ulid`).
+    -   `timestamp`: The time of the turn.
+    -   `request_data`: The payload sent to the API.
+    -   `response_data`: The full response from the API.
+    -   `assistant_message`: The final extracted text content from the assistant.
+-   **Integration:** The `interactive_mode` loop will now append new `Turn` objects to the `Conversation` object instead of managing a raw list of dictionaries.
+
+### Step 2: Implement Session Persistence
+
+`pai` sessions will be automatically saved for review, a key feature from `gptwink`.
+
+-   **Create `sessions/` directory:** All interactive sessions will be saved here.
+-   **Unique Session Folders:** On starting interactive mode, a new directory will be created, e.g., `sessions/2025-06-24-10-30-00-interactive/`.
+-   **Save Turns as JSON:** After each `Turn` is completed, it will be serialized to a JSON file and saved within the session folder, e.g., `01J3QZ...-turn.json`. This provides a complete, reviewable log of the entire conversation.
+-   **Add Dependency:** The `ulid-py` library will be added to `pyproject.toml` to generate unique, sortable IDs for turns.
+
+### Step 3: Enhance the UI with a Status Toolbar
+
+We will implement `gptwink`'s most useful UI feature: a live status bar.
+
+-   **Modify `interactive_mode`:** The `PromptSession` will be configured with a `bottom_toolbar`.
+-   **Create `get_toolbar_text()` function:** This function will be responsible for generating the content for the toolbar. It will use `prompt_toolkit.formatted_text.HTML` to display:
+    -   Current endpoint and model.
+    -   Session token usage (total sent/received).
+    -   Status of modes (`tools`, `debug`, `stream`).
+    -   The path to the current session's save directory.
+-   This provides the user with immediate, persistent context about their session state.
+
+### Step 4: Add a File-Based Prompt System
+
+`gptwink`'s hardcoded prompt shortcuts were useful but inflexible. We will create a dynamic, file-based system.
+
+-   **Create `prompts/` directory:** This directory will be added to the project.
+-   **User-Created Prompts:** Users can add their own system prompts by creating `.txt` or `.md` files in this directory (e.g., `prompts/code_refactor.md`).
+-   **New Commands:**
+    -   `/prompts`: Lists all available prompt files in the `prompts/` directory.
+    -   `/prompt <name>`: Loads the content of the specified file. This can either start a new conversation with that content as the system prompt or insert it into the current one.
+
+### Step 5: Cleanup and Finalization
+
+Once the features above are integrated and tested:
+
+-   The `gptwink/` directory and all its contents will be deleted.
+-   The `main.py` file in the project root will be deleted, as `pai.pai:main` is the correct entry point.
+-   The `README.md` will be updated to reflect the new features (session saving, prompts, and UI enhancements).
+
+By following this plan, we will successfully evolve `pai` into a best-in-class tool, carrying forward the valuable lessons and features from its predecessor.

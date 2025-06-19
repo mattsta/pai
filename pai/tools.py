@@ -122,24 +122,6 @@ def get_current_weather(
     return json.dumps({"location": location, "temperature": temp, "condition": "Hot"})
 
 
-@tool
-def read_file(path: str) -> str:
-    """Reads the contents of a text file from the local filesystem.
-
-    Args:
-        path (str): The relative or absolute path to the file.
-    """
-    try:
-        # Note: Be careful with tools that access the filesystem.
-        # In a real application, you should add validation to restrict access
-        # to certain directories for security.
-        return pathlib.Path(path).read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return f"Error: File not found at '{path}'"
-    except Exception as e:
-        return f"Error reading file '{path}': {e}"
-
-
 def load_tools_from_directory(directory: str, printer: Callable = print):
     """Dynamically loads tools from Python files in a given directory."""
     path = pathlib.Path(directory)

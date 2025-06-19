@@ -79,3 +79,35 @@ You don't need to edit the core `pai` codebase to add new tools. You can place y
     ```
 
 When you next run `pai`, it will automatically find and load the `calculate` tool from `custom_tools/calculator.py`, making it available to the model. You'll see a confirmation message in the console at startup.
+
+## Default Tool Showcase
+
+Polyglot AI comes with a set of useful default tools located in the `custom_tools/` directory. These serve as powerful examples and can be used for productive tasks. They are loaded automatically if `directories = ["custom_tools"]` is present in your `polyglot.toml`.
+
+### Filesystem Tools (`file_system.py`)
+
+These tools allow the AI to interact with your local filesystem. For security, they are "jailed" to the project's current working directory by default. You can change this behavior by editing the file.
+
+*   `read_file(path: str)`: Reads the content of a file.
+*   `list_directory(path: str = ".")`: Lists files and folders in a directory, returning a JSON list.
+*   `create_file(path: str, content: str = "")`: Creates a new file (and any needed subdirectories).
+*   `append_to_file(path: str, content: str)`: Appends text to an existing file.
+
+**Example Usage:** `"list all files in the current directory, then read the contents of 'pyproject.toml'"`
+
+### Web Tools (`web.py`)
+
+This tool gives the AI access to the internet for gathering information.
+
+*   `fetch_url(url: str)`: Fetches the text content of a web page.
+
+**Example Usage:** `"what's on the front page of hacker news? fetch 'https://news.ycombinator.com'"`
+
+### Shell Tools (`shell.py`)
+
+This provides direct shell access. It is **extremely powerful and dangerous**.
+
+*   `execute_shell(command: str)`: Executes a shell command.
+    *   **⚠️ SECURITY WARNING:** This tool is **disabled by default**. To enable it, you must manually edit `custom_tools/shell.py` and set `SHELL_ACCESS_ENABLED = True`. Only do this if you understand the risk of letting an AI run arbitrary code on your machine.
+
+**Example Usage (if enabled):** `"what is my current python version? execute 'python --version'"`

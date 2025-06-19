@@ -421,11 +421,13 @@ class InteractiveUI:
 
         live_output_window = ConditionalContainer(
             Window(
-                content=BufferControl(buffer=self.streaming_output_buffer),
+                content=BufferControl(
+                    buffer=self.streaming_output_buffer,
+                    # This ensures that prompt-toolkit will scroll the window to
+                    # keep the cursor visible, even if the window is not focused.
+                    always_show_cursor=True,
+                ),
                 wrap_lines=True,
-                # This ensures that prompt-toolkit will scroll the window to
-                # keep the cursor visible, even if the window is not focused.
-                always_show_cursor=True,
             ),
             filter=Condition(
                 lambda: self.generation_in_progress.is_set()

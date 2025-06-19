@@ -115,7 +115,8 @@ def read_file_lines(path: str, start_line: int, end_line: int) -> str:
 
         # Prepend line numbers to the output for context
         output_lines = [
-            f"{i+start_line}: {line.rstrip()}" for i, line in enumerate(selected_lines)
+            f"{i + start_line}: {line.rstrip()}"
+            for i, line in enumerate(selected_lines)
         ]
 
         if not output_lines:

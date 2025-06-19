@@ -298,7 +298,9 @@ class PromptCommand(Command):
         if prompt_path.exists() and prompt_path.is_file():
             content = prompt_path.read_text(encoding="utf-8")
             self.ui.conversation.set_system_prompt(content)
-            self.ui.pt_printer(f"🤖 System prompt loaded from '{param}'. History cleared.")
+            self.ui.pt_printer(
+                f"🤖 System prompt loaded from '{param}'. History cleared."
+            )
         else:
             self.ui.pt_printer(
                 f"❌ Prompt '{param}' not found in '{self.ui.prompts_dir}'."

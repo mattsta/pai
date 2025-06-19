@@ -215,7 +215,9 @@ class StreamingDisplay:
             elif not self._is_interactive and self.first_token_received:
                 # For non-interactive mode, print the final stats line.
                 tok_per_sec = stats.final_tok_per_sec
-                ttft_str = f" | TTFT: {stats.ttft:.2f}s" if stats.ttft is not None else ""
+                ttft_str = (
+                    f" | TTFT: {stats.ttft:.2f}s" if stats.ttft is not None else ""
+                )
                 self._print(
                     f"\n\n📊 Response in {stats.response_time:.2f}s ({stats.tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
                 )

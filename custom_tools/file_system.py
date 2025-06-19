@@ -65,12 +65,12 @@ def list_directory(path: str = ".") -> str:
 
 
 @tool
-def create_file(path: str, content: str = "") -> str:
-    """Creates a new file with specified content, overwriting if it exists.
+def write_file(path: str, content: str = "") -> str:
+    """Writes content to a file, creating it if it doesn't exist or overwriting it if it does.
 
     Args:
         path (str): The path for the new file, relative to the current working directory.
-        content (str): The initial content for the file.
+        content (str): The content to write to the file.
     """
     if not is_safe_path(path):
         return "Error: Path is outside the allowed workspace."
@@ -78,9 +78,9 @@ def create_file(path: str, content: str = "") -> str:
         p = WORKSPACE / path
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
-        return f"File '{path}' created successfully."
+        return f"File '{path}' written successfully."
     except Exception as e:
-        return f"Error creating file '{path}': {e}"
+        return f"Error writing file '{path}': {e}"
 
 
 @tool
@@ -101,3 +101,49 @@ def append_to_file(path: str, content: str) -> str:
         return f"Error: File not found at '{path}'"
     except Exception as e:
         return f"Error appending to file '{path}': {e}"
+
+
+@tool
+def delete_file(path: str) -> str:
+    """Deletes a single file from the filesystem.
+
+    Args:
+        path (str): The path to the file to delete.
+    """
+    if not is_safe_path(path):
+        return "Error: Path is outside the allowed workspace."
+    try:
+        file_path = (WORKSPACE / path).resolve()
+        if not file_path.is_file():
+            return f"Error: Not a file or not found at '{path}'"
+
+        file_path.unlink()
+        return f"File '{path}' deleted successfully."
+    except Exception as e:
+        return f"Error deleting file '{path}': {e}"
+
+
+@tool
+def delete_directory(path: str) -> str:
+    """Deletes a directory and all its contents recursively. DANGEROUS.
+
+    Args:
+        path (str): The path to the directory to delete.
+    """
+    import shutil
+
+    if not is_safe_path(path):
+        return "Error: Path is outside the allowed workspace."
+
+    dir_path = (WORKSPACE / path).resolve()
+    if dir_path == WORKSPACE:
+        return "Error: Cannot delete the root workspace directory."
+
+    try:
+        if not dir_path.is_dir():
+            return f"Error: Not a directory or not found at '{path}'"
+
+        shutil.rmtree(dir_path)
+        return f"Directory '{path}' deleted successfully."
+    except Exception as e:
+        return f"Error deleting directory '{path}': {e}"

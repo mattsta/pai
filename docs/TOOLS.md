@@ -80,6 +80,24 @@ You don't need to edit the core `pai` codebase to add new tools. You can place y
 
 When you next run `pai`, it will automatically find and load the `calculate` tool from `custom_tools/calculator.py`, making it available to the model. You'll see a confirmation message in the console at startup.
 
+## Prerequisites for Some Tools
+
+Some of the advanced developer tools rely on popular, best-in-class command-line programs. Please install them using your system's package manager to enable the full toolset.
+
+- **`fd`**: For `find_files`. A simple, fast, and user-friendly alternative to `find`.
+- **`ripgrep` (`rg`)**: For `search_code`. A line-oriented search tool that respects your `.gitignore` and is very fast.
+
+**Installation (macOS via Homebrew):**
+```sh
+brew install fd ripgrep
+```
+
+**Installation (Debian/Ubuntu via apt):**
+```sh
+sudo apt-get update && sudo apt-get install fd-find ripgrep
+# On Debian/Ubuntu, fd may be installed as `fdfind`. A symlink `ln -s $(which fdfind) ~/.local/bin/fd` may be needed.
+```
+
 ## Default Tool Showcase
 
 Polyglot AI comes with a set of useful default tools located in the `custom_tools/` directory. These serve as powerful examples and can be used for productive tasks. They are loaded automatically if `directories = ["custom_tools"]` is present in your `polyglot.toml`.
@@ -108,10 +126,22 @@ These tools allow the AI to interact with your local filesystem. For security, t
 
 *   `read_file(path: str)`: Reads the content of a file.
 *   `list_directory(path: str = ".")`: Lists files and folders in a directory.
-*   `create_file(path: str, content: str = "")`: Creates a new file.
+*   `write_file(path: str, content: str = "")`: Writes content to a file, creating it if needed or overwriting it.
 *   `append_to_file(path: str, content: str)`: Appends text to an existing file.
+*   `delete_file(path: str)`: Deletes a single file.
+*   `delete_directory(path: str)`: Recursively deletes a directory and all its contents. Use with caution.
 
-**Example Usage:** `"list the files here, then read 'pyproject.toml'"`
+**Example Usage:** `"write a file named 'hello.txt' with 'hello world', then read it, then delete it."`
+
+### Developer Tools (`developer_tools.py`)
+
+A set of powerful tools for code navigation and exploration, which depend on `fd` and `ripgrep`. If these are not installed, the tools will return an error.
+
+*   `find_files(pattern: str, search_path: str = ".")`: Finds files by name using a glob pattern. Returns a JSON list of paths.
+*   `search_code(pattern: str, search_path: str = ".")`: Searches for a regex pattern within files and returns a structured JSON output of matches.
+*   `read_file_lines(path: str, start_line: int, end_line: int)`: Reads a specific range of lines from a file, which is useful for inspecting the context around a `search_code` result.
+
+**Example Usage:** `"find all python files, then search for 'ProtocolContext' in the 'pai' directory, then show me lines 1-10 of 'pai/protocols/base_adapter.py'"`
 
 ### HTTP Client Tools (`http_client.py`)
 

@@ -13,13 +13,14 @@ import asyncio
 import httpx
 import ulid
 import pathlib
+from html import escape
 from typing import Optional, Dict, Any, Union, List
 from dataclasses import dataclass, field
 from datetime import datetime
 from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
-from prompt_toolkit.formatted_text import HTML, escape
+from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
 from prompt_toolkit.layout.containers import (

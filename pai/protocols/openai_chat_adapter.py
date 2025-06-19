@@ -18,6 +18,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
         max_iterations = 5
 
         for iteration in range(max_iterations):
+            finish_reason = None
             # MODIFIED: Access all state via the context object.
             url = f"{context.config.base_url}/chat/completions"
             final_request_payload = request.to_dict(context.config.model_name)
@@ -56,9 +57,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     break
                                 try:
                                     chunk_data = json.loads(data)
-                                    delta = chunk_data.get("choices", [{}])[0].get(
-                                        "delta", {}
-                                    )
+                                    choice = chunk_data.get("choices", [{}])[0]
+                                    delta = choice.get("delta", {})
+
                                     if content := delta.get("content"):
                                         context.display.show_parsed_chunk(
                                             chunk_data, content
@@ -87,6 +88,10 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                                     tool_calls[tc["index"]]["function"][
                                                         "arguments"
                                                     ] += args
+
+                                    # Check for and store the finish reason for the choice.
+                                    if reason := choice.get("finish_reason"):
+                                        finish_reason = reason
                                 except (json.JSONDecodeError, IndexError):
                                     continue
 
@@ -128,7 +133,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                 "role": "assistant",
                                 "content": context.display.current_response,
                             },
-                            "finish_reason": "stop",
+                            "finish_reason": finish_reason or "stop",
                         }
                     ],
                     "usage": {

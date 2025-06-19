@@ -19,7 +19,7 @@ from datetime import datetime
 from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
-from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.formatted_text import HTML, escape
 from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
 from prompt_toolkit.layout.containers import (
@@ -1000,59 +1000,77 @@ class InteractiveUI:
 
     def _get_toolbar_text(self) -> HTML:
         """Generates the HTML for the multi-line bottom toolbar."""
-        client, args, session_dir = self.client, self.args, self.session_dir
-        endpoint, model = client.config.name, client.config.model_name
-        session_stats, display = client.stats, client.display
-        live_stats = display.current_request_stats
+        try:
+            client, args, session_dir = self.client, self.args, self.session_dir
+            endpoint, model = client.config.name, client.config.model_name
+            session_stats, display = client.stats, client.display
+            live_stats = display.current_request_stats
 
-        # --- Line 1: Overall Session Stats ---
-        total_tokens = session_stats.total_tokens_sent + session_stats.total_tokens_received
-        total_time = session_stats.total_response_time
-        total_received = session_stats.total_tokens_received
+            # Escape any potentially problematic strings before embedding in HTML
+            endpoint_esc = escape(endpoint)
+            model_esc = escape(model)
+            status_esc = escape(display.status)
+            session_dir_esc = escape(str(session_dir))
 
-        # Add live data during streaming for a real-time view
-        if live_stats and display.status == "Streaming":
-            total_tokens += live_stats.tokens_sent + live_stats.tokens_received
-            total_time += live_stats.current_duration
-            total_received += live_stats.tokens_received
+            # --- Line 1: Overall Session Stats ---
+            total_tokens = (
+                session_stats.total_tokens_sent + session_stats.total_tokens_received
+            )
+            total_time = session_stats.total_response_time
+            total_received = session_stats.total_tokens_received
 
-        avg_tok_per_sec = total_received / max(total_time, 1)
-        line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint.upper()}:{model} </style></b> | <b>Total Tokens:</b> {total_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
+            # Add live data during streaming for a real-time view
+            if live_stats and display.status == "Streaming":
+                total_tokens += live_stats.tokens_sent + live_stats.tokens_received
+                total_time += live_stats.current_duration
+                total_received += live_stats.tokens_received
 
-        # --- Line 2: Live and Last Request Stats ---
-        last_req = session_stats.last_request_stats
-        last_ttft_str = f"{last_req.ttft:.2f}s" if last_req and last_req.ttft else "N/A"
-        last_tps_str = f"{last_req.final_tok_per_sec:.1f}" if last_req else "N/A"
+            avg_tok_per_sec = total_received / max(total_time, 1)
+            line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Total Tokens:</b> {total_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
 
-        live_tps = live_stats.live_tok_per_sec if live_stats else 0.0
-        status_color = "ansigreen" if display.status == "Streaming" else "ansiyellow"
-        live_tps_str = f"<b><style fg='{status_color}'>Live Tok/s: {live_tps:.1f}</style></b>"
+            # --- Line 2: Live and Last Request Stats ---
+            last_req = session_stats.last_request_stats
+            last_ttft_str = (
+                f"{last_req.ttft:.2f}s" if last_req and last_req.ttft else "N/A"
+            )
+            last_tps_str = f"{last_req.final_tok_per_sec:.1f}" if last_req else "N/A"
 
-        line2_parts = [
-            f"<style fg='ansimagenta'><b>Status: {display.status}</b></style>",
-            live_tps_str if display.status in ["Waiting...", "Streaming"] else "",
-            f"<b>Last TTFT:</b> {last_ttft_str}",
-            f"<b>Last Tok/s:</b> {last_tps_str}",
-        ]
+            live_tps = live_stats.live_tok_per_sec if live_stats else 0.0
+            status_color = "ansigreen" if display.status == "Streaming" else "ansiyellow"
+            live_tps_str = (
+                f"<b><style fg='{status_color}'>Live Tok/s: {live_tps:.1f}</style></b>"
+            )
 
-        tools_status = (
-            f"<style fg='ansigreen'>ON</style>"
-            if client.tools_enabled
-            else f"<style fg='ansired'>OFF</style>"
-        )
-        debug_status = (
-            f"<style fg='ansiyellow'>ON</style>" if display.debug_mode else "OFF"
-        )
-        line3_parts = [
-            f"<b>Tools:</b> {tools_status}",
-            f"<b>Debug:</b> {debug_status}",
-            f"<b>Mode:</b> {'Chat' if self.is_chat_mode else 'Completion'}",
-            f"<style fg='grey'>Log: {session_dir}</style>",
-        ]
+            line2_parts = [
+                f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>",
+                live_tps_str if display.status in ["Waiting...", "Streaming"] else "",
+                f"<b>Last TTFT:</b> {last_ttft_str}",
+                f"<b>Last Tok/s:</b> {last_tps_str}",
+            ]
 
-        return HTML(
-            f"{line1}\n{' | '.join(p for p in line2_parts if p)}\n{' | '.join(line3_parts)}"
-        )
+            tools_status = (
+                f"<style fg='ansigreen'>ON</style>"
+                if client.tools_enabled
+                else f"<style fg='ansired'>OFF</style>"
+            )
+            debug_status = (
+                f"<style fg='ansiyellow'>ON</style>" if display.debug_mode else "OFF"
+            )
+            line3_parts = [
+                f"<b>Tools:</b> {tools_status}",
+                f"<b>Debug:</b> {debug_status}",
+                f"<b>Mode:</b> {'Chat' if self.is_chat_mode else 'Completion'}",
+                f"<style fg='grey'>Log: {session_dir_esc}</style>",
+            ]
+
+            return HTML(
+                f"{line1}\n{' | '.join(p for p in line2_parts if p)}\n{' | '.join(line3_parts)}"
+            )
+        except Exception as e:
+            # If any rendering fails, return a safe, minimal toolbar to prevent crashing.
+            return HTML(
+                f"<style bg='ansired' fg='white'>[Toolbar Error: {escape(str(e))}]</style>"
+            )
 
     def _print_help(self):
         self.pt_printer("""

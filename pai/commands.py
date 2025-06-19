@@ -284,6 +284,7 @@ class SystemCommand(Command):
 
     def execute(self, app: "Application", param: Optional[str] = None):
         if self.ui.is_chat_mode:
+            self.ui.native_agent_mode = False
             self.ui.legacy_agent_mode = False
             self.ui.conversation.set_system_prompt(param)
             self.ui.pt_printer("🤖 System prompt set.")
@@ -325,6 +326,7 @@ class PromptCommand(Command):
             self.ui.pt_printer("❌ /prompt is only available in chat mode.")
             return
 
+        self.ui.native_agent_mode = False
         self.ui.legacy_agent_mode = False
 
         prompt_path = self.ui.prompts_dir / f"{param}.md"
@@ -359,6 +361,7 @@ class AgentCommand(Command):
                 "⚠️  Warning: Native agent mode works best with the --tools flag enabled at startup."
             )
 
+        self.ui.native_agent_mode = True
         self.ui.legacy_agent_mode = False
         self.ui.client.tools_enabled = True
 
@@ -394,6 +397,7 @@ class LegacyAgentCommand(Command):
             )
             return
 
+        self.ui.native_agent_mode = False
         self.ui.legacy_agent_mode = True
         self.ui.client.tools_enabled = False  # Disable native tools
 
@@ -424,6 +428,7 @@ class ToggleModeCommand(Command):
 
     def execute(self, app: "Application", param: Optional[str] = None):
         self.ui.is_chat_mode = not self.ui.is_chat_mode
+        self.ui.native_agent_mode = False
         self.ui.legacy_agent_mode = False
         mode_name = "Chat" if self.ui.is_chat_mode else "Completion"
         self.ui.conversation.clear()

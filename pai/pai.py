@@ -360,6 +360,7 @@ class InteractiveUI:
         )
 
         # State management
+        self.native_agent_mode = False
         self.legacy_agent_mode = False
         self.generation_in_progress = asyncio.Event()
         self.generation_task: Optional[asyncio.Task] = None
@@ -372,6 +373,16 @@ class InteractiveUI:
         # Command handler
         self.command_handler = CommandHandler(self)
 
+    def _get_mode_display_name(self) -> str:
+        """Returns the string name of the current interaction mode."""
+        if self.native_agent_mode:
+            return "Agent"
+        if self.legacy_agent_mode:
+            return "Legacy Agent"
+        if self.is_chat_mode:
+            return "Chat"
+        return "Completion"
+
     def _create_application(self) -> Application:
         """Constructs the prompt_toolkit Application object."""
         # This is the main input bar at the bottom of the screen.
@@ -380,10 +391,11 @@ class InteractiveUI:
                 Window(
                     FormattedTextControl(
                         lambda: HTML(
-                            f"<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> "
+                            f"<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> "
                         )
                     ),
-                    width=lambda: len(f"👤 ({self.client.config.name}) User: ") + 1,
+                    width=lambda: len(f"👤 ({self._get_mode_display_name()}) User: ")
+                    + 1,
                 ),
                 Window(BufferControl(buffer=self.input_buffer)),
             ]
@@ -488,7 +500,7 @@ class InteractiveUI:
                     # will then redraw the actual interactive prompt below it.
                     self.pt_printer(
                         HTML(
-                            f"<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> "
+                            f"<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> "
                         )
                     )
 
@@ -519,7 +531,7 @@ class InteractiveUI:
 
             self.pt_printer(
                 HTML(
-                    f"\n<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> {escape(user_input)}"
+                    f"\n<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> {escape(user_input)}"
                 )
             )
             buffer.reset()
@@ -538,7 +550,7 @@ class InteractiveUI:
             buffer.reset()
             self.pt_printer(
                 HTML(
-                    f"<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> "
+                    f"<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> "
                 )
             )
 

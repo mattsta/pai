@@ -23,13 +23,11 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
             finish_reason = None
             # MODIFIED: Access all state via the context object.
             url = f"{context.config.base_url}/chat/completions"
-            final_request_payload = request.to_dict(context.config.model_name)
-            final_request_payload["messages"] = messages
-            payload = final_request_payload
-
-            if context.tools_enabled and get_tool_schemas():
-                payload["tools"] = get_tool_schemas()
-                payload["tool_choice"] = "auto"
+            # The request object now correctly includes tools in its dictionary representation.
+            # We just need to ensure the messages for the current agentic loop are set.
+            payload = request.to_dict(context.config.model_name)
+            payload["messages"] = messages
+            final_request_payload = payload
 
             tokens_sent = sum(estimate_tokens(m.get("content", "")) for m in messages)
 

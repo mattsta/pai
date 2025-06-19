@@ -39,6 +39,7 @@ import toml
 from .utils import estimate_tokens
 from .log_utils import print_stats, closing, save_conversation_formats
 from .commands import CommandHandler
+from .tools import get_tool_schemas
 
 from .models import (
     Turn,
@@ -534,6 +535,7 @@ class InteractiveUI:
                     max_tokens=self.args.max_tokens,
                     temperature=self.args.temperature,
                     stream=self.args.stream,
+                    tools=get_tool_schemas() if self.client.tools_enabled else [],
                 )
             else:
                 request = CompletionRequest(
@@ -781,6 +783,7 @@ async def async_main(args: argparse.Namespace):
                         max_tokens=args.max_tokens,
                         temperature=args.temperature,
                         stream=args.stream,
+                        tools=get_tool_schemas() if client.tools_enabled else [],
                     )
                 else:
                     request = CompletionRequest(

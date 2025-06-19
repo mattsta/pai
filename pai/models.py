@@ -216,12 +216,18 @@ class ChatRequest:
     max_tokens: int = 1000
     temperature: float = 0.7
     stream: bool = False
+    tools: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self, default_model: str) -> Dict[str, Any]:
-        return {
+        """Serializes the request to a dictionary for the API call."""
+        payload = {
             "model": self.model or default_model,
             "messages": self.messages,
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
             "stream": self.stream,
         }
+        if self.tools:
+            payload["tools"] = self.tools
+            payload["tool_choice"] = "auto"
+        return payload

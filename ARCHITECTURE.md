@@ -86,7 +86,7 @@ This system ensures that no data is lost and provides multiple, easy-to-review f
 3.  It calls `conversation.get_messages_for_next_turn()` to construct the message history for the API call.
 4.  A `ChatRequest` object is created with this history.
 5.  `client.generate()` is called. It looks up the correct protocol adapter for the current endpoint (e.g., `OpenAIChatAdapter`) and calls its `.generate()` method, passing a `ProtocolContext` object.
-6.  The `OpenAIChatAdapter` formats the final payload, including the message history and the JSON schemas of all registered tools from `tools.py`.
+6.  A `ChatRequest` object is created, and if tools are enabled, it is populated with the tool schemas from the `TOOL_REGISTRY`. The `OpenAIChatAdapter` then ensures the model receives this payload.
 7.  It makes a streaming POST request to the provider's API via the shared `http_session` from the context.
 8.  The API responds. Instead of text, it sends back a `tool_calls` object requesting to run `get_current_weather(location="Tokyo")`.
 9.  The adapter parses this tool call. Instead of finishing, it calls `execute_tool("get_current_weather", ...)` from `tools.py`.

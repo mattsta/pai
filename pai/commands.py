@@ -268,7 +268,6 @@ class ClearCommand(Command):
     def execute(self, app: "Application", param: Optional[str] = None):
         if self.ui.is_chat_mode:
             self.ui.conversation.clear()
-            self.ui.legacy_agent_mode = False
             self.ui.pt_printer("🧹 History cleared.")
         else:
             self.ui.pt_printer("❌ /clear is only available in chat mode.")

@@ -609,9 +609,11 @@ class InteractiveUI:
         def _(event):
             if self.generation_in_progress.is_set():
                 return
-            
+
             user_input = self.input_buffer.text.strip()
             if user_input:
+                # When building a custom Application, we must manually add entries
+                # to the history on submission. This is the correct pattern.
                 self.history.store_string(user_input)
                 self.pt_printer(
                     HTML(
@@ -625,14 +627,9 @@ class InteractiveUI:
                 else:
                     asyncio.create_task(self._process_and_generate(user_input))
 
-        @kb.add("c-c", eager=True)
-        @kb.add("c-d", eager=True)
-        def _(event):
-            if self.input_buffer.text:
-                self.input_buffer.reset()
-            else:
-                event.app.exit()
-
+        # By not defining custom 'c-c' or 'c-d' handlers, we allow the default
+        # prompt-toolkit behavior, which is to raise EOFError or KeyboardInterrupt.
+        # These are caught in the `run` method to exit gracefully.
         return merge_key_bindings([load_key_bindings(), kb])
 
     def _handle_command(self, text: str, app: Application):

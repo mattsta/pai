@@ -272,6 +272,7 @@ class StreamingDisplay:
         self.status = "Idle"
         # Holds the stats for the *in-progress* request.
         self.current_request_stats: Optional[RequestStats] = None
+        self._last_token_time: Optional[float] = None
 
         # Response tracking
         self.line_count: int = 0
@@ -291,10 +292,18 @@ class StreamingDisplay:
             self.output_buffer.reset()
 
         self.current_request_stats = RequestStats()
+        self._last_token_time = None
         self.line_count = 0
         self.chunk_count = 0
         self.first_token_received = False
         self.status = "Waiting..."
+
+    @property
+    def time_since_last_token(self) -> float:
+        """Returns seconds since the last token was received, for spinner UI."""
+        if self.status == "Streaming" and self._last_token_time:
+            return time.time() - self._last_token_time
+        return 0.0
 
     def _print(self, *args, **kwargs):
         """Internal print-router."""
@@ -325,6 +334,8 @@ class StreamingDisplay:
         # Don't do anything for empty chunks, which some providers send.
         if not chunk_text:
             return
+
+        self._last_token_time = time.time()
 
         # Update state first
         if not self.first_token_received:
@@ -587,6 +598,8 @@ class InteractiveUI:
         # State management
         self.generation_in_progress = asyncio.Event()
         self.generation_task: Optional[asyncio.Task] = None
+        self.spinner_chars = ["|", "/", "-", "\\"]
+        self.spinner_idx = 0
 
         # Build the application
         self.app = self._create_application()
@@ -608,12 +621,26 @@ class InteractiveUI:
             ]
         )
 
-        waiting_ui = Window(
-            FormattedTextControl(
-                HTML("<style fg='ansiyellow'>[Waiting for response...]</style>")
-            ),
-            height=1,
-        )
+        def get_status_text():
+            display = self.client.display
+            if display.first_token_received:
+                # Spinner logic
+                spinner = self.spinner_chars[self.spinner_idx]
+                self.spinner_idx = (self.spinner_idx + 1) % len(self.spinner_chars)
+
+                time_since_last = display.time_since_last_token
+                color = "ansigreen"
+                if time_since_last > 2.0:  # Becomes yellow after 2 seconds
+                    color = "ansiyellow"
+                if time_since_last > 5.0:  # Becomes red after 5 seconds
+                    color = "ansired"
+                return HTML(
+                    f"<style fg='{color}'>[{spinner}] Streaming... ({time_since_last:.1f}s since last token)</style>"
+                )
+            else:
+                return HTML("<style fg='ansiyellow'>[Waiting for response...]</style>")
+
+        waiting_ui = Window(FormattedTextControl(get_status_text), height=1)
 
         live_output_window = ConditionalContainer(
             Window(

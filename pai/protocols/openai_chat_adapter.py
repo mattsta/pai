@@ -29,7 +29,6 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 payload["tool_choice"] = "auto"
 
             tokens_sent = sum(len(m.get("content", "").split()) for m in messages)
-            start_time = time.time()
 
             if not request.stream:
                 raise NotImplementedError(
@@ -109,8 +108,12 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         )
                     continue
 
-                elapsed, tokens_received, ttft = context.display.finish_response()
-                context.stats.add_request(tokens_sent, tokens_received, elapsed, ttft=ttft)
+                request_stats = context.display.finish_response(success=True)
+                tokens_received = 0
+                if request_stats:
+                    request_stats.tokens_sent = tokens_sent
+                    tokens_received = request_stats.tokens_received
+                    context.stats.add_completed_request(request_stats)
 
                 # Construct a response object that mimics the non-streaming API
                 response_data = {
@@ -142,8 +145,11 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 }
 
             except Exception as e:
-                elapsed = time.time() - start_time
-                context.stats.add_request(tokens_sent, 0, elapsed, success=False)
+                # On failure, finalize stats as unsuccessful and re-raise
+                request_stats = context.display.finish_response(success=False)
+                if request_stats:
+                    request_stats.tokens_sent = tokens_sent
+                    context.stats.add_completed_request(request_stats)
                 raise ConnectionError(f"Request failed: {e!r}")
 
         return {"text": "[Agent Error] Agent reached maximum iterations."}

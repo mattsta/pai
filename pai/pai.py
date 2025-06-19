@@ -112,6 +112,63 @@ class Conversation:
         self._messages = [{"role": "system", "content": system_prompt}]
 
 
+@dataclass
+class RequestStats:
+    """Encapsulates all statistics for a single request-response cycle."""
+
+    start_time: float = field(default_factory=time.time)
+    ttft: Optional[float] = None
+    response_time: Optional[float] = None
+    tokens_sent: int = 0
+    tokens_received: int = 0
+    success: bool = True
+
+    # Internal state for live calculations
+    _first_token_time: Optional[float] = None
+
+    def record_first_token(self):
+        """Call this when the first token is received to capture TTFT."""
+        if self._first_token_time is None:
+            self._first_token_time = time.time()
+            self.ttft = self._first_token_time - self.start_time
+
+    def add_received_tokens(self, count: int):
+        """Add to the count of received tokens for this request."""
+        self.tokens_received += count
+
+    def finish(self, success: bool):
+        """Call this when the response is complete to finalize stats."""
+        self.response_time = time.time() - self.start_time
+        self.success = success
+
+    @property
+    def current_duration(self) -> float:
+        """Returns the total duration from the start of the request until now."""
+        return time.time() - self.start_time
+
+    @property
+    def live_stream_duration(self) -> float:
+        """Returns the duration from the first token until now."""
+        if self._first_token_time:
+            return time.time() - self._first_token_time
+        return 0.0
+
+    @property
+    def live_tok_per_sec(self) -> float:
+        """Returns live tokens per second, calculated from the first token."""
+        duration = self.live_stream_duration
+        if duration > 0.01:  # Avoid division by zero and noisy initial values
+            return self.tokens_received / duration
+        return 0.0
+
+    @property
+    def final_tok_per_sec(self) -> float:
+        """Returns the final tokens per second for the entire completed response."""
+        if self.response_time and self.response_time > 0:
+            return self.tokens_received / self.response_time
+        return 0.0
+
+
 # --- Data Classes (Identical to original) ---
 @dataclass
 class EndpointConfig:
@@ -170,35 +227,25 @@ class TestSession:
     total_tokens_received: int = 0
     total_response_time: float = 0.0
     errors: int = 0
-    # Stats for the most recent request
-    last_ttft: float = 0.0
-    last_response_time: float = 0.0
-    last_tokens_received: int = 0
+    # Holds the stats for the most recently *completed* successful request.
+    last_request_stats: Optional[RequestStats] = None
 
-    def add_request(
-        self,
-        tokens_sent: int,
-        tokens_received: int,
-        response_time: float,
-        success: bool = True,
-        ttft: Optional[float] = None,
-    ):
+    def add_completed_request(self, stats: RequestStats):
+        """Adds statistics from a completed request to the session totals."""
         self.requests_sent += 1
-        self.total_tokens_sent += tokens_sent
-        self.total_tokens_received += tokens_received
-        self.total_response_time += response_time
-        if not success:
-            self.errors += 1
+        if stats.success:
+            self.total_tokens_sent += stats.tokens_sent
+            self.total_tokens_received += stats.tokens_received
+            if stats.response_time:
+                self.total_response_time += stats.response_time
+            self.last_request_stats = stats
         else:
-            # Only update last request stats on success
-            if ttft is not None:
-                self.last_ttft = ttft
-            self.last_response_time = response_time
-            self.last_tokens_received = tokens_received
+            self.errors += 1
 
     def get_stats(self) -> Dict[str, Any]:
         successful_requests = self.requests_sent - self.errors
         success_rate = (successful_requests / max(self.requests_sent, 1)) * 100
+        avg_response_time = self.total_response_time / max(successful_requests, 1)
         return {
             "session_duration": str(datetime.now() - self.start_time).split(".")[0],
             "requests_sent": self.requests_sent,
@@ -206,7 +253,7 @@ class TestSession:
             "errors": self.errors,
             "success_rate": f"{success_rate:.1f}%",
             "total_tokens": self.total_tokens_sent + self.total_tokens_received,
-            "avg_response_time": f"{self.total_response_time / max(self.requests_sent, 1):.2f}s",
+            "avg_response_time": f"{avg_response_time:.2f}s",
             "tokens_per_second": f"{self.total_tokens_received / max(self.total_response_time, 1):.1f}",
         }
 
@@ -220,16 +267,16 @@ class StreamingDisplay:
         self._printer = print  # Default to standard print
         self._is_interactive = False
         self.output_buffer: Optional[Buffer] = None
+
         # State for UI
         self.status = "Idle"
-        self.live_tok_per_sec = 0.0
+        # Holds the stats for the *in-progress* request.
+        self.current_request_stats: Optional[RequestStats] = None
+
         # Response tracking
-        self.start_time: Optional[float] = None
-        self.ttft: Optional[float] = None
         self.line_count: int = 0
         self.chunk_count: int = 0
         self.current_response: str = ""
-        self.current_tokens_received: int = 0
         self.first_token_received = False
 
     def set_printer(self, printer: callable, is_interactive: bool):
@@ -240,14 +287,12 @@ class StreamingDisplay:
     def start_response(self):
         """Prepares for a new response stream."""
         self.current_response = ""
-        self.current_tokens_received = 0
         if self.output_buffer:
             self.output_buffer.reset()
-        self.ttft = None
-        self.start_time = time.time()
+
+        self.current_request_stats = RequestStats()
         self.line_count = 0
         self.chunk_count = 0
-        self.live_tok_per_sec = 0.0
         self.first_token_received = False
         self.status = "Waiting..."
 
@@ -265,10 +310,14 @@ class StreamingDisplay:
                     True  # Prevent header from printing multiple times
                 )
             self.line_count += 1
-            timestamp = time.time() - (self.start_time or 0)
-            prefix = f"⚪ [{timestamp:6.2f}s] L{self.line_count:03d}: "
+            duration = (
+                self.current_request_stats.current_duration
+                if self.current_request_stats
+                else 0
+            )
+            prefix = f"⚪ [{duration:6.2f}s] L{self.line_count:03d}: "
             if line.startswith("data: "):
-                prefix = f"🔵 [{timestamp:6.2f}s] L{self.line_count:03d}: "
+                prefix = f"🔵 [{duration:6.2f}s] L{self.line_count:03d}: "
             self._print(f"{prefix}{repr(line)}")
 
     def show_parsed_chunk(self, chunk_data: Dict, chunk_text: str):
@@ -280,13 +329,15 @@ class StreamingDisplay:
         # Update state first
         if not self.first_token_received:
             self.status = "Streaming"
-            if self.start_time:
-                self.ttft = time.time() - self.start_time
+            if self.current_request_stats:
+                self.current_request_stats.record_first_token()
             self.first_token_received = True
 
         self.current_response += chunk_text
         self.chunk_count += 1
-        self.current_tokens_received += len(chunk_text.split())
+        if self.current_request_stats:
+            # For simplicity, we'll consider a "token" to be a space-separated word.
+            self.current_request_stats.add_received_tokens(len(chunk_text.split()))
 
         # Handle rendering
         if self._is_interactive and self.output_buffer:
@@ -299,27 +350,25 @@ class StreamingDisplay:
                 self._print("\n🤖 Assistant: ", end="")
             self._print(chunk_text, end="", flush=True)
 
-        # Update live stats using a smoothed average over the stream's duration.
-        if self.first_token_received and self.start_time and self.ttft is not None:
-            # Calculate duration from the FIRST token received to now.
-            stream_duration = time.time() - (self.start_time + self.ttft)
-            # Avoid noisy numbers at the very start and division by zero.
-            if stream_duration > 0.01:
-                self.live_tok_per_sec = self.current_tokens_received / stream_duration
-
         if self.debug_mode:
-            timestamp = time.time() - (self.start_time or 0)
+            duration = (
+                self.current_request_stats.current_duration
+                if self.current_request_stats
+                else 0
+            )
             self._print(
-                f"🟢 [{timestamp:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
+                f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
             )
 
-    def finish_response(
-        self, success: bool = True
-    ) -> tuple[float, int, Optional[float]]:
+    def finish_response(self, success: bool = True) -> Optional[RequestStats]:
         """Finalizes the response, prints stats, and resets the display state."""
         self.status = "Done"
-        elapsed = time.time() - (self.start_time or 0)
-        tokens_received = len(self.current_response.split())
+        if self.current_request_stats:
+            self.current_request_stats.finish(success=success)
+            # Make sure final token count is accurate from the full response text
+            self.current_request_stats.tokens_received = len(
+                self.current_response.split()
+            )
 
         # In interactive mode, if we have a response, print it to the scrollback
         # history. This "finalizes" it, moving it from the temporary live
@@ -329,27 +378,27 @@ class StreamingDisplay:
             self._print(HTML(f"🤖 Assistant: {self.current_response}"))
 
         # On success, print final stats.
-        if success:
+        if success and self.current_request_stats:
+            stats = self.current_request_stats
             if self.debug_mode:
                 self._print(
                     "=" * 60
-                    + f"\n🔍 DEBUG SUMMARY: {self.line_count} lines, {self.chunk_count} chunks, {elapsed:.2f}s\n"
+                    + f"\n🔍 DEBUG SUMMARY: {self.line_count} lines, {self.chunk_count} chunks, {stats.response_time:.2f}s\n"
                     + "=" * 60
                 )
             elif not self._is_interactive and self.first_token_received:
                 # For non-interactive mode, print the final stats line.
-                tok_per_sec = tokens_received / max(elapsed, 0.1)
-                ttft_str = f" | TTFT: {self.ttft:.2f}s" if self.ttft is not None else ""
+                tok_per_sec = stats.final_tok_per_sec
+                ttft_str = f" | TTFT: {stats.ttft:.2f}s" if stats.ttft is not None else ""
                 self._print(
-                    f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
+                    f"\n\n📊 Response in {stats.response_time:.2f}s ({stats.tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
                 )
 
         # Always clear the live buffer and reset state for the next command.
         if self.output_buffer:
             self.output_buffer.reset()
         self.status = "Idle"
-        self.live_tok_per_sec = 0.0
-        return elapsed, tokens_received, self.ttft
+        return self.current_request_stats
 
 
 class APIError(Exception):
@@ -867,26 +916,24 @@ class InteractiveUI:
                     self.pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
         except asyncio.CancelledError:
             # When cancelled, we still want to save the partial response.
-            elapsed, tokens_received, ttft = self.client.display.finish_response(
-                success=False
-            )
+            # finish_response() sets success=False and returns the incomplete stats.
+            request_stats = self.client.display.finish_response(success=False)
             partial_text = self.client.display.current_response
 
-            # Add to stats. This is an approximation of tokens_sent as the
-            # final request payload is constructed inside the adapter.
-            tokens_sent = 0
-            if isinstance(request, ChatRequest):
-                tokens_sent = sum(
-                    len(m.get("content", "").split()) for m in request.messages
-                )
-            elif isinstance(request, CompletionRequest):
-                tokens_sent = len(request.prompt.split())
-            self.client.stats.add_request(
-                tokens_sent, tokens_received, elapsed, success=False, ttft=ttft
-            )
+            # Add to session stats.
+            if request_stats:
+                # This is an approximation of tokens_sent as the final request
+                # payload is constructed inside the adapter.
+                if isinstance(request, ChatRequest):
+                    request_stats.tokens_sent = sum(
+                        len(m.get("content", "").split()) for m in request.messages
+                    )
+                elif isinstance(request, CompletionRequest):
+                    request_stats.tokens_sent = len(request.prompt.split())
+                self.client.stats.add_completed_request(request_stats)
 
             if self.is_chat_mode and partial_text:
-                # Create a turn with the partial data.
+                # Create a turn with the partial data for logging.
                 request_data = request.to_dict(self.client.config.model_name)
                 # Fabricate a partial response object for logging
                 response_data = {
@@ -928,37 +975,37 @@ class InteractiveUI:
         """Generates the HTML for the multi-line bottom toolbar."""
         client, args, session_dir = self.client, self.args, self.session_dir
         endpoint, model = client.config.name, client.config.model_name
-        stats, display = client.stats, client.display
+        session_stats, display = client.stats, client.display
+        live_stats = display.current_request_stats
 
-        # Start with base stats from historical requests.
-        total_tokens = stats.total_tokens_sent + stats.total_tokens_received
-        total_time = stats.total_response_time
-        live_tokens_received = 0
+        # --- Line 1: Overall Session Stats ---
+        total_tokens = session_stats.total_tokens_sent + session_stats.total_tokens_received
+        total_time = session_stats.total_response_time
+        total_received = session_stats.total_tokens_received
 
-        # Add live data during streaming for a real-time view.
-        if display.status == "Streaming" and display.start_time:
-            live_tokens_received = display.current_tokens_received
-            total_tokens += live_tokens_received
-            total_time += time.time() - display.start_time
+        # Add live data during streaming for a real-time view
+        if live_stats and display.status == "Streaming":
+            total_tokens += live_stats.tokens_sent + live_stats.tokens_received
+            total_time += live_stats.current_duration
+            total_received += live_stats.tokens_received
 
-        avg_tok_per_sec = (stats.total_tokens_received + live_tokens_received) / max(
-            total_time, 1
-        )
-
+        avg_tok_per_sec = total_received / max(total_time, 1)
         line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint.upper()}:{model} </style></b> | <b>Total Tokens:</b> {total_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
 
-        last_tok_per_sec = (
-            (stats.last_tokens_received / max(stats.last_response_time, 1))
-            if stats.last_response_time > 0
-            else 0.0
-        )
+        # --- Line 2: Live and Last Request Stats ---
+        last_req = session_stats.last_request_stats
+        last_ttft_str = f"{last_req.ttft:.2f}s" if last_req and last_req.ttft else "N/A"
+        last_tps_str = f"{last_req.final_tok_per_sec:.1f}" if last_req else "N/A"
+
+        live_tps = live_stats.live_tok_per_sec if live_stats else 0.0
         status_color = "ansigreen" if display.status == "Streaming" else "ansiyellow"
-        live_tps_str = f"<b><style fg='{status_color}'>Live Tok/s: {display.live_tok_per_sec:.1f}</style></b>"
+        live_tps_str = f"<b><style fg='{status_color}'>Live Tok/s: {live_tps:.1f}</style></b>"
+
         line2_parts = [
             f"<style fg='ansimagenta'><b>Status: {display.status}</b></style>",
-            live_tps_str if display.status == "Streaming" else "",
-            f"<b>Last TTFT:</b> {stats.last_ttft:.2f}s",
-            f"<b>Last Tok/s:</b> {last_tok_per_sec:.1f}",
+            live_tps_str if display.status in ["Waiting...", "Streaming"] else "",
+            f"<b>Last TTFT:</b> {last_ttft_str}",
+            f"<b>Last Tok/s:</b> {last_tps_str}",
         ]
 
         tools_status = (

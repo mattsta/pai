@@ -20,7 +20,6 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
         url = f"{context.config.base_url}/completions"
         payload = request.to_dict(context.config.model_name)
         tokens_sent = len(request.prompt.split())
-        start_time = time.time()
 
         if not request.stream:
             raise NotImplementedError(
@@ -29,7 +28,6 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
 
         try:
             context.display.start_response()
-            full_text = ""
             async with context.http_session.stream(
                 "POST", url, json=payload, timeout=context.config.timeout
             ) as response:
@@ -53,14 +51,20 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                             except (json.JSONDecodeError, IndexError):
                                 continue
 
-            elapsed, tokens_received, ttft = context.display.finish_response()
-            context.stats.add_request(
-                tokens_sent, tokens_received, elapsed, ttft=ttft
-            )
-            return {"text": context.display.current_response}
+            request_stats = context.display.finish_response(success=True)
+            if request_stats:
+                request_stats.tokens_sent = tokens_sent
+                context.stats.add_completed_request(request_stats)
 
+            return {
+                "text": context.display.current_response,
+                "request": payload,
+                # Fabricate a response object for logging consistency
+                "response": {"usage": {"prompt_tokens": tokens_sent}},
+            }
         except Exception as e:
-            elapsed = time.time() - start_time
-            context.stats.add_request(tokens_sent, 0, elapsed, success=False)
-            # Use a generic exception type, but importantly, use repr(e) for a full error message.
+            request_stats = context.display.finish_response(success=False)
+            if request_stats:
+                request_stats.tokens_sent = tokens_sent
+                context.stats.add_completed_request(request_stats)
             raise ConnectionError(f"Request failed: {e!r}")

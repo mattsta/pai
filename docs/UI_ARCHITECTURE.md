@@ -17,8 +17,9 @@ The key components are:
 
 3.  **State Management (`asyncio.Event` and `Buffer`)**: This is the most critical concept. The UI is reactive; it changes based on the state of a few key objects.
     -   `generation_in_progress` (`asyncio.Event`): This event acts as the master switch for the UI's state. When it's set, the `ConditionalContainer` hides the input prompt and shows the "waiting" message. When it's cleared, the UI reverts.
-    -   `input_buffer` (`prompt_toolkit.Buffer`): Holds the text for the user's input. The `Application`'s key bindings read from this buffer on "Enter". It is connected to a `FileHistory` object to provide persistent, searchable command history across sessions.
+    -   `input_buffer` (`prompt_toolkit.Buffer`): Holds the text for the user's input. The `Application`'s key bindings read from this buffer on "Enter". It is configured with `enable_history_search=True` to allow prefix-based searching with up/down arrows and connected to a `FileHistory` object for persistence.
     -   `streaming_output_buffer` (`prompt_toolkit.Buffer`): A dedicated buffer for the live, streaming AI response. **This is the solution to all previous rendering bugs.** The background generation task *only* updates the `.text` property of this buffer. It **never** prints to the screen. `prompt-toolkit`'s rendering loop sees the buffer has changed and handles redrawing it to the screen flawlessly.
+    -   **`SearchToolbar`**: A built-in widget that is added to the layout. It is hidden by default but becomes visible when a search is initiated (e.g., via `Ctrl+R`), providing the UI for reverse incremental history search.
 
 4.  **Asynchronous Tasks**: When the user sends a message, an `asyncio.create_task()` dispatches the network-bound generation work to a background task. This allows the `Application`'s event loop to continue running unimpeded, keeping the UI (especially the toolbar) responsive and live.
 

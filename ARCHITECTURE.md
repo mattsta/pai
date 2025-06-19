@@ -40,9 +40,9 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 
 1.  **`pai/pai.py` (The Orchestrator)**
     *   **Entrypoint:** Contains the `main()` function that parses command-line arguments using `argparse`.
-    *   **Interactive Loop:** The `interactive_mode` function sets up and runs a persistent `prompt_toolkit.Application`. This application, not a simple `while` loop, manages the entire UI lifecycle, including the input prompt, live output window, and status toolbar. This approach is essential for a non-blocking, stable user interface. It also uses `prompt-toolkit`'s `FileHistory` to provide persistent command history across sessions, saved to `~/.pai/history.txt`.
-    *   **Command Parser:** Handles all `/` commands within the interactive loop, modifying session state.
-    *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`TestSession`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It orchestrates the flow from user input to protocol adapter execution.
+    *   **`InteractiveUI` and `Application`:** The `InteractiveUI` class encapsulates all logic for the text user interface. It creates and manages a persistent `prompt_toolkit.Application`. This application, not a simple `while` loop, manages the entire UI lifecycle, including the input prompt, live output window, `SearchToolbar` for history, and status toolbar. This approach is essential for a non-blocking, stable user interface. It uses `prompt-toolkit`'s `FileHistory` to provide persistent command history across sessions, saved to `~/.pai/history.txt`.
+    *   **Command Parser:** The `InteractiveUI` class handles all `/` commands, modifying session state.
+    *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`TestSession`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It is passed to the `InteractiveUI` to orchestrate the flow from user input to protocol adapter execution.
 
 2.  **Protocol Adapter System (`pai/protocols/`)**
     *   **`base_adapter.py`:** Defines the `BaseProtocolAdapter` abstract class and the `ProtocolContext` data structure. This is the contract that all protocol adapters must adhere to. It requires a `generate()` method, ensuring a consistent interface for the `PolyglotClient`.

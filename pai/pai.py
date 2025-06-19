@@ -28,6 +28,7 @@ from prompt_toolkit.layout.containers import (
     VSplit,
     Window,
 )
+from prompt_toolkit.widgets import SearchToolbar
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.filters import Condition
@@ -521,7 +522,10 @@ class InteractiveUI:
         self.client.display.output_buffer = self.streaming_output_buffer
 
         self.input_buffer = Buffer(
-            name="input_buffer", multiline=False, history=self.history
+            name="input_buffer",
+            multiline=False,
+            history=self.history,
+            enable_history_search=True,
         )
 
         # State management
@@ -565,6 +569,7 @@ class InteractiveUI:
             ),
         )
 
+        search_toolbar = SearchToolbar()
         toolbar_window = Window(
             content=FormattedTextControl(self._get_toolbar_text),
             height=3,
@@ -583,6 +588,7 @@ class InteractiveUI:
                         waiting_ui,
                         filter=Condition(lambda: self.generation_in_progress.is_set()),
                     ),
+                    search_toolbar,
                     toolbar_window,
                 ]
             ),

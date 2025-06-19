@@ -36,7 +36,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line:
-                        line_str = line.decode("utf-8")
+                        line_str = line
                         context.display.show_raw_line(line_str)
                         if line_str.startswith("data: "):
                             data = line_str[6:]

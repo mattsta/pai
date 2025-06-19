@@ -649,7 +649,8 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
 
         asyncio.create_task(_process_and_generate(user_input))
 
-    @kb.add("c-c", eager=True); @kb.add("c-d", eager=True)
+    @kb.add("c-c", eager=True)
+    @kb.add("c-d", eager=True)
     def _(event):
         if input_buffer.text: input_buffer.reset()
         else: event.app.exit()

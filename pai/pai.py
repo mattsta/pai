@@ -20,7 +20,8 @@ from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
+from prompt_toolkit.key_binding.defaults import load_key_bindings
 from prompt_toolkit.layout.containers import (
     ConditionalContainer,
     HSplit,
@@ -711,6 +712,9 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
         filter=Condition(lambda: generation_in_progress.is_set() and streaming_output_buffer.text),
     )
 
+    # Merge custom keybindings with the defaults to enable history search, etc.
+    final_key_bindings = merge_key_bindings([load_key_bindings(), kb])
+
     app = Application(
         layout=Layout(
             HSplit([
@@ -728,7 +732,7 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
             ]),
             focused_element=input_buffer,
         ),
-        key_bindings=kb,
+        key_bindings=final_key_bindings,
         refresh_interval=0.2,
         full_screen=False,
     )

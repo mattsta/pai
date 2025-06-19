@@ -848,10 +848,11 @@ class InteractiveUI:
         self.pt_printer("Type '/help' for commands, '/quit' to exit.")
         self.pt_printer("-" * 60)
 
+        # This try/finally ensures that closing stats are printed even if the app
+        # exits with an exception (e.g., Ctrl+C/Ctrl+D). The exceptions are
+        # allowed to propagate up to main() where they are handled for a clean exit.
         try:
             await self.app.run_async()
-        except (EOFError, KeyboardInterrupt):
-            pass
         finally:
             closing(self.client.stats, printer=self.pt_printer)
 

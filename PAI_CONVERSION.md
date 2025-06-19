@@ -58,12 +58,12 @@ We will implement `gptwink`'s most useful UI feature: a live status bar.
 
 `gptwink`'s hardcoded prompt shortcuts were useful but inflexible. We will create a dynamic, file-based system.
 
--   **Create `prompts/` directory:** This directory will be added to the project.
--   **User-Created Prompts:** Users can add their own system prompts by creating `.txt` or `.md` files in this directory (e.g., `prompts/code_refactor.md`).
--   **New Commands:**
-    -   `/prompts`: Lists all available prompt files in the `prompts/` directory.
-    -   `/prompt <name>`: Loads the content of the specified file. This can either start a new conversation with that content as the system prompt or insert it into the current one.
-- Retain both chat and completion mode endpoints for maximum experimental compatibility.
+-   [x] **Create `prompts/` directory:** This directory will be added to the project and created automatically if it doesn't exist.
+-   [x] **User-Created Prompts:** Users can add their own system prompts by creating `.txt` or `.md` files in this directory (e.g., `prompts/code_refactor.md`).
+-   [x] **New Commands:**
+    -   `/prompts`: Lists all available prompt files from the `prompts/` directory.
+    -   `/prompt <name>`: Loads the content of the specified file (`<name>.md` or `<name>.txt`) and sets it as the new system prompt, clearing the current conversation history.
+-   [x] Retain both chat and completion mode endpoints for maximum experimental compatibility.
 
 ### Step 5: Cleanup and Finalization
 

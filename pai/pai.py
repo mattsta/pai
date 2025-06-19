@@ -267,6 +267,10 @@ class StreamingDisplay:
 
     def show_parsed_chunk(self, chunk_data: Dict, chunk_text: str):
         """Handles printing a parsed chunk of text from the stream."""
+        # Don't do anything for empty chunks, which some providers send.
+        if not chunk_text:
+            return
+
         # Update state first
         if not self.first_token_received:
             self.status = "Streaming"
@@ -279,9 +283,11 @@ class StreamingDisplay:
 
         # Handle rendering
         if self._is_interactive:
-            # Overwrite the current line with the full, updated response.
-            # The `end="\r"` moves the cursor back to the start of the line for the next print.
-            self._print(HTML(f"🤖 Assistant: {self.current_response}"), end="\r")
+            # In interactive mode, print header once, then append chunks.
+            # This avoids overwriting and works correctly with prompt_toolkit's renderer.
+            if self.chunk_count == 1:
+                self._print(HTML("🤖 Assistant: "), end="")
+            self._print(HTML(chunk_text), end="")
         else:
             # For non-interactive, print header once, then stream chunks.
             if self.chunk_count == 1:
@@ -323,8 +329,8 @@ class StreamingDisplay:
                     f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
                 )
             else:
-                # To finalize, reprint the full response and end with a proper newline.
-                self._print(HTML(f"🤖 Assistant: {self.current_response}"))
+                # The text has been streamed, so just print a newline to finalize.
+                self._print("")
 
         self.status = "Idle"
         self.live_tok_per_sec = 0.0

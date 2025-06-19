@@ -283,11 +283,9 @@ class StreamingDisplay:
 
         # Handle rendering
         if self._is_interactive:
-            # In interactive mode, print header once, then append chunks.
-            # This avoids overwriting and works correctly with prompt_toolkit's renderer.
-            if self.chunk_count == 1:
-                self._print(HTML("🤖 Assistant: "), end="")
-            self._print(HTML(chunk_text), end="")
+            # Overwrite the current line with the full, updated response by using a carriage return.
+            # `end=""` prevents the printer from adding its own newline.
+            self._print(HTML(f"\r🤖 Assistant: {self.current_response}"), end="")
         else:
             # For non-interactive, print header once, then stream chunks.
             if self.chunk_count == 1:
@@ -329,8 +327,10 @@ class StreamingDisplay:
                     f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
                 )
             else:
-                # The text has been streamed, so just print a newline to finalize.
-                self._print("")
+                # To finalize, reprint the full response and end with a proper newline.
+                # The \r ensures we overwrite the last partial line, and the default end='\n'
+                # moves the cursor to the next line for the new prompt.
+                self._print(HTML(f"\r🤖 Assistant: {self.current_response}"))
 
         self.status = "Idle"
         self.live_tok_per_sec = 0.0
@@ -611,7 +611,11 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
             generation_in_progress.clear()
 
     kb = KeyBindings()
-    input_buffer = Buffer(name="input_buffer", multiline=False)
+    input_buffer = Buffer(
+        name="input_buffer",
+        multiline=False,
+        read_only=Condition(lambda: generation_in_progress.is_set()),
+    )
 
     @kb.add("enter", eager=True)
     def _(event):
@@ -673,13 +677,11 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
         Window(FormattedTextControl(lambda: HTML(f"<style fg='ansigreen'>👤 ({client.config.name}) User:</style> ")), width=lambda: len(f"👤 ({client.config.name}) User: ") + 1),
         Window(BufferControl(buffer=input_buffer)),
     ])
-    waiting_ui = Window(FormattedTextControl(HTML("<style fg='ansiyellow'>[Generating response...]</style>")))
 
     app = Application(
         layout=Layout(
             HSplit([
-                ConditionalContainer(prompt_ui, filter=Condition(lambda: not generation_in_progress.is_set())),
-                ConditionalContainer(waiting_ui, filter=Condition(lambda: generation_in_progress.is_set())),
+                prompt_ui,
                 # The bottom toolbar is a window with a fixed height within the main layout.
                 Window(
                     content=FormattedTextControl(

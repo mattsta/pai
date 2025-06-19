@@ -224,9 +224,8 @@ class StreamingDisplay:
                     f"\n\n📊 Response in {stats.response_time:.2f}s ({stats.tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
                 )
 
-        # Always clear the live buffer and reset state for the next command.
-        if self.output_buffer:
-            self.output_buffer.reset()
+        # The buffer is reset by start_response(), so we just reset status here.
+        # Keeping the buffer allows the final response to remain visible.
         self.status = "Idle"
         return self.current_request_stats
 
@@ -648,6 +647,7 @@ class InteractiveUI:
 
         messages = self.conversation.get_messages_for_next_turn(user_input_str)
         max_loops = 5
+        used_tools_in_loop = False
 
         for i in range(max_loops):
             request = ChatRequest(
@@ -673,9 +673,15 @@ class InteractiveUI:
             )
 
             if tool_match:
+                used_tools_in_loop = True
                 self.pt_printer(
                     HTML("\n<style fg='ansimagenta'>🔧 Agent wants to use a tool...</style>")
                 )
+                # The full tool_call text is printed by the generate() function's
+                # display handler. We can't easily suppress it, but we can clear
+                # it from the display object's memory so it isn't logged as a "final"
+                # assistant message if the session is cancelled here.
+                self.client.display.current_response = ""
                 tool_xml = tool_match.group(1)
                 name_match = re.search(r"<name>(.*?)</name>", tool_xml)
                 args_match = re.search(r"<args>(.*?)</args>", tool_xml, re.DOTALL)
@@ -703,12 +709,21 @@ class InteractiveUI:
                 self.pt_printer(HTML(f"<style fg='ansimagenta'>  - Result: {escape(str(tool_result))[:300]}...</style>"))
                 # Continue the loop
             else:
-                # No tool call found, this is the final answer.
-                # The response has already been printed by the non-streaming `generate`
-                # call at the top of the loop. We just need to log the turn and break.
-                self.pt_printer(
-                    HTML("\n<style fg='ansigreen'>✅ Agent decided to respond directly.</style>")
-                )
+                # No tool call found, this is the final answer. `generate()` has already
+                # called finish_response(), which handles printing. We just log the turn.
+                if used_tools_in_loop:
+                    self.pt_printer(
+                        HTML(
+                            "\n<style fg='ansigreen'>✅ Agent formulated a response using tool results.</style>"
+                        )
+                    )
+                else:
+                    self.pt_printer(
+                        HTML(
+                            "\n<style fg='ansigreen'>✅ Agent decided to respond directly.</style>"
+                        )
+                    )
+
                 turn = Turn(
                     request_data=result.get("request", {}),
                     response_data=result.get("response", {}),

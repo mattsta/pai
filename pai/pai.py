@@ -583,7 +583,9 @@ class InteractiveUI:
                     live_output_window,
                     ConditionalContainer(
                         prompt_ui,
-                        filter=Condition(lambda: not self.generation_in_progress.is_set()),
+                        filter=Condition(
+                            lambda: not self.generation_in_progress.is_set()
+                        ),
                     ),
                     ConditionalContainer(
                         waiting_ui,
@@ -631,9 +633,11 @@ class InteractiveUI:
     def _handle_command(self, text: str, app: Application):
         parts = text[1:].lower().split(" ", 1)
         cmd, params = parts[0], parts[1] if len(parts) > 1 else ""
-        
+
         COMMANDS = {
-            "quit": app.exit, "exit": app.exit, "q": app.exit,
+            "quit": app.exit,
+            "exit": app.exit,
+            "q": app.exit,
             "stats": lambda: print_stats(self.client.stats, printer=self.pt_printer),
             "help": lambda: self._print_help(),
             "endpoints": self._cmd_endpoints,
@@ -667,7 +671,9 @@ class InteractiveUI:
         for ep in self.client.all_endpoints:
             self.pt_printer(f" - {ep['name']}")
 
-    def _cmd_switch(self, params: str): self.client.switch_endpoint(params)
+    def _cmd_switch(self, params: str):
+        self.client.switch_endpoint(params)
+
     def _cmd_model(self, params: str):
         self.client.config.model_name = params
         self.pt_printer(f"✅ Model set to: {params}")
@@ -676,36 +682,49 @@ class InteractiveUI:
         try:
             self.args.temperature = float(params)
             self.pt_printer(f"✅ Temp set to: {self.args.temperature}")
-        except ValueError: self.pt_printer("❌ Invalid value.")
+        except ValueError:
+            self.pt_printer("❌ Invalid value.")
 
     def _cmd_tokens(self, params: str):
         try:
             self.args.max_tokens = int(params)
             self.pt_printer(f"✅ Max tokens set to: {self.args.max_tokens}")
-        except ValueError: self.pt_printer("❌ Invalid value.")
+        except ValueError:
+            self.pt_printer("❌ Invalid value.")
 
     def _cmd_toggle_stream(self):
         self.args.stream = not self.args.stream
-        self.pt_printer(f"✅ Streaming {'enabled' if self.args.stream else 'disabled'}.")
+        self.pt_printer(
+            f"✅ Streaming {'enabled' if self.args.stream else 'disabled'}."
+        )
 
     def _cmd_toggle_verbose(self):
         self.args.verbose = not self.args.verbose
-        self.pt_printer(f"✅ Verbose mode {'enabled' if self.args.verbose else 'disabled'}.")
+        self.pt_printer(
+            f"✅ Verbose mode {'enabled' if self.args.verbose else 'disabled'}."
+        )
 
     def _cmd_toggle_debug(self):
         self.client.display.debug_mode = not self.client.display.debug_mode
-        self.pt_printer(f"✅ Debug mode {'enabled' if self.client.display.debug_mode else 'disabled'}.")
+        self.pt_printer(
+            f"✅ Debug mode {'enabled' if self.client.display.debug_mode else 'disabled'}."
+        )
 
     def _cmd_toggle_tools(self):
         self.client.tools_enabled = not self.client.tools_enabled
-        self.pt_printer(f"✅ Tool calling {'enabled' if self.client.tools_enabled else 'disabled'}.")
+        self.pt_printer(
+            f"✅ Tool calling {'enabled' if self.client.tools_enabled else 'disabled'}."
+        )
 
     def _cmd_history(self):
-        if self.is_chat_mode: self.pt_printer(json.dumps(self.conversation.get_history(), indent=2))
+        if self.is_chat_mode:
+            self.pt_printer(json.dumps(self.conversation.get_history(), indent=2))
+
     def _cmd_clear(self):
         if self.is_chat_mode:
             self.conversation.clear()
             self.pt_printer("🧹 History cleared.")
+
     def _cmd_system(self, params: str):
         if self.is_chat_mode:
             self.conversation.set_system_prompt(params)
@@ -718,14 +737,18 @@ class InteractiveUI:
             if self.is_chat_mode:
                 messages = self.conversation.get_messages_for_next_turn(user_input_str)
                 request = ChatRequest(
-                    messages=messages, model=self.client.config.model_name,
-                    max_tokens=self.args.max_tokens, temperature=self.args.temperature,
+                    messages=messages,
+                    model=self.client.config.model_name,
+                    max_tokens=self.args.max_tokens,
+                    temperature=self.args.temperature,
                     stream=self.args.stream,
                 )
             else:
                 request = CompletionRequest(
-                    prompt=user_input_str, model=self.client.config.model_name,
-                    max_tokens=self.args.max_tokens, temperature=self.args.temperature,
+                    prompt=user_input_str,
+                    model=self.client.config.model_name,
+                    max_tokens=self.args.max_tokens,
+                    temperature=self.args.temperature,
                     stream=self.args.stream,
                 )
 
@@ -740,8 +763,12 @@ class InteractiveUI:
                 self.conversation.add_turn(turn)
                 try:
                     turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
-                    turn_file.write_text(json.dumps(turn.to_dict(), indent=2), encoding="utf-8")
-                    save_conversation_formats(self.conversation, self.session_dir, printer=self.pt_printer)
+                    turn_file.write_text(
+                        json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
+                    )
+                    save_conversation_formats(
+                        self.conversation, self.session_dir, printer=self.pt_printer
+                    )
                 except Exception as e:
                     self.pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
         except Exception as e:
@@ -754,29 +781,45 @@ class InteractiveUI:
         """Generates the HTML for the multi-line bottom toolbar."""
         client, args, session_dir = self.client, self.args, self.session_dir
         endpoint, model = client.config.name, client.config.model_name
-        total_tokens = client.stats.total_tokens_sent + client.stats.total_tokens_received
+        total_tokens = (
+            client.stats.total_tokens_sent + client.stats.total_tokens_received
+        )
         stats, display = client.stats, client.display
 
         line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint.upper()}:{model} </style></b> | <b>Total Tokens:</b> {total_tokens} | <b>Avg Tok/s:</b> {stats.get_stats()['tokens_per_second']}"
 
-        last_tok_per_sec = (stats.last_tokens_received / max(stats.last_response_time, 1)) if stats.last_response_time > 0 else 0.0
+        last_tok_per_sec = (
+            (stats.last_tokens_received / max(stats.last_response_time, 1))
+            if stats.last_response_time > 0
+            else 0.0
+        )
         status_color = "ansigreen" if display.status == "Streaming" else "ansiyellow"
         live_tps_str = f"<b><style fg='{status_color}'>Live Tok/s: {display.live_tok_per_sec:.1f}</style></b>"
         line2_parts = [
             f"<style fg='ansimagenta'><b>Status: {display.status}</b></style>",
             live_tps_str if display.status == "Streaming" else "",
-            f"<b>Last TTFT:</b> {stats.last_ttft:.2f}s", f"<b>Last Tok/s:</b> {last_tok_per_sec:.1f}",
+            f"<b>Last TTFT:</b> {stats.last_ttft:.2f}s",
+            f"<b>Last Tok/s:</b> {last_tok_per_sec:.1f}",
         ]
 
-        tools_status = f"<style fg='ansigreen'>ON</style>" if client.tools_enabled else f"<style fg='ansired'>OFF</style>"
-        debug_status = f"<style fg='ansiyellow'>ON</style>" if display.debug_mode else "OFF"
+        tools_status = (
+            f"<style fg='ansigreen'>ON</style>"
+            if client.tools_enabled
+            else f"<style fg='ansired'>OFF</style>"
+        )
+        debug_status = (
+            f"<style fg='ansiyellow'>ON</style>" if display.debug_mode else "OFF"
+        )
         line3_parts = [
-            f"<b>Tools:</b> {tools_status}", f"<b>Debug:</b> {debug_status}",
+            f"<b>Tools:</b> {tools_status}",
+            f"<b>Debug:</b> {debug_status}",
             f"<b>Mode:</b> {'Chat' if args.chat else 'Completion'}",
             f"<style fg='grey'>Log: {session_dir}</style>",
         ]
 
-        return HTML(f"{line1}\n{' | '.join(p for p in line2_parts if p)}\n{' | '.join(line3_parts)}")
+        return HTML(
+            f"{line1}\n{' | '.join(p for p in line2_parts if p)}\n{' | '.join(line3_parts)}"
+        )
 
     def _print_help(self):
         self.pt_printer("""
@@ -798,17 +841,20 @@ class InteractiveUI:
 
     async def run(self):
         """Starts the interactive UI."""
-        self.pt_printer(f"🎯 {'Chat' if self.is_chat_mode else 'Completion'} Mode | Endpoint: {self.client.config.name} | Model: {self.client.config.model_name}")
+        self.pt_printer(
+            f"🎯 {'Chat' if self.is_chat_mode else 'Completion'} Mode | Endpoint: {self.client.config.name} | Model: {self.client.config.model_name}"
+        )
         self.pt_printer(f"💾 Session logs will be saved to: {self.session_dir}")
         self.pt_printer("Type '/help' for commands, '/quit' to exit.")
         self.pt_printer("-" * 60)
-        
+
         try:
             await self.app.run_async()
         except (EOFError, KeyboardInterrupt):
             pass
         finally:
             closing(self.client.stats, printer=self.pt_printer)
+
 
 async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     """The main interactive mode, which uses a prompt-toolkit Application for a stable UI."""

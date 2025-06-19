@@ -97,6 +97,8 @@ Once in interactive mode, use `/` commands to control the session:
 *   `/model <name>`: Change the model (e.g., `/model gpt-4o-mini`).
 *   `/system <prompt>`: Set a new system prompt for the chat.
 *   `/prompt <name>`: Load a system prompt from the `prompts/` directory.
+*   `/agent`: Start agent mode for OpenAI-compatible tool-use
+*   `/legacy_agent`: Start agent mode for models without native tool-use
 *   `/tools`: Toggle tool-use on or off for the current session (Requires starting with `--tools`).
 *   `/debug`: Toggle raw protocol debugging on or off.
 *   `/clear`: Clear the current conversation history.

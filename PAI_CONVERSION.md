@@ -45,8 +45,10 @@ The current `messages` list in `pai`'s `interactive_mode` is brittle. We will re
 We will implement `gptwink`'s most useful UI feature: a live status bar.
 
 -   [x] **Modify `interactive_mode`:** The `PromptSession` will be configured with a `bottom_toolbar`.
--   [x] **Overhaul Toolbar and Streaming Display:** The current toolbar and display logic has been completely refactored to create a stable, more informative, and real-time UI.
-    -   **Fix Toolbar Disappearance:** The core issue of the toolbar vanishing during responses has been solved. All direct `print()` and `sys.stdout.write()` calls have been removed from the response generation loop and replaced with `prompt-toolkit`'s thread-safe display mechanisms. This ensures the toolbar remains visible at all times.
+-   [x] **Overhaul Toolbar and Streaming Display:** The UI has been completely re-architected around a persistent `prompt_toolkit.Application` to solve all stability and rendering issues.
+    -   **Core Architectural Change:** The simple `PromptSession` in a `while` loop was replaced with a full `Application` instance. This application runs a continuous event loop, ensuring the UI (including the toolbar) is always present and responsive.
+    -   **Solved UI Freezing:** Network requests are now dispatched to background `asyncio` tasks. They do not block the UI's event loop. Application state is managed via an `asyncio.Event` (`generation_in_progress`) that conditionally swaps UI components (e.g., hiding the input prompt and showing a "Waiting..." message).
+    -   **Stable Streaming Output:** All previous rendering bugs (overwriting text, multiple newlines) were solved by introducing a dedicated `Buffer` for live output. The background generation task no longer `prints` to the screen; it simply updates the `.text` property of this buffer. The `Application` is responsible for rendering the buffer's contents, eliminating all rendering artifacts.
     -   **Multi-Line, Readable Layout:** The `get_toolbar_text()` function has been updated to produce a multi-line display, giving stats more room to breathe and making them easier to read at a glance.
     -   **Live Tokens/Second:** A new "live tokens/second" metric for the *current* response stream has been added to the toolbar. This is calculated in real-time as tokens arrive, providing immediate feedback on model performance for the active generation task.
 -   [x] This provides the user with immediate, persistent context about their session state.

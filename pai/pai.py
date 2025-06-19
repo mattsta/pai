@@ -203,7 +203,7 @@ class StreamingDisplay:
         # buffer to the main conversation transcript. This happens regardless
         # of success to ensure partial/cancelled outputs are preserved.
         if self._is_interactive and self.current_response:
-            self._print(HTML(f"🤖 Assistant: {self.current_response}"))
+            self._print(HTML(f"🤖 Assistant: {escape(self.current_response)}"))
 
         # On success, print final stats.
         if success and self.current_request_stats:

@@ -16,8 +16,7 @@ import pathlib
 from typing import Optional, Dict, Any, Union, List
 from dataclasses import dataclass, field
 from datetime import datetime
-from prompt_toolkit import PromptSession
-from prompt_toolkit.application import get_app
+from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.formatted_text import HTML
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -238,10 +237,8 @@ class StreamingDisplay:
 
     def _print(self, *args, **kwargs):
         """Internal print-router."""
-        if self._is_interactive and "flush" in kwargs:
-            # prompt-toolkit's printer handles flushing and thread safety.
-            # a "flush" kwarg will cause it to crash.
-            kwargs.pop("flush")
+        # In interactive mode, self._printer is prompt_toolkit's thread-safe
+        # print_formatted_text function, which handles redrawing the prompt.
         self._printer(*args, **kwargs)
 
     def show_raw_line(self, line: str):
@@ -543,8 +540,8 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     session_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Setup prompt-toolkit session and graceful exit ---
-    # Use a lambda to get the app's print_text method, which is thread-safe.
-    pt_printer = lambda *p_args, **p_kwargs: get_app().print_text(*p_args, **p_kwargs)
+    # Use prompt-toolkit's thread-safe printer, which handles redrawing the UI.
+    pt_printer = print_formatted_text
     client.display.set_printer(pt_printer, is_interactive=True)
 
     pt_printer(

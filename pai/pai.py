@@ -311,7 +311,9 @@ class StreamingDisplay:
                 f"🟢 [{timestamp:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
             )
 
-    def finish_response(self, success: bool = True) -> tuple[float, int, Optional[float]]:
+    def finish_response(
+        self, success: bool = True
+    ) -> tuple[float, int, Optional[float]]:
         """Finalizes the response, prints stats, and resets the display state."""
         self.status = "Done"
         elapsed = time.time() - (self.start_time or 0)
@@ -475,7 +477,9 @@ def save_conversation_formats(
                 output_path = session_dir / output_filename
                 output_path.write_text(final_html, encoding="utf-8")
             except Exception as e:
-                printer(f"\n⚠️ Warning: Could not render template '{template_name}': {e}")
+                printer(
+                    f"\n⚠️ Warning: Could not render template '{template_name}': {e}"
+                )
                 # Don't fallback here, just try the next template
 
     except Exception as e:
@@ -592,7 +596,9 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     streaming_output_buffer = Buffer()
     client.display.output_buffer = streaming_output_buffer
 
-    pt_printer(f"🎯 {'Chat' if is_chat_mode else 'Completion'} Mode | Endpoint: {client.config.name} | Model: {client.config.model_name}")
+    pt_printer(
+        f"🎯 {'Chat' if is_chat_mode else 'Completion'} Mode | Endpoint: {client.config.name} | Model: {client.config.model_name}"
+    )
     pt_printer(f"💾 Session logs will be saved to: {session_dir}")
     pt_printer("Type '/help' for commands, '/quit' to exit.")
     pt_printer("-" * 60)
@@ -605,19 +611,39 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
             request: Union[ChatRequest, CompletionRequest]
             if is_chat_mode:
                 messages = conversation.get_messages_for_next_turn(user_input_str)
-                request = ChatRequest(messages=messages, model=client.config.model_name, max_tokens=args.max_tokens, temperature=args.temperature, stream=args.stream)
+                request = ChatRequest(
+                    messages=messages,
+                    model=client.config.model_name,
+                    max_tokens=args.max_tokens,
+                    temperature=args.temperature,
+                    stream=args.stream,
+                )
             else:
-                request = CompletionRequest(prompt=user_input_str, model=client.config.model_name, max_tokens=args.max_tokens, temperature=args.temperature, stream=args.stream)
+                request = CompletionRequest(
+                    prompt=user_input_str,
+                    model=client.config.model_name,
+                    max_tokens=args.max_tokens,
+                    temperature=args.temperature,
+                    stream=args.stream,
+                )
 
             result = await client.generate(request, args.verbose)
 
             if is_chat_mode and result:
-                turn = Turn(request_data=result.get("request", {}), response_data=result.get("response", {}), assistant_message=result.get("text", ""))
+                turn = Turn(
+                    request_data=result.get("request", {}),
+                    response_data=result.get("response", {}),
+                    assistant_message=result.get("text", ""),
+                )
                 conversation.add_turn(turn)
                 try:
                     turn_file = session_dir / f"{turn.turn_id}-turn.json"
-                    turn_file.write_text(json.dumps(turn.to_dict(), indent=2), encoding="utf-8")
-                    save_conversation_formats(conversation, session_dir, printer=pt_printer)
+                    turn_file.write_text(
+                        json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
+                    )
+                    save_conversation_formats(
+                        conversation, session_dir, printer=pt_printer
+                    )
                 except Exception as e:
                     pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
         except Exception as e:
@@ -633,54 +659,86 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
         name="input_buffer",
         multiline=False,
         history=history,
+        enable_history_search=True,
     )
 
     @kb.add("enter", eager=True)
     def _(event):
-        if generation_in_progress.is_set(): return
+        if generation_in_progress.is_set():
+            return
         user_input = input_buffer.text.strip()
-        if not user_input: return
+        if not user_input:
+            return
 
-        pt_printer(HTML(f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> {user_input}"))
+        # manual buffer usage requires manual history storage
+        history.store_string(user_input)
+
+        pt_printer(
+            HTML(
+                f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> {user_input}"
+            )
+        )
         input_buffer.reset()
 
         if user_input.startswith("/"):
             parts = user_input[1:].lower().split(" ", 1)
             cmd, params = parts[0], parts[1] if len(parts) > 1 else ""
-            if cmd in ["quit", "exit", "q"]: event.app.exit(); return
-            elif cmd == "stats": print_stats(client.stats, printer=pt_printer)
-            elif cmd == "help": print_help(printer=pt_printer)
+            if cmd in ["quit", "exit", "q"]:
+                event.app.exit()
+                return
+            elif cmd == "stats":
+                print_stats(client.stats, printer=pt_printer)
+            elif cmd == "help":
+                print_help(printer=pt_printer)
             elif cmd == "endpoints":
                 pt_printer("Available Endpoints:")
-                for ep in client.all_endpoints: pt_printer(f" - {ep['name']}")
-            elif cmd == "switch" and params: client.switch_endpoint(params)
+                for ep in client.all_endpoints:
+                    pt_printer(f" - {ep['name']}")
+            elif cmd == "switch" and params:
+                client.switch_endpoint(params)
             elif cmd == "model" and params:
                 client.config.model_name = params
                 pt_printer(f"✅ Model set to: {params}")
             elif cmd == "temp" and params:
-                try: args.temperature = float(params); pt_printer(f"✅ Temp set to: {args.temperature}")
-                except ValueError: pt_printer("❌ Invalid value.")
+                try:
+                    args.temperature = float(params)
+                    pt_printer(f"✅ Temp set to: {args.temperature}")
+                except ValueError:
+                    pt_printer("❌ Invalid value.")
             elif cmd == "tokens" and params:
-                try: args.max_tokens = int(params); pt_printer(f"✅ Max tokens set to: {args.max_tokens}")
-                except ValueError: pt_printer("❌ Invalid value.")
+                try:
+                    args.max_tokens = int(params)
+                    pt_printer(f"✅ Max tokens set to: {args.max_tokens}")
+                except ValueError:
+                    pt_printer("❌ Invalid value.")
             elif cmd == "stream":
                 args.stream = not args.stream
                 pt_printer(f"✅ Streaming {'enabled' if args.stream else 'disabled'}.")
             elif cmd == "verbose":
                 args.verbose = not args.verbose
-                pt_printer(f"✅ Verbose mode {'enabled' if args.verbose else 'disabled'}.")
+                pt_printer(
+                    f"✅ Verbose mode {'enabled' if args.verbose else 'disabled'}."
+                )
             elif cmd == "debug":
                 client.display.debug_mode = not client.display.debug_mode
-                pt_printer(f"✅ Debug mode {'enabled' if client.display.debug_mode else 'disabled'}.")
+                pt_printer(
+                    f"✅ Debug mode {'enabled' if client.display.debug_mode else 'disabled'}."
+                )
             elif cmd == "tools":
                 client.tools_enabled = not client.tools_enabled
-                pt_printer(f"✅ Tool calling {'enabled' if client.tools_enabled else 'disabled'}.")
-            elif is_chat_mode and cmd == "history": pt_printer(json.dumps(conversation.get_history(), indent=2))
+                pt_printer(
+                    f"✅ Tool calling {'enabled' if client.tools_enabled else 'disabled'}."
+                )
+            elif is_chat_mode and cmd == "history":
+                pt_printer(json.dumps(conversation.get_history(), indent=2))
             elif is_chat_mode and cmd == "clear":
-                conversation.clear(); pt_printer("🧹 History cleared.")
+                conversation.clear()
+                pt_printer("🧹 History cleared.")
             elif is_chat_mode and cmd == "system" and params:
-                conversation.set_system_prompt(params); pt_printer(f"🤖 System prompt set.")
-            else: pt_printer("❌ Unknown command.")
+                conversation.set_system_prompt(params)
+                pt_printer(f"🤖 System prompt set.")
+            else:
+                pt_printer("❌ Unknown command.")
             return
 
         asyncio.create_task(_process_and_generate(user_input))
@@ -688,28 +746,40 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     @kb.add("c-c", eager=True)
     @kb.add("c-d", eager=True)
     def _(event):
-        if input_buffer.text: input_buffer.reset()
-        else: event.app.exit()
+        if input_buffer.text:
+            input_buffer.reset()
+        else:
+            event.app.exit()
 
     # This is the main input bar at the bottom of the screen.
-    prompt_ui = VSplit([
-        Window(FormattedTextControl(lambda: HTML(f"<style fg='ansigreen'>👤 ({client.config.name}) User:</style> ")), width=lambda: len(f"👤 ({client.config.name}) User: ") + 1),
-        Window(BufferControl(buffer=input_buffer)),
-    ])
+    prompt_ui = VSplit(
+        [
+            Window(
+                FormattedTextControl(
+                    lambda: HTML(
+                        f"<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
+                    )
+                ),
+                width=lambda: len(f"👤 ({client.config.name}) User: ") + 1,
+            ),
+            Window(BufferControl(buffer=input_buffer)),
+        ]
+    )
 
     # A UI to show when waiting for a response.
     waiting_ui = Window(
-        FormattedTextControl(HTML("<style fg='ansiyellow'>[Waiting for response...]</style>")),
+        FormattedTextControl(
+            HTML("<style fg='ansiyellow'>[Waiting for response...]</style>")
+        ),
         height=1,
     )
 
     # This is the window that will appear *above* the prompt to show live streaming output.
     live_output_window = ConditionalContainer(
-        Window(
-            content=BufferControl(buffer=streaming_output_buffer),
-            wrap_lines=True
+        Window(content=BufferControl(buffer=streaming_output_buffer), wrap_lines=True),
+        filter=Condition(
+            lambda: generation_in_progress.is_set() and streaming_output_buffer.text
         ),
-        filter=Condition(lambda: generation_in_progress.is_set() and streaming_output_buffer.text),
     )
 
     # Merge custom keybindings with the defaults to enable history search, etc.
@@ -717,19 +787,27 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
 
     app = Application(
         layout=Layout(
-            HSplit([
-                # This container holds the main UI elements. The history is printed above this.
-                live_output_window,
-                ConditionalContainer(prompt_ui, filter=Condition(lambda: not generation_in_progress.is_set())),
-                ConditionalContainer(waiting_ui, filter=Condition(lambda: generation_in_progress.is_set())),
-                Window(
-                    content=FormattedTextControl(
-                        lambda: get_toolbar_text(client, args, session_dir)
+            HSplit(
+                [
+                    # This container holds the main UI elements. The history is printed above this.
+                    live_output_window,
+                    ConditionalContainer(
+                        prompt_ui,
+                        filter=Condition(lambda: not generation_in_progress.is_set()),
                     ),
-                    height=3,
-                    style="reverse",
-                ),
-            ]),
+                    ConditionalContainer(
+                        waiting_ui,
+                        filter=Condition(lambda: generation_in_progress.is_set()),
+                    ),
+                    Window(
+                        content=FormattedTextControl(
+                            lambda: get_toolbar_text(client, args, session_dir)
+                        ),
+                        height=3,
+                        style="reverse",
+                    ),
+                ]
+            ),
             focused_element=input_buffer,
         ),
         key_bindings=final_key_bindings,
@@ -738,7 +816,8 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     )
     try:
         await app.run_async()
-    except (EOFError, KeyboardInterrupt): pass
+    except (EOFError, KeyboardInterrupt):
+        pass
     finally:
         closing(client.stats, printer=pt_printer)
 

@@ -54,9 +54,10 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   **Adding New Providers:** The system is designed for easy extension. For a detailed walkthrough on creating a new adapter, see the [`How to Add a New Provider`](docs/providers/ANTHROPIC.md) guide.
 
 3.  **Tool System (`pai/tools.py`)**
-    *   A standalone, decoupled module for defining and executing local functions.
-    *   `@tool` Decorator: Registers functions into a `TOOL_REGISTRY`. It introspects the function's signature and docstring to automatically generate a JSON Schema that provider APIs (like OpenAI's) can understand.
-    *   `execute_tool()`: A simple function that takes a tool name and arguments, runs the corresponding Python function, and returns the result.
+    *   A highly extensible system for defining and executing local functions that the AI can call.
+    *   `@tool` Decorator: Registers functions into a `TOOL_REGISTRY`. It introspects the function's signature (supporting `str`, `int`, `float`, `bool`, and `Enum`) and docstring to automatically generate a JSON Schema for the provider API.
+    *   `execute_tool()`: A robust dispatcher that takes a tool name and arguments, correctly converts `Enum` types, runs the tool, and returns the result.
+    *   **Dynamic Loading:** The framework can automatically discover and load custom tools from user-defined directories, making it easy to add new capabilities without modifying core code. For a detailed guide, see [`docs/TOOLS.md`](./TOOLS.md).
 
 4.  **Core Data Models (`pai/models.py`)**
     *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. A `Conversation` holds a list of `Turn` objects, and each `Turn` captures a single, complete request/response cycle, including all request/response data and metadata.

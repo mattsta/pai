@@ -13,7 +13,6 @@ This document outlines potential features and improvements for the future develo
 
 *   **Advanced Agentic Control:** Introduce commands to control the agent loop, such as setting max iterations (`/set max_loops 5`) or requiring user confirmation before executing a tool (`/confirm_tools on`).
 *   **Multi-Tool Calls:** Improve support for models that can request multiple tool calls in a single turn, running them in parallel where possible.
-*   **Dynamic Tool Loading:** Implement a mechanism to load tools from a specified directory, allowing users to add their own tools without modifying the core `tools.py` file.
 
 ### Usability and User Experience
 

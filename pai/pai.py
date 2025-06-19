@@ -746,6 +746,14 @@ async def async_main(args: argparse.Namespace):
     except Exception as e:
         sys.exit(f"❌ FATAL: Could not parse '{args.config}': {e}")
 
+    # Load custom tools from directories specified in the config
+    if tool_config := loaded_config.get("tool_config"):
+        if tool_dirs := tool_config.get("directories"):
+            from .tools import load_tools_from_directory
+
+            for tool_dir in tool_dirs:
+                load_tools_from_directory(tool_dir, printer=print)
+
     # Use a single httpx client session for the application's lifecycle
     transport = httpx.AsyncHTTPTransport(retries=3)
     # Default timeout is 5 seconds. Set a longer one for model generation.

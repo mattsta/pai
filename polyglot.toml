@@ -37,3 +37,9 @@ base_url = "http://localhost:1234/v1"
 api_key_env = "LM_STUDIO_API_KEY" # Often not needed, can be set to "local"
 chat_adapter = "openai_chat"
 completion_adapter = "legacy_completion"
+
+[tool_config]
+# Directories to scan for custom tool modules.
+# Paths can be absolute or relative to the project root.
+# Example: directories = ["/abs/path/to/tools", "custom_tools"]
+directories = ["custom_tools"]

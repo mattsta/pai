@@ -659,9 +659,9 @@ class InteractiveUI:
                 tools=[],  # Legacy mode does not use native tools
             )
 
-            # We force non-streaming for the agent's internal calls
-            # to reliably parse for tool calls.
-            request.stream = False
+            # In legacy agent mode, we stream the response to the user for a better
+            # experience. The full response text is still returned from client.generate()
+            # which we can then parse for tool calls after the stream is complete.
             result = await self.client.generate(request, self.args.verbose)
             assistant_response = result.get("text", "")
 

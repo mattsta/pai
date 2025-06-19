@@ -229,6 +229,7 @@ class StreamingDisplay:
         self.line_count: int = 0
         self.chunk_count: int = 0
         self.current_response: str = ""
+        self.current_tokens_received: int = 0
         self.first_token_received = False
         self.last_chunk_time: Optional[float] = None
 
@@ -240,6 +241,7 @@ class StreamingDisplay:
     def start_response(self):
         """Prepares for a new response stream."""
         self.current_response = ""
+        self.current_tokens_received = 0
         if self.output_buffer:
             self.output_buffer.reset()
         self.ttft = None
@@ -286,6 +288,8 @@ class StreamingDisplay:
 
         self.current_response += chunk_text
         self.chunk_count += 1
+        chunk_tokens = len(chunk_text.split())
+        self.current_tokens_received += chunk_tokens
 
         # Handle rendering
         if self._is_interactive and self.output_buffer:
@@ -302,7 +306,6 @@ class StreamingDisplay:
         now = time.time()
         if self.last_chunk_time and now > self.last_chunk_time:
             # A simple way to calculate live tokens/sec for the UI
-            chunk_tokens = len(chunk_text.split())
             self.live_tok_per_sec = chunk_tokens / (now - self.last_chunk_time)
         self.last_chunk_time = now
 
@@ -865,12 +868,24 @@ class InteractiveUI:
         """Generates the HTML for the multi-line bottom toolbar."""
         client, args, session_dir = self.client, self.args, self.session_dir
         endpoint, model = client.config.name, client.config.model_name
-        total_tokens = (
-            client.stats.total_tokens_sent + client.stats.total_tokens_received
-        )
         stats, display = client.stats, client.display
 
-        line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint.upper()}:{model} </style></b> | <b>Total Tokens:</b> {total_tokens} | <b>Avg Tok/s:</b> {stats.get_stats()['tokens_per_second']}"
+        # Start with base stats from historical requests.
+        total_tokens = stats.total_tokens_sent + stats.total_tokens_received
+        total_time = stats.total_response_time
+        live_tokens_received = 0
+
+        # Add live data during streaming for a real-time view.
+        if display.status == "Streaming" and display.start_time:
+            live_tokens_received = display.current_tokens_received
+            total_tokens += live_tokens_received
+            total_time += time.time() - display.start_time
+
+        avg_tok_per_sec = (stats.total_tokens_received + live_tokens_received) / max(
+            total_time, 1
+        )
+
+        line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint.upper()}:{model} </style></b> | <b>Total Tokens:</b> {total_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
 
         last_tok_per_sec = (
             (stats.last_tokens_received / max(stats.last_response_time, 1))

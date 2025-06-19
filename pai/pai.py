@@ -643,10 +643,10 @@ class InteractiveUI:
         if self.generation_in_progress.is_set():
             return
 
-        user_input = buffer.text.strip()
-        if user_input:
-            # When using accept_handler, we still must manually add entries
-            # to the history on submission.
+        user_input = buffer.text
+        # Only process if the input is not just whitespace
+        if user_input.strip():
+            # Store the raw string to history and echo it to the user.
             self.history.store_string(user_input)
             self.pt_printer(
                 HTML(
@@ -655,14 +655,20 @@ class InteractiveUI:
             )
             buffer.reset()
 
-            if user_input.startswith("/"):
+            stripped_input = user_input.strip()
+            if stripped_input.startswith("/"):
                 # Because the app is created after the buffer, we can safely
                 # reference self.app here, as it will exist when this handler is called.
-                self._handle_command(user_input, self.app)
+                self._handle_command(stripped_input, self.app)
             else:
                 self.generation_task = asyncio.create_task(
-                    self._process_and_generate(user_input)
+                    self._process_and_generate(stripped_input)
                 )
+        else:
+            # On empty input, just clear the buffer and print a newline to
+            # emulate a new prompt line, giving the user feedback.
+            buffer.reset()
+            self.pt_printer("")
 
     def _handle_command(self, text: str, app: Application):
         parts = text[1:].lower().split(" ", 1)
@@ -995,7 +1001,11 @@ class InteractiveUI:
         # exits with an exception (e.g., Ctrl+C/Ctrl+D). The exceptions are
         # allowed to propagate up to main() where they are handled for a clean exit.
         try:
-            await self.app.run_async()
+            # run_async() returns the value from app.exit(). The default Ctrl+D
+            # handler passes an EOFError. We re-raise it to be caught in main().
+            result = await self.app.run_async()
+            if isinstance(result, EOFError):
+                raise result
         finally:
             closing(self.client.stats, printer=self.pt_printer)
 

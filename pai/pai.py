@@ -531,6 +531,7 @@ class InteractiveUI:
 
         # State management
         self.generation_in_progress = asyncio.Event()
+        self.generation_task: Optional[asyncio.Task] = None
 
         # Build the application
         self.app = self._create_application()
@@ -600,11 +601,29 @@ class InteractiveUI:
 
         return Application(
             layout=layout,
-            # By omitting key_bindings, we use prompt-toolkit's defaults,
-            # which include history search and call the buffer's accept_handler on Enter.
+            key_bindings=self._create_key_bindings(),
             refresh_interval=0.2,
             full_screen=False,
         )
+
+    def _create_key_bindings(self) -> KeyBindings:
+        """Creates key bindings, including a custom Ctrl+C handler."""
+        kb = KeyBindings()
+
+        @kb.add("c-c", eager=True)
+        def _(event):
+            """
+            Handle Ctrl+C. If a generation is in progress, cancel it.
+            Otherwise, exit the application. This overrides the default `c-c`
+            which raises KeyboardInterrupt.
+            """
+            if self.generation_in_progress.is_set() and self.generation_task:
+                self.generation_task.cancel()
+            else:
+                event.app.exit()
+
+        # Merge our binding with the defaults. Ours will take precedence.
+        return merge_key_bindings([load_key_bindings(), kb])
 
     def _on_buffer_accepted(self, buffer: Buffer):
         """Callback for when the user presses Enter on the input buffer."""
@@ -628,7 +647,9 @@ class InteractiveUI:
                 # reference self.app here, as it will exist when this handler is called.
                 self._handle_command(user_input, self.app)
             else:
-                asyncio.create_task(self._process_and_generate(user_input))
+                self.generation_task = asyncio.create_task(
+                    self._process_and_generate(user_input)
+                )
 
     def _handle_command(self, text: str, app: Application):
         parts = text[1:].lower().split(" ", 1)
@@ -771,11 +792,15 @@ class InteractiveUI:
                     )
                 except Exception as e:
                     self.pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
+        except asyncio.CancelledError:
+            self.client.display.finish_response(success=False)
+            self.pt_printer(HTML("\n<style fg='ansiyellow'>🚫 Generation cancelled.</style>"))
         except Exception as e:
             self.client.display.finish_response(success=False)
             self.pt_printer(HTML(f"<style fg='ansired'>❌ ERROR: {e}</style>"))
         finally:
             self.generation_in_progress.clear()
+            self.generation_task = None
 
     def _get_toolbar_text(self) -> HTML:
         """Generates the HTML for the multi-line bottom toolbar."""

@@ -17,11 +17,15 @@ The key components are:
 
 3.  **State Management (`asyncio.Event` and `Buffer`)**: This is the most critical concept. The UI is reactive; it changes based on the state of a few key objects.
     -   `generation_in_progress` (`asyncio.Event`): This event acts as the master switch for the UI's state. When it's set, the `ConditionalContainer` hides the input prompt and shows the "waiting" message. When it's cleared, the UI reverts.
-    -   `input_buffer` (`prompt_toolkit.Buffer`): Holds the text for the user's input. It is configured with an `accept_handler` callback, which is the idiomatic `prompt-toolkit` way to process input when the user presses Enter. The application uses default key bindings, which correctly trigger this handler. The buffer is also connected to a `FileHistory` object for persistence and has `enable_history_search=True` to enable prefix search and `Ctrl+R` functionality.
+    -   `input_buffer` (`prompt_toolkit.Buffer`): Holds the text for the user's input. It is configured with an `accept_handler` callback, which is the idiomatic `prompt-toolkit` way to process input when the user presses Enter. The application uses mostly default key bindings, which correctly trigger this handler. The buffer is also connected to a `FileHistory` object for persistence and has `enable_history_search=True` to enable prefix search and `Ctrl+R` functionality.
     -   `streaming_output_buffer` (`prompt_toolkit.Buffer`): A dedicated buffer for the live, streaming AI response. **This is the solution to all previous rendering bugs.** The background generation task *only* updates the `.text` property of this buffer. It **never** prints to the screen. `prompt-toolkit`'s rendering loop sees the buffer has changed and handles redrawing it to the screen flawlessly.
     -   **`SearchToolbar`**: A built-in widget that is added to the layout. It is hidden by default but becomes visible when a search is initiated (e.g., via `Ctrl+R`), providing the UI for reverse incremental history search.
 
-4.  **Asynchronous Tasks**: When the user sends a message, an `asyncio.create_task()` dispatches the network-bound generation work to a background task. This allows the `Application`'s event loop to continue running unimpeded, keeping the UI (especially the toolbar) responsive and live.
+4.  **Key Bindings**: For most actions (Enter, history search, etc.), the application relies on `prompt-toolkit`'s default key bindings. However, it implements a custom binding for `Ctrl+C` to provide state-aware behavior:
+    -   If a model generation is in progress, `Ctrl+C` cancels the background `asyncio` task, stopping the stream and returning control to the user.
+    -   If the UI is idle, `Ctrl+C` exits the application.
+
+5.  **Asynchronous Tasks**: When the user sends a message, an `asyncio.create_task()` dispatches the network-bound generation work to a background task. A reference to this task is stored. This allows the `Application`'s event loop to continue running unimpeded and allows the `Ctrl+C` key binding to cancel the task if needed.
 
 ## A History of Failure: How We Got Here
 

@@ -412,7 +412,6 @@ def closing(stats: TestSession, printer: callable = print):
     printer("\n\n📊 Final Statistics:")
     print_stats(stats, printer=printer)
     printer("\n👋 Session ended.")
-    sys.exit(0)
 
 
 def save_conversation_formats(

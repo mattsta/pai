@@ -688,6 +688,7 @@ class InteractiveUI:
             "system": self._cmd_system,
             "prompts": self._cmd_prompts,
             "prompt": self._cmd_prompt,
+            "mode": self._cmd_toggle_mode,
         }
 
         if cmd in COMMANDS:
@@ -795,6 +796,14 @@ class InteractiveUI:
             self.pt_printer(f"🤖 System prompt loaded from '{params}'. History cleared.")
         else:
             self.pt_printer(f"❌ Prompt '{params}' not found in '{self.prompts_dir}'.")
+
+    def _cmd_toggle_mode(self):
+        """Toggles between chat and completion mode."""
+        self.is_chat_mode = not self.is_chat_mode
+        mode_name = 'Chat' if self.is_chat_mode else 'Completion'
+        # Switching modes should start a fresh context, so we clear the history.
+        self.conversation.clear()
+        self.pt_printer(f"✅ Switched to {mode_name} mode. History cleared.")
 
     async def _process_and_generate(self, user_input_str: str):
         self.generation_in_progress.set()
@@ -944,7 +953,7 @@ class InteractiveUI:
         line3_parts = [
             f"<b>Tools:</b> {tools_status}",
             f"<b>Debug:</b> {debug_status}",
-            f"<b>Mode:</b> {'Chat' if args.chat else 'Completion'}",
+            f"<b>Mode:</b> {'Chat' if self.is_chat_mode else 'Completion'}",
             f"<style fg='grey'>Log: {session_dir}</style>",
         ]
 
@@ -963,6 +972,7 @@ class InteractiveUI:
   /model <name>          - Change the default model for the session
   /temp <value>          - Change temperature (e.g., /temp 0.9)
   /tokens <num>          - Change max_tokens (e.g., /tokens 100)
+  /mode                  - Toggle between chat and completion mode (clears history)
   /stream, /verbose, /debug, /tools - Toggle flags on/off
   --- Chat Mode Only ---
   /system <text>         - Set a new system prompt (clears history)

@@ -35,8 +35,6 @@ ADAPTER_MAP = {
 }
 
 
-
-
 # --- Data Classes for State Management ---
 @dataclass
 class Turn:
@@ -245,7 +243,9 @@ class StreamingDisplay:
         if self.debug_mode:
             if not self.first_token_received:
                 self._print("🔍 DEBUG MODE: Showing raw protocol traffic\n" + "=" * 60)
-                self.first_token_received = True  # Prevent header from printing multiple times
+                self.first_token_received = (
+                    True  # Prevent header from printing multiple times
+                )
             self.line_count += 1
             timestamp = time.time() - (self.start_time or 0)
             prefix = f"⚪ [{timestamp:6.2f}s] L{self.line_count:03d}: "
@@ -259,7 +259,7 @@ class StreamingDisplay:
             self.status = "Streaming"
             if self.start_time:
                 self.ttft = time.time() - self.start_time
-            if self._is_interactive: # Don't print assistant header in non-interactive
+            if self._is_interactive:  # Don't print assistant header in non-interactive
                 self._print("\n🤖 Assistant: ", end="")
             self.first_token_received = True
 
@@ -303,8 +303,8 @@ class StreamingDisplay:
                     f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
                 )
             else:
-                 # Print a newline to separate from the next prompt.
-                 self._print("")
+                # Print a newline to separate from the next prompt.
+                self._print("")
 
         self.status = "Idle"
         self.live_tok_per_sec = 0.0
@@ -337,7 +337,9 @@ class PolyglotClient:
             (e for e in self.all_endpoints if e["name"].lower() == name.lower()), None
         )
         if not endpoint_data:
-            self.display._print(f"❌ Error: Endpoint '{name}' not found in configuration file.")
+            self.display._print(
+                f"❌ Error: Endpoint '{name}' not found in configuration file."
+            )
             return
         api_key = os.getenv(endpoint_data["api_key_env"])
         if not api_key:
@@ -462,7 +464,7 @@ def get_toolbar_text(
     total_tokens = client.stats.total_tokens_sent + client.stats.total_tokens_received
     stats = client.stats
     display = client.display
-    
+
     # Line 1: Core session info
     line1_parts = [
         f"<b><style bg='ansiblack' fg='white'> {endpoint.upper()}:{model} </style></b>",
@@ -473,7 +475,8 @@ def get_toolbar_text(
     # Line 2: Last request & live status
     last_tok_per_sec = (
         stats.last_tokens_received / max(stats.last_response_time, 1)
-        if stats.last_response_time > 0 else 0.0
+        if stats.last_response_time > 0
+        else 0.0
     )
     status_color = "ansigreen" if display.status == "Streaming" else "ansiyellow"
     live_tps_str = f"<b><style fg='{status_color}'>Live Tok/s: {display.live_tok_per_sec:.1f}</style></b>"
@@ -484,18 +487,22 @@ def get_toolbar_text(
         f"<b>Last TTFT:</b> {stats.last_ttft:.2f}s",
         f"<b>Last Tok/s:</b> {last_tok_per_sec:.1f}",
     ]
-    
+
     # Line 3: Toggles and session path
-    tools_status = f"<style fg='ansigreen'>ON</style>" if client.tools_enabled else f"<style fg='ansired'>OFF</style>"
+    tools_status = (
+        f"<style fg='ansigreen'>ON</style>"
+        if client.tools_enabled
+        else f"<style fg='ansired'>OFF</style>"
+    )
     debug_status = f"<style fg='ansiyellow'>ON</style>" if display.debug_mode else "OFF"
 
     line3_parts = [
         f"<b>Tools:</b> {tools_status}",
         f"<b>Debug:</b> {debug_status}",
         f"<b>Mode:</b> {'Chat' if args.chat else 'Completion'}",
-        f"<style fg='grey'>Log: {session_dir}</style>"
+        f"<style fg='grey'>Log: {session_dir}</style>",
     ]
-    
+
     # Filter out empty strings and join
     line1 = " | ".join(p for p in line1_parts if p)
     line2 = " | ".join(p for p in line2_parts if p)
@@ -553,10 +560,14 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
 
     while True:
         try:
-            user_input = await session.prompt_async(
-                HTML(f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "),
-                bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
-                refresh_interval=0.1,  # Faster refresh for live stats
+            user_input = (
+                await session.prompt_async(
+                    HTML(
+                        f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
+                    ),
+                    bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
+                    refresh_interval=0.1,  # Faster refresh for live stats
+                )
             ).strip()
             if not user_input:
                 continue
@@ -589,12 +600,16 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                 elif cmd == "tokens" and params:
                     try:
                         args.max_tokens = int(params)
-                        pt_printer(f"✅ Max tokens for next request set to: {args.max_tokens}")
+                        pt_printer(
+                            f"✅ Max tokens for next request set to: {args.max_tokens}"
+                        )
                     except ValueError:
                         pt_printer("❌ Invalid value.")
                 elif cmd == "stream":
                     args.stream = not args.stream
-                    pt_printer(f"✅ Streaming {'enabled' if args.stream else 'disabled'}.")
+                    pt_printer(
+                        f"✅ Streaming {'enabled' if args.stream else 'disabled'}."
+                    )
                 elif cmd == "verbose":
                     args.verbose = not args.verbose
                     pt_printer(
@@ -666,13 +681,13 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     print(f"\n⚠️  Warning: Could not save session turn: {e}")
 
         except KeyboardInterrupt:
-            client.display.finish_response() # Gracefully stop display on ctrl-c
+            client.display.finish_response()  # Gracefully stop display on ctrl-c
             pt_printer("\nKeyboardInterrupt")
             continue
         except EOFError:
             break
         except Exception as e:
-            client.display.finish_response() # Gracefully stop display on other errors
+            client.display.finish_response()  # Gracefully stop display on other errors
             pt_printer(f"\n❌ ERROR: {e}")
     closing(client.stats, printer=pt_printer)
 

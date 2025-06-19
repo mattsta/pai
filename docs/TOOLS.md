@@ -150,3 +150,17 @@ A structured tool for making HTTP requests to web APIs. This is a safer and more
 *   `make_http_request(url: str, method: HttpMethod, ...)`: Makes an HTTP request and returns a JSON object with the status code, headers, and body.
 
 **Example Usage:** `"make a GET request to https://api.github.com/zen to get a random github zen quote"`
+
+### Code Editing Tools (`code_editor.py`)
+
+This powerful tool allows the AI to edit files by submitting a script of changes. It is the foundation for agentic software development tasks.
+
+*   `apply_search_replace(edit_script: str)`: Parses and applies one or more `SEARCH/REPLACE` blocks.
+
+**`SEARCH/REPLACE` Block Rules:**
+The `edit_script` must contain one or more blocks with the following strict format:
+
+´´´´[language]
+path/to/file.ext
+<<<<<<< SEARCH
+content_to_find

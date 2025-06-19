@@ -12,6 +12,7 @@ This is a list of concrete, near-term tasks to improve the framework.
 ### Medium Priority
 
 - [ ] Refactor configuration management from `argparse` to `Pydantic` for cleaner validation and env var handling.
+- [ ] Create an `agent` command that uses the `code_editor.md` prompt by default to enable coding-assistant workflows.
 - [ ] Add an `Anthropic` provider for Claude models.
 - [ ] Integrate the `rich` library to render model output as Markdown.
 - [ ] Implement session saving and loading (`/save` and `/load` commands).

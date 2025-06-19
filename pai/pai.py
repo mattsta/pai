@@ -666,11 +666,17 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
             HSplit([
                 ConditionalContainer(prompt_ui, filter=Condition(lambda: not generation_in_progress.is_set())),
                 ConditionalContainer(waiting_ui, filter=Condition(lambda: generation_in_progress.is_set())),
+                # The bottom toolbar is a window with a fixed height within the main layout.
+                Window(
+                    content=FormattedTextControl(
+                        lambda: get_toolbar_text(client, args, session_dir)
+                    ),
+                    height=3,
+                ),
             ]),
             focused_element=input_buffer,
         ),
         key_bindings=kb,
-        bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
         refresh_interval=0.2,
         full_screen=False,
     )

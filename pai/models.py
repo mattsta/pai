@@ -14,6 +14,7 @@ from .utils import estimate_tokens
 
 if TYPE_CHECKING:
     from .protocols.base_adapter import BaseProtocolAdapter
+    from .models import RequestStats
 
 
 @dataclass
@@ -45,8 +46,9 @@ class Conversation:
     turns: List[Turn] = field(default_factory=list)
     # The messages list represents the state of the conversation *before* the next user input
     _messages: List[Dict[str, str]] = field(default_factory=list)
+    session_token_count: int = 0
 
-    def add_turn(self, turn: Turn):
+    def add_turn(self, turn: Turn, request_stats: Optional["RequestStats"] = None):
         """Adds a completed turn and updates the message history."""
         self.turns.append(turn)
         # The new message history is the request's messages + the assistant's reply
@@ -54,6 +56,10 @@ class Conversation:
         if turn.assistant_message:
             self._messages.append(
                 {"role": "assistant", "content": turn.assistant_message}
+            )
+        if request_stats:
+            self.session_token_count += (
+                request_stats.tokens_sent + request_stats.tokens_received
             )
 
     def get_messages_for_next_turn(self, user_input: str) -> List[Dict[str, str]]:
@@ -70,11 +76,17 @@ class Conversation:
         """Clears the conversation, keeping any system prompt."""
         self.turns = []
         self._messages = [m for m in self._messages if m["role"] == "system"]
+        self.session_token_count = sum(
+            estimate_tokens(m.get("content", ""))
+            for m in self._messages
+            if m.get("content")
+        )
 
     def set_system_prompt(self, system_prompt: str):
         """Sets a new system prompt, clearing all subsequent history."""
         self.turns = []
         self._messages = [{"role": "system", "content": system_prompt}]
+        self.session_token_count = estimate_tokens(system_prompt)
 
 
 @dataclass

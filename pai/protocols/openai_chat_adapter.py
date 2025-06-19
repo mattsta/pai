@@ -32,13 +32,14 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
             tokens_sent = sum(estimate_tokens(m.get("content", "")) for m in messages)
 
             try:
+                # Must start the response *before* printing the agent loop message
+                context.display.start_response(tokens_sent=tokens_sent)
                 if iteration > 0:
                     context.display._print(
                         "\n🔄 [Agent Loop] Sending tool results back to model..."
                     )
 
                 if not request.stream:
-                    context.display.start_response()
                     response = await context.http_session.post(
                         url, json=payload, timeout=context.config.timeout
                     )

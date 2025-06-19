@@ -25,7 +25,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
         tokens_sent = estimate_tokens(request.prompt)
 
         try:
-            context.display.start_response()
+            context.display.start_response(tokens_sent=tokens_sent)
 
             if not request.stream:
                 response = await context.http_session.post(

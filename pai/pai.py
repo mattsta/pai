@@ -97,13 +97,13 @@ class StreamingDisplay:
         self._printer = printer
         self._is_interactive = is_interactive
 
-    def start_response(self):
+    def start_response(self, tokens_sent: int = 0):
         """Prepares for a new response stream."""
         self.current_response = ""
         if self.output_buffer:
             self.output_buffer.reset()
 
-        self.current_request_stats = RequestStats()
+        self.current_request_stats = RequestStats(tokens_sent=tokens_sent)
         self._last_token_time = None
         self.line_count = 0
         self.chunk_count = 0
@@ -587,7 +587,8 @@ class InteractiveUI:
                         response_data=result.get("response", {}),
                         assistant_message=result.get("text", ""),
                     )
-                    self.conversation.add_turn(turn)
+                    request_stats = self.client.stats.last_request_stats
+                    self.conversation.add_turn(turn, request_stats)
                     try:
                         turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
                         turn_file.write_text(
@@ -756,7 +757,8 @@ class InteractiveUI:
                     response_data=result.get("response", {}),
                     assistant_message=assistant_response,
                 )
-                self.conversation.add_turn(turn)
+                request_stats = self.client.stats.last_request_stats
+                self.conversation.add_turn(turn, request_stats)
                 save_conversation_formats(
                     self.conversation, self.session_dir, printer=self.pt_printer
                 )
@@ -792,7 +794,14 @@ class InteractiveUI:
                 total_received += live_stats.tokens_received
 
             avg_tok_per_sec = total_received / max(total_time, 1)
-            line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Total Tokens:</b> {total_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
+
+            session_tokens = self.conversation.session_token_count
+            if live_stats and display.status in ["Waiting...", "Streaming"]:
+                session_tokens += (
+                    live_stats.tokens_sent + live_stats.tokens_received
+                )
+
+            line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Total:</b> {total_tokens} | <b>Session:</b> {session_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
 
             # --- Line 2: Live and Last Request Stats ---
             last_req = session_stats.last_request_stats

@@ -51,6 +51,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
         *   Parsing the response stream, with robust error handling to ignore malformed data chunks without crashing. In `debug` mode, these errors are printed for diagnostics.
         *   Handling protocol-specific features, like OpenAI's `tool_calls`.
         *   Calling back to the `ProtocolContext` to update stats and display output.
+    *   **Adding New Providers:** The system is designed for easy extension. For a detailed walkthrough on creating a new adapter, see the [`How to Add a New Provider`](docs/providers/ANTHROPIC.md) guide.
 
 3.  **Tool System (`pai/tools.py`)**
     *   A standalone, decoupled module for defining and executing local functions.

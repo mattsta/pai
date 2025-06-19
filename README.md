@@ -91,12 +91,13 @@ Inside the interactive session, you can then ask: `What is the weather like in P
 Once in interactive mode, use `/` commands to control the session:
 
 *   `/help`: Shows the list of available commands.
-*   `/stats`: Displays statistics for the current session (tokens, response times, etc.).
-*   `/provider <name>`: Switch the AI provider (e.g., `/provider openai`).
-*   `/model <name>`: Change the model name (e.g., `/model gpt-4o-mini`).
+*   `/stats`: Displays statistics for the current session.
+*   `/switch <name>`: Switch to a different endpoint (e.g., `/switch openai`).
+*   `/model <name>`: Change the model (e.g., `/model gpt-4o-mini`).
+*   `/system <prompt>`: Set a new system prompt for the chat.
+*   `/prompt <name>`: Load a system prompt from the `prompts/` directory.
 *   `/tools`: Toggle tool-calling on or off.
 *   `/debug`: Toggle raw protocol debugging on or off.
-*   `/history`: View the JSON conversation history.
 *   `/clear`: Clear the current conversation history.
 *   `/quit`: Exit the application.
 

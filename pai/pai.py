@@ -38,6 +38,7 @@ import toml
 
 from .utils import estimate_tokens
 from .log_utils import print_stats, closing, save_conversation_formats
+from .commands import CommandHandler
 
 from .models import (
     Turn,
@@ -360,6 +361,9 @@ class InteractiveUI:
         # Build the application
         self.app = self._create_application()
 
+        # Command handler
+        self.command_handler = CommandHandler(self)
+
     def _create_application(self) -> Application:
         """Constructs the prompt_toolkit Application object."""
         # This is the main input bar at the bottom of the screen.
@@ -498,9 +502,8 @@ class InteractiveUI:
 
             stripped_input = user_input.strip()
             if stripped_input.startswith("/"):
-                # Because the app is created after the buffer, we can safely
-                # reference self.app here, as it will exist when this handler is called.
-                self._handle_command(stripped_input, self.app)
+                # The command handler needs a reference to the app object to exit.
+                self.command_handler.handle(stripped_input, self.app)
             else:
                 self.generation_task = asyncio.create_task(
                     self._process_and_generate(stripped_input)
@@ -842,27 +845,6 @@ class InteractiveUI:
             return HTML(
                 f"<style bg='ansired' fg='white'>[Toolbar Error: {escape(str(e))}]</style>"
             )
-
-    def _print_help(self):
-        self.pt_printer("""
-🔧 AVAILABLE COMMANDS:
-  /help                  - Show this help message
-  /stats                 - Show session statistics
-  /quit, /exit, /q       - Exit the program
-  /endpoints             - List available endpoints from config file
-  /switch <name>         - Switch to a different endpoint
-  /model <name>          - Change the default model for the session
-  /temp <value>          - Change temperature (e.g., /temp 0.9)
-  /tokens <num>          - Change max_tokens (e.g., /tokens 100)
-  /mode                  - Toggle between chat and completion mode (clears history)
-  /stream, /verbose, /debug, /tools - Toggle flags on/off
-  --- Chat Mode Only ---
-  /system <text>         - Set a new system prompt (clears history)
-  /history               - Show conversation history
-  /clear                 - Clear conversation history
-  /prompts               - List available, loadable system prompts
-  /prompt <name>         - Load a system prompt from file (clears history)
-    """)
 
     async def run(self):
         """Starts the interactive UI."""

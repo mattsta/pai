@@ -48,7 +48,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   **`base_adapter.py`:** Defines the `BaseProtocolAdapter` abstract class and the `ProtocolContext` data structure. This is the contract that all protocol adapters must adhere to. It requires a `generate()` method, ensuring a consistent interface for the `PolyglotClient`.
     *   **Concrete Adapters (`openai_chat_adapter.py`, etc.):** Each file implements a specific protocol handler. They are responsible for:
         *   Formatting the request payload for a specific API schema (e.g., OpenAI-compatible `/chat/completions`).
-        *   Parsing the response stream.
+        *   Parsing the response stream, with robust error handling to ignore malformed data chunks without crashing. In `debug` mode, these errors are printed for diagnostics.
         *   Handling protocol-specific features, like OpenAI's `tool_calls`.
         *   Calling back to the `ProtocolContext` to update stats and display output.
 

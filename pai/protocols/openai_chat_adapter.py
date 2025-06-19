@@ -136,7 +136,11 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     # Check for and store the finish reason for the choice.
                                     if reason := choice.get("finish_reason"):
                                         finish_reason = reason
-                                except (json.JSONDecodeError, IndexError):
+                                except (json.JSONDecodeError, IndexError) as e:
+                                    if context.display.debug_mode:
+                                        context.display._print(
+                                            f"⚠️  Stream parse error on line: {data!r} | Error: {e}"
+                                        )
                                     continue
 
                 if tool_calls:

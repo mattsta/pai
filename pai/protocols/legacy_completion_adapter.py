@@ -66,7 +66,11 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                                 context.display.show_parsed_chunk(
                                     chunk_data, chunk_text
                                 )  # This also accumulates the response
-                            except (json.JSONDecodeError, IndexError):
+                            except (json.JSONDecodeError, IndexError) as e:
+                                if context.display.debug_mode:
+                                    context.display._print(
+                                        f"⚠️  Stream parse error on line: {data!r} | Error: {e}"
+                                    )
                                 continue
 
             request_stats = context.display.finish_response(success=True)

@@ -164,3 +164,15 @@ The `edit_script` must contain one or more blocks with the following strict form
 path/to/file.ext
 <<<<<<< SEARCH
 content_to_find
+=======
+content_to_replace_with
+>>>>>>> REPLACE
+´´´´
+
+- The `[language]` is optional (e.g., `python`).
+- The `path/to/file.ext` must be the full, correct path relative to the project root.
+- The `<<<<<<< SEARCH` block must contain text that **exactly** matches a section of the target file.
+- The `=======` block contains the text that will replace the `SEARCH` block contents.
+- To create a new file, the `SEARCH` block must be empty.
+
+**Example Usage:** `"create a tool that can apply file edits, then use that tool to correct a typo in README.md"`

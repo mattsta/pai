@@ -117,6 +117,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 tokens_received = 0
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
+                    request_stats.finish_reason = finish_reason
                     tokens_received = request_stats.tokens_received
                     context.stats.add_completed_request(request_stats)
 

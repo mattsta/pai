@@ -122,6 +122,7 @@ class RequestStats:
     tokens_sent: int = 0
     tokens_received: int = 0
     success: bool = True
+    finish_reason: Optional[str] = None
 
     # Internal state for live calculations
     _first_token_time: Optional[float] = None
@@ -1030,23 +1031,38 @@ class InteractiveUI:
 
             # --- Line 2: Live and Last Request Stats ---
             last_req = session_stats.last_request_stats
-            last_ttft_str = (
-                f"{last_req.ttft:.2f}s" if last_req and last_req.ttft else "N/A"
-            )
-            last_tps_str = f"{last_req.final_tok_per_sec:.1f}" if last_req else "N/A"
 
-            live_tps = live_stats.live_tok_per_sec if live_stats else 0.0
-            status_color = "ansigreen" if display.status == "Streaming" else "ansiyellow"
-            live_tps_str = (
-                f"<b><style fg='{status_color}'>Live Tok/s: {live_tps:.1f}</style></b>"
-            )
-
-            line2_parts = [
-                f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>",
-                live_tps_str if display.status in ["Waiting...", "Streaming"] else "",
-                f"<b>Last TTFT:</b> {last_ttft_str}",
-                f"<b>Last Tok/s:</b> {last_tps_str}",
-            ]
+            if live_stats and display.status in ["Waiting...", "Streaming"]:
+                # Display live stats for the in-progress request
+                live_tps = live_stats.live_tok_per_sec
+                live_tokens = live_stats.tokens_received
+                status_color = (
+                    "ansigreen" if display.status == "Streaming" else "ansiyellow"
+                )
+                live_tps_str = f"<b><style fg='{status_color}'>Live Tokens: {live_tokens}, Live Tok/s: {live_tps:.1f}</style></b>"
+                line2_parts = [
+                    f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>",
+                    live_tps_str,
+                ]
+            else:
+                # Display stats for the last completed request
+                last_tokens_str = f"{last_req.tokens_received}" if last_req else "N/A"
+                last_ttft_str = (
+                    f"{last_req.ttft:.2f}s" if last_req and last_req.ttft else "N/A"
+                )
+                last_tps_str = (
+                    f"{last_req.final_tok_per_sec:.1f}" if last_req else "N/A"
+                )
+                last_finish_reason_str = (
+                    escape(last_req.finish_reason or "N/A") if last_req else "N/A"
+                )
+                line2_parts = [
+                    f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>",
+                    f"<b>Prev Tokens:</b> {last_tokens_str}",
+                    f"<b>Prev TTFT:</b> {last_ttft_str}",
+                    f"<b>Prev Tok/s:</b> {last_tps_str}",
+                    f"<b>Finish:</b> {last_finish_reason_str}",
+                ]
 
             tools_status = (
                 f"<style fg='ansigreen'>ON</style>"

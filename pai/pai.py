@@ -252,6 +252,8 @@ class PolyglotClient:
         self.switch_endpoint(args.endpoint)
         if self.config and args.model:
             self.config.model_name = args.model
+        if self.config and args.timeout:
+            self.config.timeout = args.timeout
 
     def switch_endpoint(self, name: str):
         endpoint_data = next(
@@ -389,22 +391,31 @@ class InteractiveUI:
 
         def get_status_text():
             display = self.client.display
-            if display.first_token_received:
-                # Spinner logic
+            status = display.status
+            live_stats = display.current_request_stats
+
+            if status == "Streaming" and live_stats:
                 spinner = self.spinner_chars[self.spinner_idx]
                 self.spinner_idx = (self.spinner_idx + 1) % len(self.spinner_chars)
-
                 time_since_last = display.time_since_last_token
                 color = "ansigreen"
-                if time_since_last > 2.0:  # Becomes yellow after 2 seconds
+                if time_since_last > 2.0:
                     color = "ansiyellow"
-                if time_since_last > 5.0:  # Becomes red after 5 seconds
+                if time_since_last > 5.0:
                     color = "ansired"
                 return HTML(
                     f"<style fg='{color}'>[{spinner}] Streaming... ({time_since_last:.1f}s since last token)</style>"
                 )
-            else:
+            elif status == "Waiting..." and live_stats:
+                duration = live_stats.current_duration
+                if duration > 5.0:
+                    # After 5 seconds, show a timer to give feedback on long waits.
+                    return HTML(
+                        f"<style fg='ansiyellow'>[Sent. Waiting for response... ({duration:.0f}s)]</style>"
+                    )
                 return HTML("<style fg='ansiyellow'>[Waiting for response...]</style>")
+            # Fallback for idle or other states where this component might be briefly visible.
+            return HTML("")
 
         waiting_ui = Window(FormattedTextControl(get_status_text), height=1)
 
@@ -942,6 +953,11 @@ def main():
     parser.add_argument("--system", help="Set a system prompt for chat mode.")
     parser.add_argument("--max-tokens", type=int, default=2000)
     parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        help="Set the request timeout in seconds for the session.",
+    )
     parser.add_argument("--stream", action="store_true", default=True)
     parser.add_argument("--no-stream", action="store_false", dest="stream")
     parser.add_argument(

@@ -184,7 +184,8 @@ class EndpointConfig:
     api_key: Optional[str] = None
     base_url: str = ""
     model_name: str = "default/model"
-    timeout: int = 30
+    # The timeout for individual requests, in seconds.
+    timeout: int = 180
     max_retries: int = 3
     backoff_factor: float = 0.3
     chat_adapter: Optional["BaseProtocolAdapter"] = None

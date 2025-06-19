@@ -84,6 +84,7 @@ class HelpCommand(Command):
   /model <name>          - Change the default model for the session
   /temp <value>          - Change temperature (e.g., /temp 0.9)
   /tokens <num>          - Change max_tokens (e.g., /tokens 100)
+  /timeout <seconds>     - Change request timeout (e.g., /timeout 120)
   /mode                  - Toggle between chat and completion mode (clears history)
   /stream, /verbose, /debug, /tools - Toggle flags on/off
   --- Chat Mode Only ---
@@ -168,6 +169,28 @@ class TokensCommand(Command):
             self.ui.pt_printer(f"✅ Max tokens set to: {self.ui.args.max_tokens}")
         except (ValueError, TypeError):
             self.ui.pt_printer("❌ Invalid value.")
+
+
+class TimeoutCommand(Command):
+    @property
+    def name(self):
+        return "timeout"
+
+    @property
+    def requires_param(self):
+        return True
+
+    def execute(self, app: "Application", param: Optional[str] = None):
+        try:
+            timeout_val = int(param)
+            if timeout_val <= 0:
+                self.ui.pt_printer("❌ Timeout must be a positive integer.")
+                return
+            # This updates the timeout for the *current* endpoint config
+            self.ui.client.config.timeout = timeout_val
+            self.ui.pt_printer(f"✅ Request timeout set to: {timeout_val}s")
+        except (ValueError, TypeError):
+            self.ui.pt_printer("❌ Invalid value. Please provide an integer.")
 
 
 class ToggleStreamCommand(Command):
@@ -428,6 +451,7 @@ class CommandHandler:
             ModelCommand,
             TempCommand,
             TokensCommand,
+            TimeoutCommand,
             ToggleStreamCommand,
             ToggleVerboseCommand,
             ToggleDebugCommand,

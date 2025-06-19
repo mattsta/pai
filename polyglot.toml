@@ -9,12 +9,16 @@ api_key_env = "FEATHERLESS_API_KEY" # Environment variable for the API key
 chat_adapter = "openai_chat"
 # The adapter to use for the legacy /completions endpoint
 completion_adapter = "legacy_completion"
+# Timeout for requests to this endpoint, in seconds.
+timeout = 180
 
 [[endpoints]]
 name = "openai"
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
 chat_adapter = "openai_chat"
+# Timeout for requests to this endpoint, in seconds.
+timeout = 180
 # OpenAI deprecated /completions, so we don't define an adapter for it.
 
 [[endpoints]]

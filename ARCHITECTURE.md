@@ -60,7 +60,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 4.  **Core Data Classes (within `pai/pai.py`)**
     *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. a `Conversation` holds a list of `Turn` objects, and each `Turn` captures a single, complete request/response cycle, including all request/response data and metadata.
     *   **`TestSession`:** A dataclass for tracking all metrics of a session. It's an accumulator for requests, tokens, and timings. It also stores statistics for the most recent request (like TTFT and tokens/sec) to power the live UI toolbar.
-    *   **`StreamingDisplay`:** A critical component that manages all console output. It ensures that streaming responses do not corrupt the `prompt-toolkit` interface. It uses a swappable "printer" function to either print normally (for non-interactive use) or use `prompt-toolkit`'s thread-safe method (for interactive mode). It also tracks and exposes live state like `status` ("Waiting", "Streaming", etc.) and `live_tok_per_sec` to power the real-time UI toolbar.
+    *   **`StreamingDisplay`:** A critical component that manages all console output. It ensures that streaming responses do not corrupt the `prompt-toolkit` interface. It uses a swappable "printer" function to either print normally (for non-interactive use) or use `prompt-toolkit`'s thread-safe method (for interactive mode). It also tracks and exposes live state like `status` ("Waiting", "Streaming", etc.) and `live_tok_per_sec` (a smoothed average over the current stream's duration) to power the real-time UI toolbar.
 
 ### Session Persistence and Logging
 

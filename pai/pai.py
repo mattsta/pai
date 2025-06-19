@@ -231,7 +231,6 @@ class StreamingDisplay:
         self.current_response: str = ""
         self.current_tokens_received: int = 0
         self.first_token_received = False
-        self.last_chunk_time: Optional[float] = None
 
     def set_printer(self, printer: callable, is_interactive: bool):
         """Sets the function used for printing to the console."""
@@ -246,7 +245,6 @@ class StreamingDisplay:
             self.output_buffer.reset()
         self.ttft = None
         self.start_time = time.time()
-        self.last_chunk_time = self.start_time
         self.line_count = 0
         self.chunk_count = 0
         self.live_tok_per_sec = 0.0
@@ -288,8 +286,7 @@ class StreamingDisplay:
 
         self.current_response += chunk_text
         self.chunk_count += 1
-        chunk_tokens = len(chunk_text.split())
-        self.current_tokens_received += chunk_tokens
+        self.current_tokens_received += len(chunk_text.split())
 
         # Handle rendering
         if self._is_interactive and self.output_buffer:
@@ -302,12 +299,13 @@ class StreamingDisplay:
                 self._print("\n🤖 Assistant: ", end="")
             self._print(chunk_text, end="", flush=True)
 
-        # Update live stats
-        now = time.time()
-        if self.last_chunk_time and now > self.last_chunk_time:
-            # A simple way to calculate live tokens/sec for the UI
-            self.live_tok_per_sec = chunk_tokens / (now - self.last_chunk_time)
-        self.last_chunk_time = now
+        # Update live stats using a smoothed average over the stream's duration.
+        if self.first_token_received and self.start_time and self.ttft is not None:
+            # Calculate duration from the FIRST token received to now.
+            stream_duration = time.time() - (self.start_time + self.ttft)
+            # Avoid noisy numbers at the very start and division by zero.
+            if stream_duration > 0.01:
+                self.live_tok_per_sec = self.current_tokens_received / stream_duration
 
         if self.debug_mode:
             timestamp = time.time() - (self.start_time or 0)

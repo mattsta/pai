@@ -17,8 +17,6 @@ from typing import Optional, Dict, Any, Union, List
 from dataclasses import dataclass, field
 from datetime import datetime
 from prompt_toolkit import PromptSession, print_formatted_text
-from prompt_toolkit.application import get_app
-from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.patch_stdout import patch_stdout
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -539,7 +537,7 @@ def print_help(printer: callable = print):
 
 
 async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
-    """The main interactive mode, using prompt-toolkit's async support correctly."""
+    """The main interactive mode, using a classic while-loop paired with asyncio tasks."""
     is_chat_mode = args.chat
     conversation = Conversation()
     if is_chat_mode and args.system:
@@ -560,19 +558,75 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     pt_printer("Type '/help' for commands, '/quit' to exit.")
     pt_printer("-" * 60)
 
-    async def accept_handler(buffer: Buffer):
-        """Called when user presses Enter. Runs in the UI event loop."""
+    # This helper function will be run as a background task.
+    async def _process_and_generate(user_input_str: str, generation_done: asyncio.Event):
         try:
-            user_input = buffer.text.strip()
-            if not user_input:
-                return
+            request: Union[ChatRequest, CompletionRequest]
+            if is_chat_mode:
+                next_messages = conversation.get_messages_for_next_turn(user_input_str)
+                request = ChatRequest(
+                    messages=next_messages,
+                    model=client.config.model_name,
+                    max_tokens=args.max_tokens,
+                    temperature=args.temperature,
+                    stream=args.stream,
+                )
+            else:
+                request = CompletionRequest(
+                    prompt=user_input_str,
+                    model=client.config.model_name,
+                    max_tokens=args.max_tokens,
+                    temperature=args.temperature,
+                    stream=args.stream,
+                )
 
+            result = await client.generate(request, args.verbose)
+
+            if is_chat_mode and result:
+                turn = Turn(
+                    request_data=result.get("request", {}),
+                    response_data=result.get("response", {}),
+                    assistant_message=result.get("text", ""),
+                )
+                conversation.add_turn(turn)
+                try:
+                    turn_file = session_dir / f"{turn.turn_id}-turn.json"
+                    with open(turn_file, "w", encoding="utf-8") as f:
+                        json.dump(turn.to_dict(), f, indent=2)
+                    save_conversation_formats(
+                        conversation, session_dir, printer=pt_printer
+                    )
+                except Exception as e:
+                    pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
+        except Exception as e:
+            client.display.finish_response()
+            pt_printer(f"\n\n❌ ERROR: {e}")
+        finally:
+            # Signal that generation is complete so the main loop can continue.
+            generation_done.set()
+
+    # The main run loop for the interactive session.
+    while True:
+        try:
+            user_input = (
+                await session.prompt_async(
+                    HTML(
+                        f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
+                    ),
+                    bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
+                    refresh_interval=0.1,  # Required for live toolbar updates
+                )
+            ).strip()
+
+            if not user_input:
+                continue
+
+            # --- Command Handling ---
             if user_input.startswith("/"):
                 parts = user_input[1:].lower().split(" ", 1)
                 cmd, params = parts[0], parts[1] if len(parts) > 1 else ""
                 if cmd in ["quit", "exit", "q"]:
-                    get_app().exit()
-                    return
+                    break
                 elif cmd == "stats":
                     print_stats(client.stats, printer=pt_printer)
                 elif cmd == "help":
@@ -632,65 +686,26 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     pt_printer(f"🤖 System prompt set.")
                 else:
                     pt_printer("❌ Unknown command.")
-                return
+                continue
 
-            request: Union[ChatRequest, CompletionRequest]
-            if is_chat_mode:
-                next_messages = conversation.get_messages_for_next_turn(user_input)
-                request = ChatRequest(
-                    messages=next_messages,
-                    model=client.config.model_name,
-                    max_tokens=args.max_tokens,
-                    temperature=args.temperature,
-                    stream=args.stream,
-                )
-            else:
-                request = CompletionRequest(
-                    prompt=user_input,
-                    model=client.config.model_name,
-                    max_tokens=args.max_tokens,
-                    temperature=args.temperature,
-                    stream=args.stream,
-                )
+            # --- Non-blocking Generation ---
+            generation_done = asyncio.Event()
+            asyncio.create_task(_process_and_generate(user_input, generation_done))
 
-            result = await client.generate(request, args.verbose)
+            # Wait for the background task to finish without blocking the event loop.
+            # This allows the toolbar to keep refreshing.
+            with patch_stdout():
+                while not generation_done.is_set():
+                    await asyncio.sleep(0.1)
 
-            if is_chat_mode and result:
-                turn = Turn(
-                    request_data=result.get("request", {}),
-                    response_data=result.get("response", {}),
-                    assistant_message=result.get("text", ""),
-                )
-                conversation.add_turn(turn)
-                try:
-                    turn_file = session_dir / f"{turn.turn_id}-turn.json"
-                    with open(turn_file, "w", encoding="utf-8") as f:
-                        json.dump(turn.to_dict(), f, indent=2)
-                    save_conversation_formats(
-                        conversation, session_dir, printer=pt_printer
-                    )
-                except Exception as e:
-                    pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
-
+        except (EOFError, KeyboardInterrupt):
+            break
         except Exception as e:
             client.display.finish_response()
-            pt_printer(f"\n❌ An error occurred: {e}")
+            pt_printer(f"\n❌ An unexpected error occurred in the main loop: {e}")
+            continue
 
-    try:
-        with patch_stdout():
-            await session.prompt_async(
-                HTML(
-                    f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
-                ),
-                bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
-                refresh_interval=0.1,
-                accept_handler=accept_handler,
-                multiline=False,
-            )
-    except (EOFError, KeyboardInterrupt):
-        pass
-    finally:
-        closing(client.stats, printer=pt_printer)
+    closing(client.stats, printer=pt_printer)
 
 
 async def async_main(args: argparse.Namespace):

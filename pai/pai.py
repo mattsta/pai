@@ -283,9 +283,10 @@ class StreamingDisplay:
 
         # Handle rendering
         if self._is_interactive:
-            # Overwrite the current line with the full, updated response by using a carriage return.
-            # `end=""` prevents the printer from adding its own newline.
-            self._print(HTML(f"\r🤖 Assistant: {self.current_response}"), end="")
+            # In interactive mode, we overwrite the current line by reprinting the entire
+            # accumulated response. `print_formatted_text` with `end=""` will handle
+            # moving the cursor and overwriting correctly, without needing `\r`.
+            self._print(HTML(f"🤖 Assistant: {self.current_response}"), end="")
         else:
             # For non-interactive, print header once, then stream chunks.
             if self.chunk_count == 1:
@@ -327,10 +328,9 @@ class StreamingDisplay:
                     f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
                 )
             else:
-                # To finalize, reprint the full response and end with a proper newline.
-                # The \r ensures we overwrite the last partial line, and the default end='\n'
-                # moves the cursor to the next line for the new prompt.
-                self._print(HTML(f"\r🤖 Assistant: {self.current_response}"))
+                # To finalize, reprint the full response one last time, but with a
+                # default `end="\n"` to move to the next line, ready for a new prompt.
+                self._print(HTML(f"🤖 Assistant: {self.current_response}"))
 
         self.status = "Idle"
         self.live_tok_per_sec = 0.0

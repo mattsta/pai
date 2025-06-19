@@ -84,7 +84,7 @@ pai --endpoint openai --prompt "Explain quantum computing in one sentence." --no
 ```bash
 pai --chat --endpoint openai --model gpt-4o --tools
 ```
-Inside the interactive session, you can then ask: `What is the weather like in Paris?`
+Inside the interactive session, you can then ask it to interact with the local filesystem: `List the files in the current directory.`
 
 ### Interactive Commands
 

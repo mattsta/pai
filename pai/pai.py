@@ -350,7 +350,11 @@ class StreamingDisplay:
         self.chunk_count += 1
         if self.current_request_stats:
             # For simplicity, we'll consider a "token" to be a space-separated word.
-            self.current_request_stats.add_received_tokens(len(chunk_text.split()))
+            # To ensure the live count is consistent with the final count,
+            # we recalculate from the full response string on every chunk.
+            self.current_request_stats.tokens_received = len(
+                self.current_response.split()
+            )
 
         # Handle rendering
         if self._is_interactive and self.output_buffer:
@@ -378,7 +382,9 @@ class StreamingDisplay:
         self.status = "Done"
         if self.current_request_stats:
             self.current_request_stats.finish(success=success)
-            # Make sure final token count is accurate from the full response text
+            # The token count is now calculated live. This final assignment
+            # ensures it's perfectly accurate based on the complete final string,
+            # but the live value should already match this.
             self.current_request_stats.tokens_received = len(
                 self.current_response.split()
             )

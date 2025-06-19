@@ -520,21 +520,16 @@ class InteractiveUI:
         user_input = buffer.text
         # Only process if the input is not just whitespace
         if user_input.strip():
-            # Store the raw string to history and echo it to the user.
-            self.history.store_string(user_input)
+            # Let the buffer handle appending to history and resetting itself.
+            # This is the idiomatic way to ensure history is updated live.
+            buffer.reset(append_to_history=True)
 
-            # This is a workaround for a prompt-toolkit behavior where the buffer
-            # caches history and doesn't see new items from the current session.
-            # Resetting the history navigation forces it to reload on the next up/down arrow.
-            if hasattr(self.input_buffer, "_reset_history_navigation"):
-                self.input_buffer._reset_history_navigation()
-
+            # We still print the user input manually for our UI format.
             self.pt_printer(
                 HTML(
                     f"\n<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> {escape(user_input)}"
                 )
             )
-            buffer.reset()
 
             stripped_input = user_input.strip()
             if stripped_input.startswith("/"):

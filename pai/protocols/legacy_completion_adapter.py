@@ -4,7 +4,8 @@ import json
 from typing import Dict, Any
 
 # MODIFIED: No longer imports from the main script. Imports the context object instead.
-from .base_adapter import BaseProtocolAdapter, ProtocolContext, CompletionRequest
+from .base_adapter import BaseProtocolAdapter, ProtocolContext
+from ..models import CompletionRequest
 from ..utils import estimate_tokens
 
 # Import APIError from the main module for type consistency if needed, but it's better to raise generic exceptions

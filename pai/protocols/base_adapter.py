@@ -3,8 +3,10 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Dict, Any, Union, NamedTuple
 import httpx
 
+# MODIFIED: Import from models and pai separately to avoid circular deps.
 if TYPE_CHECKING:
-    from ..pai import EndpointConfig, StreamingDisplay, TestSession
+    from ..pai import StreamingDisplay
+    from ..models import EndpointConfig, TestSession, CompletionRequest, ChatRequest
 
 
 # NEW: Define a simple data structure to pass context from the client to the adapters.
@@ -17,13 +19,7 @@ class ProtocolContext(NamedTuple):
     tools_enabled: bool
 
 
-# Forward-declare request types for type hinting
-class CompletionRequest:
-    pass
-
-
-class ChatRequest:
-    pass
+# Request types are now imported from pai.models
 
 
 class BaseProtocolAdapter(ABC):

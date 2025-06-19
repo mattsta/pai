@@ -4,7 +4,8 @@ import json
 from typing import Dict, Any
 
 # MODIFIED: Now uses the clean context object.
-from .base_adapter import BaseProtocolAdapter, ProtocolContext, ChatRequest
+from .base_adapter import BaseProtocolAdapter, ProtocolContext
+from ..models import ChatRequest
 from ..tools import get_tool_schemas, execute_tool
 from ..utils import estimate_tokens
 

@@ -17,6 +17,8 @@ from typing import Optional, Dict, Any, Union, List
 from dataclasses import dataclass, field
 from datetime import datetime
 from prompt_toolkit import PromptSession, print_formatted_text
+from prompt_toolkit.application import get_app
+from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import HTML
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -549,7 +551,6 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     session_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Setup prompt-toolkit session and graceful exit ---
-    # Use prompt-toolkit's thread-safe printer, which handles redrawing the UI.
     pt_printer = print_formatted_text
     client.display.set_printer(pt_printer, is_interactive=True)
 
@@ -561,7 +562,7 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     pt_printer("-" * 60)
 
     async def _process_and_generate(user_input_str: str):
-        """Helper to run generation logic in a way that keeps the UI alive."""
+        """Helper to run generation logic. Can raise exceptions on API/network failure."""
         request: Union[ChatRequest, CompletionRequest]
         if is_chat_mode:
             next_messages = conversation.get_messages_for_next_turn(user_input_str)
@@ -573,7 +574,6 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                 stream=args.stream,
             )
         else:
-            # Completion mode does not have history
             request = CompletionRequest(
                 prompt=user_input_str,
                 model=client.config.model_name,
@@ -595,42 +595,35 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
 
             # --- Save Turn & Conversation ---
             try:
-                # Save the raw Turn object to its own file
                 turn_file = session_dir / f"{turn.turn_id}-turn.json"
                 with open(turn_file, "w", encoding="utf-8") as f:
                     json.dump(turn.to_dict(), f, indent=2)
-
-                # Save the full conversation to all configured HTML formats
                 save_conversation_formats(conversation, session_dir, printer=pt_printer)
             except Exception as e:
+                # Log saving errors but don't crash the turn.
                 pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
 
-    while True:
+    async def accept_handler(buffer: Buffer):
+        """Handles user input submission, allowing the UI to remain active."""
         try:
-            user_input = (
-                await session.prompt_async(
-                    HTML(
-                        f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
-                    ),
-                    bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
-                    refresh_interval=0.1,  # Faster refresh for live stats
-                )
-            ).strip()
+            user_input = buffer.text.strip()
             if not user_input:
-                continue
+                return  # Redisplay prompt if input is empty
 
             if user_input.startswith("/"):
                 parts = user_input[1:].lower().split(" ", 1)
                 cmd, params = parts[0], parts[1] if len(parts) > 1 else ""
                 if cmd in ["quit", "exit", "q"]:
-                    break
+                    get_app().exit()  # Correctly exit the application
+                    return
                 elif cmd == "stats":
                     print_stats(client.stats, printer=pt_printer)
                 elif cmd == "help":
                     print_help(printer=pt_printer)
                 elif cmd == "endpoints":
                     pt_printer("Available Endpoints:")
-                    [pt_printer(f" - {ep['name']}") for ep in client.all_endpoints]
+                    for ep in client.all_endpoints:
+                        pt_printer(f" - {ep['name']}")
                 elif cmd == "switch" and params:
                     client.switch_endpoint(params)
                 elif cmd == "model" and params:
@@ -682,24 +675,29 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     pt_printer(f"🤖 System prompt set.")
                 else:
                     pt_printer("❌ Unknown command.")
-                continue
+                return
 
-            # This is the key change: run the generation logic inside run_in_terminal
-            # to keep the prompt_toolkit UI alive and responsive.
-            await session.app.run_in_terminal(
-                lambda: _process_and_generate(user_input)
-            )
+            await _process_and_generate(user_input)
 
-        except KeyboardInterrupt:
-            client.display.finish_response()  # Gracefully stop display on ctrl-c
-            pt_printer("\nKeyboardInterrupt")
-            continue
-        except EOFError:
-            break
         except Exception as e:
-            client.display.finish_response()  # Gracefully stop display on other errors
-            pt_printer(f"\n❌ ERROR: {e}")
-    closing(client.stats, printer=pt_printer)
+            # Catch errors inside the handler to prevent the entire app from crashing.
+            client.display.finish_response()
+            pt_printer(f"\n❌ An error occurred: {e}")
+
+    try:
+        await session.prompt_async(
+            HTML(
+                f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
+            ),
+            bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
+            refresh_interval=0.1,  # Faster refresh for live stats
+            accept_handler=accept_handler,
+            multiline=False,
+        )
+    except (EOFError, KeyboardInterrupt):
+        pass  # Gracefully exit on Ctrl-D or Ctrl-C
+    finally:
+        closing(client.stats, printer=pt_printer)
 
 
 async def async_main(args: argparse.Namespace):

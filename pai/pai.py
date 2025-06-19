@@ -500,7 +500,7 @@ class InteractiveUI:
             self.history.store_string(user_input)
             self.pt_printer(
                 HTML(
-                    f"\n<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> {user_input}"
+                    f"\n<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> {escape(user_input)}"
                 )
             )
             buffer.reset()

@@ -216,6 +216,7 @@ class StreamingDisplay:
         self.debug_mode = debug_mode
         self._printer = print  # Default to standard print
         self._is_interactive = False
+        self.output_buffer: Optional[Buffer] = None
         # State for UI
         self.status = "Idle"
         self.live_tok_per_sec = 0.0
@@ -236,6 +237,8 @@ class StreamingDisplay:
     def start_response(self):
         """Prepares for a new response stream."""
         self.current_response = ""
+        if self.output_buffer:
+            self.output_buffer.reset()
         self.ttft = None
         self.start_time = time.time()
         self.last_chunk_time = self.start_time
@@ -282,12 +285,11 @@ class StreamingDisplay:
         self.chunk_count += 1
 
         # Handle rendering
-        if self._is_interactive:
-            # In interactive mode, we overwrite the current line by reprinting the entire
-            # accumulated response. `print_formatted_text` with `end=""` will handle
-            # moving the cursor and overwriting correctly, without needing `\r`.
-            self._print(HTML(f"🤖 Assistant: {self.current_response}"), end="")
-        else:
+        if self._is_interactive and self.output_buffer:
+            # For interactive mode with a buffer, update the buffer's content.
+            # This will be displayed live in the UI's live output window.
+            self.output_buffer.text = f"🤖 Assistant: {self.current_response}"
+        elif not self._is_interactive:
             # For non-interactive, print header once, then stream chunks.
             if self.chunk_count == 1:
                 self._print("\n🤖 Assistant: ", end="")
@@ -328,9 +330,10 @@ class StreamingDisplay:
                     f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
                 )
             else:
-                # To finalize, reprint the full response one last time, but with a
-                # default `end="\n"` to move to the next line, ready for a new prompt.
+                # To finalize, print the full response into the history and clear the live buffer.
                 self._print(HTML(f"🤖 Assistant: {self.current_response}"))
+                if self.output_buffer:
+                    self.output_buffer.reset()
 
         self.status = "Idle"
         self.live_tok_per_sec = 0.0
@@ -576,6 +579,10 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     pt_printer = print_formatted_text
     client.display.set_printer(pt_printer, is_interactive=True)
 
+    # This buffer will hold the text for the live-streaming window.
+    streaming_output_buffer = Buffer(read_only=True)
+    client.display.output_buffer = streaming_output_buffer
+
     pt_printer(f"🎯 {'Chat' if is_chat_mode else 'Completion'} Mode | Endpoint: {client.config.name} | Model: {client.config.model_name}")
     pt_printer(f"💾 Session logs will be saved to: {session_dir}")
     pt_printer("Type '/help' for commands, '/quit' to exit.")
@@ -678,9 +685,19 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
         Window(BufferControl(buffer=input_buffer)),
     ])
 
+    live_output_window = ConditionalContainer(
+        Window(
+            content=BufferControl(buffer=streaming_output_buffer),
+            wrap_lines=True,
+            height=None,  # Let it grow/shrink with content.
+        ),
+        filter=Condition(lambda: generation_in_progress.is_set()),
+    )
+
     app = Application(
         layout=Layout(
             HSplit([
+                live_output_window,
                 prompt_ui,
                 # The bottom toolbar is a window with a fixed height within the main layout.
                 Window(

@@ -86,7 +86,6 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     }
 
                 # Streaming logic starts here
-                context.display.start_response()
                 tool_calls = []
 
                 async with context.http_session.stream(

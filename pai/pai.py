@@ -33,11 +33,11 @@ from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.history import FileHistory
-from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import toml
 
 from .utils import estimate_tokens
+from .log_utils import print_stats, closing, save_conversation_formats
 
 from .models import (
     Turn,
@@ -312,65 +312,7 @@ def print_banner():
     print("🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶")
 
 
-def print_stats(stats: TestSession, printer: callable = print):
-    stat_dict = stats.get_stats()
-    printer("\n📊 SESSION STATISTICS\n" + "=" * 50)
-    for key, value in stat_dict.items():
-        printer(f"{key.replace('_', ' ').title():<22}{value}")
-    printer("=" * 50)
-
-
-def closing(stats: TestSession, printer: callable = print):
-    printer("\n\n📊 Final Statistics:")
-    print_stats(stats, printer=printer)
-    printer("\n👋 Session ended.")
-
-
-def save_conversation_formats(
-    conversation: Conversation, session_dir: pathlib.Path, printer: callable = print
-):
-    """Serializes a conversation to multiple HTML formats using Jinja2 templates."""
-    try:
-        script_dir = pathlib.Path(__file__).parent
-        template_dir = script_dir / "templates"
-
-        env = Environment(
-            loader=FileSystemLoader(template_dir),
-            autoescape=select_autoescape(["html", "xml"]),
-        )
-        env.filters["prettyjson"] = lambda v: json.dumps(v, indent=2)
-        history = conversation.get_history()
-
-        # Defines the templates to render and their output filenames.
-        formats = {
-            "conversation.html": "conversation.html",
-            "gptwink_format.html": "gptwink_conversation.html",
-        }
-
-        for template_name, output_filename in formats.items():
-            try:
-                template = env.get_template(template_name)
-                final_html = template.render(
-                    conversation_id=conversation.conversation_id, history=history
-                )
-                output_path = session_dir / output_filename
-                output_path.write_text(final_html, encoding="utf-8")
-            except Exception as e:
-                printer(
-                    f"\n⚠️ Warning: Could not render template '{template_name}': {e}"
-                )
-                # Don't fallback here, just try the next template
-
-    except Exception as e:
-        printer(f"\n⚠️ Warning: Could not initialize template environment: {e}")
-        # As a global fallback, just write the raw turn data as JSON.
-        try:
-            all_turns = [turn.to_dict() for turn in conversation.turns]
-            fallback_path = session_dir / "conversation_fallback.json"
-            fallback_path.write_text(json.dumps(all_turns, indent=2), encoding="utf-8")
-            printer(f"  -> Fallback data saved to {fallback_path}")
-        except Exception as fallback_e:
-            printer(f"  -> Could not even save fallback JSON: {fallback_e}")
+# Logging and statistics functions have been moved to `pai/log_utils.py`.
 
 
 class InteractiveUI:

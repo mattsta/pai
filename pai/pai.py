@@ -540,18 +540,17 @@ def print_help(printer: callable = print):
 
 
 async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
+    """The main interactive mode, using prompt-toolkit's async support correctly."""
     is_chat_mode = args.chat
     conversation = Conversation()
     if is_chat_mode and args.system:
         conversation.set_system_prompt(args.system)
 
-    # --- Session Persistence ---
     session_dir = pathlib.Path("sessions") / datetime.now().strftime(
         "%Y-%m-%d_%H-%M-%S-interactive"
     )
     session_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Setup prompt-toolkit session and graceful exit ---
     pt_printer = print_formatted_text
     client.display.set_printer(pt_printer, is_interactive=True)
 
@@ -562,28 +561,19 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     pt_printer("Type '/help' for commands, '/quit' to exit.")
     pt_printer("-" * 60)
 
-    # This is the main run loop for the interactive session.
-    while True:
+    async def accept_handler(buffer: Buffer):
+        """Called when user presses Enter. Runs in the UI event loop."""
         try:
-            user_input = (
-                await session.prompt_async(
-                    HTML(
-                        f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
-                    ),
-                    bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
-                    refresh_interval=0.1,  # Faster refresh for live stats
-                )
-            ).strip()
-
+            user_input = buffer.text.strip()
             if not user_input:
-                continue
+                return
 
-            # --- Command Handling ---
             if user_input.startswith("/"):
                 parts = user_input[1:].lower().split(" ", 1)
                 cmd, params = parts[0], parts[1] if len(parts) > 1 else ""
                 if cmd in ["quit", "exit", "q"]:
-                    break
+                    get_app().exit()
+                    return
                 elif cmd == "stats":
                     print_stats(client.stats, printer=pt_printer)
                 elif cmd == "help":
@@ -643,9 +633,8 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     pt_printer(f"🤖 System prompt set.")
                 else:
                     pt_printer("❌ Unknown command.")
-                continue
+                return
 
-            # --- Generation ---
             request: Union[ChatRequest, CompletionRequest]
             if is_chat_mode:
                 next_messages = conversation.get_messages_for_next_turn(user_input)
@@ -667,7 +656,6 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
 
             result = await client.generate(request, args.verbose)
 
-            # --- Post-generation state updates and saving ---
             if is_chat_mode and result:
                 turn = Turn(
                     request_data=result.get("request", {}),
@@ -685,16 +673,25 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                 except Exception as e:
                     pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
 
-        except (EOFError, KeyboardInterrupt):
-            # Gracefully break the loop on Ctrl-D or Ctrl-C
-            break
         except Exception as e:
-            # Catch other exceptions, print them, and continue the loop
             client.display.finish_response()
             pt_printer(f"\n❌ An error occurred: {e}")
-            continue
 
-    closing(client.stats, printer=pt_printer)
+    try:
+        with patch_stdout():
+            await session.prompt_async(
+                HTML(
+                    f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
+                ),
+                bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
+                refresh_interval=0.1,
+                accept_handler=accept_handler,
+                multiline=False,
+            )
+    except (EOFError, KeyboardInterrupt):
+        pass
+    finally:
+        closing(client.stats, printer=pt_printer)
 
 
 async def async_main(args: argparse.Namespace):

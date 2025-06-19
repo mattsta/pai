@@ -84,30 +84,39 @@ When you next run `pai`, it will automatically find and load the `calculate` too
 
 Polyglot AI comes with a set of useful default tools located in the `custom_tools/` directory. These serve as powerful examples and can be used for productive tasks. They are loaded automatically if `directories = ["custom_tools"]` is present in your `polyglot.toml`.
 
+### Data Conversion Tools (`data_converter.py`)
+
+These tools are for converting between common structured data formats.
+
+*   `json_to_yaml(json_string: str)`: Converts a JSON string to YAML.
+*   `yaml_to_json(yaml_string: str)`: Converts a YAML string to JSON.
+*   `csv_to_json(csv_data: str)`: Converts CSV data into a JSON array of objects.
+
+**Example Usage:** `"take the following CSV data and convert it to JSON: \n\nid,name\n1,alice\n2,bob"`
+
+### Code Generation Tools (`code_generator.py`)
+
+Tools for generating code and other structured text.
+
+*   `generate_python_class(class_name: str, fields: str)`: Generates a Python dataclass definition.
+
+**Example Usage:** `"generate a python dataclass named 'Book' with fields: title: str, author: str, and published_year: int"`
+
 ### Filesystem Tools (`file_system.py`)
 
-These tools allow the AI to interact with your local filesystem. For security, they are "jailed" to the project's current working directory by default. You can change this behavior by editing the file.
+These tools allow the AI to interact with your local filesystem. For security, they are "jailed" to the project's current working directory by default.
 
 *   `read_file(path: str)`: Reads the content of a file.
-*   `list_directory(path: str = ".")`: Lists files and folders in a directory, returning a JSON list.
-*   `create_file(path: str, content: str = "")`: Creates a new file (and any needed subdirectories).
+*   `list_directory(path: str = ".")`: Lists files and folders in a directory.
+*   `create_file(path: str, content: str = "")`: Creates a new file.
 *   `append_to_file(path: str, content: str)`: Appends text to an existing file.
 
-**Example Usage:** `"list all files in the current directory, then read the contents of 'pyproject.toml'"`
+**Example Usage:** `"list the files here, then read 'pyproject.toml'"`
 
-### Web Tools (`web.py`)
+### HTTP Client Tools (`http_client.py`)
 
-This tool gives the AI access to the internet for gathering information.
+A structured tool for making HTTP requests to web APIs. This is a safer and more powerful alternative to a simple URL fetcher.
 
-*   `fetch_url(url: str)`: Fetches the text content of a web page.
+*   `make_http_request(url: str, method: HttpMethod, ...)`: Makes an HTTP request and returns a JSON object with the status code, headers, and body.
 
-**Example Usage:** `"what's on the front page of hacker news? fetch 'https://news.ycombinator.com'"`
-
-### Shell Tools (`shell.py`)
-
-This provides direct shell access. It is **extremely powerful and dangerous**.
-
-*   `execute_shell(command: str)`: Executes a shell command.
-    *   **⚠️ SECURITY WARNING:** This tool is **disabled by default**. To enable it, you must manually edit `custom_tools/shell.py` and set `SHELL_ACCESS_ENABLED = True`. Only do this if you understand the risk of letting an AI run arbitrary code on your machine.
-
-**Example Usage (if enabled):** `"what is my current python version? execute 'python --version'"`
+**Example Usage:** `"make a GET request to https://api.github.com/zen to get a random github zen quote"`

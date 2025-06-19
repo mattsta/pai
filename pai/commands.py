@@ -91,6 +91,7 @@ class HelpCommand(Command):
   /clear                 - Clear conversation history
   /prompts               - List available, loadable system prompts
   /prompt <name>         - Load a system prompt from file (clears history)
+  /agent                 - Start agent mode (loads code_editor prompt)
     """
         )
 
@@ -307,6 +308,32 @@ class PromptCommand(Command):
             )
 
 
+class AgentCommand(Command):
+    @property
+    def name(self):
+        return "agent"
+
+    def execute(self, app: "Application", param: Optional[str] = None):
+        """Loads the special 'code_editor' prompt to start an agent session."""
+        if not self.ui.is_chat_mode:
+            self.ui.pt_printer("❌ /agent is only available in chat mode.")
+            return
+
+        param = "code_editor"
+        prompt_path = self.ui.prompts_dir / f"{param}.md"
+
+        if prompt_path.exists() and prompt_path.is_file():
+            content = prompt_path.read_text(encoding="utf-8")
+            self.ui.conversation.set_system_prompt(content)
+            self.ui.pt_printer(
+                f"🤖 Agent mode enabled (loaded '{param}' prompt). History cleared."
+            )
+        else:
+            self.ui.pt_printer(
+                f"❌ Agent prompt '{param}.md' not found in '{self.ui.prompts_dir}'."
+            )
+
+
 class ToggleModeCommand(Command):
     @property
     def name(self):
@@ -348,6 +375,7 @@ class CommandHandler:
             SystemCommand,
             PromptsCommand,
             PromptCommand,
+            AgentCommand,
             ToggleModeCommand,
         ]
         for cmd_class in command_classes:

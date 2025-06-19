@@ -613,16 +613,23 @@ class InteractiveUI:
         @kb.add("c-c", eager=True)
         def _(event):
             """
-            Handle Ctrl+C. If a generation is in progress, cancel it.
-            Otherwise, exit the application. This overrides the default `c-c`
-            which raises KeyboardInterrupt.
+            Custom Ctrl+C handler.
+            - If a generation is in progress, cancel it.
+            - If the input buffer has text, clear it.
+            - If the input buffer is empty, this emulates a new prompt line.
             """
             if self.generation_in_progress.is_set() and self.generation_task:
                 self.generation_task.cancel()
             else:
-                event.app.exit()
+                if event.app.current_buffer.text:
+                    event.app.current_buffer.reset()
+                else:
+                    # Printing an empty string effectively creates a new line
+                    # and redraws the prompt, giving the user a fresh prompt line.
+                    self.pt_printer("")
 
-        # Merge our binding with the defaults. Ours will take precedence.
+        # Merge our binding with the defaults. Ours will take precedence for c-c.
+        # Ctrl+D is handled by the default bindings (raises EOFError on empty prompt).
         return merge_key_bindings([load_key_bindings(), kb])
 
     def _on_buffer_accepted(self, buffer: Buffer):

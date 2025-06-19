@@ -527,11 +527,55 @@ class InteractiveUI:
 
     async def _process_and_generate(self, user_input_str: str):
         self.generation_in_progress.set()
+        request: Optional[Union[ChatRequest, CompletionRequest]] = None
         try:
             if self.is_chat_mode and self.legacy_agent_mode:
                 await self._run_legacy_agent_loop(user_input_str)
             else:
-                await self._run_standard_generation(user_input_str)
+                if self.is_chat_mode:
+                    messages = self.conversation.get_messages_for_next_turn(
+                        user_input_str
+                    )
+                    request = ChatRequest(
+                        messages=messages,
+                        model=self.client.config.model_name,
+                        max_tokens=self.args.max_tokens,
+                        temperature=self.args.temperature,
+                        stream=self.args.stream,
+                        tools=get_tool_schemas() if self.client.tools_enabled else [],
+                    )
+                else:
+                    request = CompletionRequest(
+                        prompt=user_input_str,
+                        model=self.client.config.model_name,
+                        max_tokens=self.args.max_tokens,
+                        temperature=self.args.temperature,
+                        stream=self.args.stream,
+                    )
+
+                result = await self.client.generate(request, self.args.verbose)
+
+                if self.is_chat_mode and result:
+                    turn = Turn(
+                        request_data=result.get("request", {}),
+                        response_data=result.get("response", {}),
+                        assistant_message=result.get("text", ""),
+                    )
+                    self.conversation.add_turn(turn)
+                    try:
+                        turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
+                        turn_file.write_text(
+                            json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
+                        )
+                        save_conversation_formats(
+                            self.conversation,
+                            self.session_dir,
+                            printer=self.pt_printer,
+                        )
+                    except Exception as e:
+                        self.pt_printer(
+                            f"\n⚠️  Warning: Could not save session turn: {e}"
+                        )
         except asyncio.CancelledError:
             # When cancelled, we still want to save the partial response.
             # finish_response() sets success=False and returns the incomplete stats.
@@ -543,42 +587,51 @@ class InteractiveUI:
                 request_stats.finish_reason = "cancelled"
                 # This is an approximation of tokens_sent as the final request
                 # payload is constructed inside the adapter.
-                if isinstance(request, ChatRequest):
-                    request_stats.tokens_sent = sum(
-                        estimate_tokens(m.get("content", "")) for m in request.messages
-                    )
-                elif isinstance(request, CompletionRequest):
-                    request_stats.tokens_sent = estimate_tokens(request.prompt)
-                self.client.stats.add_completed_request(request_stats)
+                if request:  # We can only save if we have the request object
+                    if isinstance(request, ChatRequest):
+                        request_stats.tokens_sent = sum(
+                            estimate_tokens(m.get("content", ""))
+                            for m in request.messages
+                        )
+                    elif isinstance(request, CompletionRequest):
+                        request_stats.tokens_sent = estimate_tokens(request.prompt)
+                    self.client.stats.add_completed_request(request_stats)
 
-            if self.is_chat_mode and partial_text:
-                # Create a turn with the partial data for logging.
-                request_data = request.to_dict(self.client.config.model_name)
-                # Fabricate a partial response object for logging
-                response_data = {
-                    "pai_note": "This response was cancelled by the user.",
-                    "choices": [
-                        {"message": {"role": "assistant", "content": partial_text}}
-                    ],
-                }
-                turn = Turn(
-                    request_data=request_data,
-                    response_data=response_data,
-                    assistant_message=partial_text,
-                )
-                self.conversation.add_turn(turn)
-                try:
-                    turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
-                    turn_file.write_text(
-                        json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
-                    )
-                    save_conversation_formats(
-                        self.conversation, self.session_dir, printer=self.pt_printer
-                    )
-                except Exception as e:
-                    self.pt_printer(
-                        f"\n⚠️  Warning: Could not save cancelled session turn: {e}"
-                    )
+                    if self.is_chat_mode and partial_text:
+                        # Create a turn with the partial data for logging.
+                        request_data = request.to_dict(self.client.config.model_name)
+                        # Fabricate a partial response object for logging
+                        response_data = {
+                            "pai_note": "This response was cancelled by the user.",
+                            "choices": [
+                                {
+                                    "message": {
+                                        "role": "assistant",
+                                        "content": partial_text,
+                                    }
+                                }
+                            ],
+                        }
+                        turn = Turn(
+                            request_data=request_data,
+                            response_data=response_data,
+                            assistant_message=partial_text,
+                        )
+                        self.conversation.add_turn(turn)
+                        try:
+                            turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
+                            turn_file.write_text(
+                                json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
+                            )
+                            save_conversation_formats(
+                                self.conversation,
+                                self.session_dir,
+                                printer=self.pt_printer,
+                            )
+                        except Exception as e:
+                            self.pt_printer(
+                                f"\n⚠️  Warning: Could not save cancelled session turn: {e}"
+                            )
 
             self.pt_printer(
                 HTML("\n<style fg='ansiyellow'>🚫 Generation cancelled.</style>")
@@ -589,47 +642,6 @@ class InteractiveUI:
         finally:
             self.generation_in_progress.clear()
             self.generation_task = None
-
-    async def _run_standard_generation(self, user_input_str: str):
-        request: Union[ChatRequest, CompletionRequest]
-        if self.is_chat_mode:
-            messages = self.conversation.get_messages_for_next_turn(user_input_str)
-            request = ChatRequest(
-                messages=messages,
-                model=self.client.config.model_name,
-                max_tokens=self.args.max_tokens,
-                temperature=self.args.temperature,
-                stream=self.args.stream,
-                tools=get_tool_schemas() if self.client.tools_enabled else [],
-            )
-        else:
-            request = CompletionRequest(
-                prompt=user_input_str,
-                model=self.client.config.model_name,
-                max_tokens=self.args.max_tokens,
-                temperature=self.args.temperature,
-                stream=self.args.stream,
-            )
-
-        result = await self.client.generate(request, self.args.verbose)
-
-        if self.is_chat_mode and result:
-            turn = Turn(
-                request_data=result.get("request", {}),
-                response_data=result.get("response", {}),
-                assistant_message=result.get("text", ""),
-            )
-            self.conversation.add_turn(turn)
-            try:
-                turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
-                turn_file.write_text(
-                    json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
-                )
-                save_conversation_formats(
-                    self.conversation, self.session_dir, printer=self.pt_printer
-                )
-            except Exception as e:
-                self.pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
 
     async def _run_legacy_agent_loop(self, user_input_str: str):
         from .tools import execute_tool

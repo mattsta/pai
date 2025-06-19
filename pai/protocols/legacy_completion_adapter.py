@@ -62,5 +62,5 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
         except Exception as e:
             elapsed = time.time() - start_time
             context.stats.add_request(tokens_sent, 0, elapsed, success=False)
-            # Use a generic exception type to avoid import coupling
-            raise ConnectionError(f"Request failed: {str(e)}")
+            # Use a generic exception type, but importantly, use repr(e) for a full error message.
+            raise ConnectionError(f"Request failed: {e!r}")

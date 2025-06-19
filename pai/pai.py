@@ -309,32 +309,35 @@ class StreamingDisplay:
                 f"🟢 [{timestamp:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
             )
 
-    def finish_response(self) -> tuple[float, int, Optional[float]]:
+    def finish_response(self, success: bool = True) -> tuple[float, int, Optional[float]]:
         """Finalizes the response, prints stats, and resets the display state."""
         self.status = "Done"
         elapsed = time.time() - (self.start_time or 0)
         tokens_received = len(self.current_response.split())
 
-        if self.debug_mode:
-            self._print(
-                "=" * 60
-                + f"\n🔍 DEBUG SUMMARY: {self.line_count} lines, {self.chunk_count} chunks, {elapsed:.2f}s\n"
-                + "=" * 60
-            )
-        elif self.first_token_received:
-            tok_per_sec = tokens_received / max(elapsed, 0.1)
-            ttft_str = f" | TTFT: {self.ttft:.2f}s" if self.ttft is not None else ""
-            # In interactive mode, the toolbar shows stats. In non-interactive, print them.
-            if not self._is_interactive:
+        # On success, print the final output. On failure, do nothing, as the
+        # calling context will print a formatted error message.
+        if success:
+            if self.debug_mode:
                 self._print(
-                    f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
+                    "=" * 60
+                    + f"\n🔍 DEBUG SUMMARY: {self.line_count} lines, {self.chunk_count} chunks, {elapsed:.2f}s\n"
+                    + "=" * 60
                 )
-            else:
-                # To finalize, print the full response into the history and clear the live buffer.
-                self._print(HTML(f"🤖 Assistant: {self.current_response}"))
-                if self.output_buffer:
-                    self.output_buffer.reset()
+            elif self.first_token_received:
+                tok_per_sec = tokens_received / max(elapsed, 0.1)
+                ttft_str = f" | TTFT: {self.ttft:.2f}s" if self.ttft is not None else ""
+                if not self._is_interactive:
+                    self._print(
+                        f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
+                    )
+                else:
+                    # Finalize the output by printing the complete response with a newline.
+                    self._print(HTML(f"🤖 Assistant: {self.current_response}"))
 
+        # Always clear the live buffer and reset state.
+        if self.output_buffer:
+            self.output_buffer.reset()
         self.status = "Idle"
         self.live_tok_per_sec = 0.0
         return elapsed, tokens_received, self.ttft
@@ -612,8 +615,10 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                 except Exception as e:
                     pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
         except Exception as e:
-            client.display.finish_response()
-            pt_printer(f"\n\n❌ ERROR: {e}")
+            # On failure, call finish_response with success=False to prevent printing
+            # a partial message, then print a clean error.
+            client.display.finish_response(success=False)
+            pt_printer(HTML(f"<style fg='ansired'>❌ ERROR: {e}</style>"))
         finally:
             generation_in_progress.clear()
 
@@ -680,26 +685,24 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
         if input_buffer.text: input_buffer.reset()
         else: event.app.exit()
 
+    # This is the main input bar at the bottom of the screen.
     prompt_ui = VSplit([
         Window(FormattedTextControl(lambda: HTML(f"<style fg='ansigreen'>👤 ({client.config.name}) User:</style> ")), width=lambda: len(f"👤 ({client.config.name}) User: ") + 1),
         Window(BufferControl(buffer=input_buffer)),
     ])
 
+    # This is the window that will appear *above* the prompt to show live streaming output.
     live_output_window = ConditionalContainer(
-        Window(
-            content=BufferControl(buffer=streaming_output_buffer),
-            wrap_lines=True,
-            height=None,  # Let it grow/shrink with content.
-        ),
-        filter=Condition(lambda: generation_in_progress.is_set()),
+        Window(content=BufferControl(buffer=streaming_output_buffer, wrap_lines=True)),
+        filter=Condition(lambda: generation_in_progress.is_set() and streaming_output_buffer.text),
     )
 
     app = Application(
         layout=Layout(
             HSplit([
+                # This container holds the main UI elements. The history is printed above this.
                 live_output_window,
                 prompt_ui,
-                # The bottom toolbar is a window with a fixed height within the main layout.
                 Window(
                     content=FormattedTextControl(
                         lambda: get_toolbar_text(client, args, session_dir)

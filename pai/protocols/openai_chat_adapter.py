@@ -144,6 +144,6 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
             except Exception as e:
                 elapsed = time.time() - start_time
                 context.stats.add_request(tokens_sent, 0, elapsed, success=False)
-                raise ConnectionError(f"Request failed: {str(e)}")
+                raise ConnectionError(f"Request failed: {e!r}")
 
         return {"text": "[Agent Error] Agent reached maximum iterations."}

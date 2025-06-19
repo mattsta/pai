@@ -561,61 +561,28 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     pt_printer("Type '/help' for commands, '/quit' to exit.")
     pt_printer("-" * 60)
 
-    async def _process_and_generate(user_input_str: str):
-        """Helper to run generation logic. Can raise exceptions on API/network failure."""
-        request: Union[ChatRequest, CompletionRequest]
-        if is_chat_mode:
-            next_messages = conversation.get_messages_for_next_turn(user_input_str)
-            request = ChatRequest(
-                messages=next_messages,
-                model=client.config.model_name,
-                max_tokens=args.max_tokens,
-                temperature=args.temperature,
-                stream=args.stream,
-            )
-        else:
-            request = CompletionRequest(
-                prompt=user_input_str,
-                model=client.config.model_name,
-                max_tokens=args.max_tokens,
-                temperature=args.temperature,
-                stream=args.stream,
-            )
-
-        result = await client.generate(request, args.verbose)
-
-        # For chat mode, create a Turn and add it to the conversation
-        if is_chat_mode and result:
-            turn = Turn(
-                request_data=result.get("request", {}),
-                response_data=result.get("response", {}),
-                assistant_message=result.get("text", ""),
-            )
-            conversation.add_turn(turn)
-
-            # --- Save Turn & Conversation ---
-            try:
-                turn_file = session_dir / f"{turn.turn_id}-turn.json"
-                with open(turn_file, "w", encoding="utf-8") as f:
-                    json.dump(turn.to_dict(), f, indent=2)
-                save_conversation_formats(conversation, session_dir, printer=pt_printer)
-            except Exception as e:
-                # Log saving errors but don't crash the turn.
-                pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
-
-    async def accept_handler(buffer: Buffer):
-        """Handles user input submission, allowing the UI to remain active."""
+    # This is the main run loop for the interactive session.
+    while True:
         try:
-            user_input = buffer.text.strip()
-            if not user_input:
-                return  # Redisplay prompt if input is empty
+            user_input = (
+                await session.prompt_async(
+                    HTML(
+                        f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
+                    ),
+                    bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
+                    refresh_interval=0.1,  # Faster refresh for live stats
+                )
+            ).strip()
 
+            if not user_input:
+                continue
+
+            # --- Command Handling ---
             if user_input.startswith("/"):
                 parts = user_input[1:].lower().split(" ", 1)
                 cmd, params = parts[0], parts[1] if len(parts) > 1 else ""
                 if cmd in ["quit", "exit", "q"]:
-                    get_app().exit()  # Correctly exit the application
-                    return
+                    break
                 elif cmd == "stats":
                     print_stats(client.stats, printer=pt_printer)
                 elif cmd == "help":
@@ -675,29 +642,58 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     pt_printer(f"🤖 System prompt set.")
                 else:
                     pt_printer("❌ Unknown command.")
-                return
+                continue
 
-            await _process_and_generate(user_input)
+            # --- Generation ---
+            request: Union[ChatRequest, CompletionRequest]
+            if is_chat_mode:
+                next_messages = conversation.get_messages_for_next_turn(user_input)
+                request = ChatRequest(
+                    messages=next_messages,
+                    model=client.config.model_name,
+                    max_tokens=args.max_tokens,
+                    temperature=args.temperature,
+                    stream=args.stream,
+                )
+            else:
+                request = CompletionRequest(
+                    prompt=user_input,
+                    model=client.config.model_name,
+                    max_tokens=args.max_tokens,
+                    temperature=args.temperature,
+                    stream=args.stream,
+                )
 
+            result = await client.generate(request, args.verbose)
+
+            # --- Post-generation state updates and saving ---
+            if is_chat_mode and result:
+                turn = Turn(
+                    request_data=result.get("request", {}),
+                    response_data=result.get("response", {}),
+                    assistant_message=result.get("text", ""),
+                )
+                conversation.add_turn(turn)
+                try:
+                    turn_file = session_dir / f"{turn.turn_id}-turn.json"
+                    with open(turn_file, "w", encoding="utf-8") as f:
+                        json.dump(turn.to_dict(), f, indent=2)
+                    save_conversation_formats(
+                        conversation, session_dir, printer=pt_printer
+                    )
+                except Exception as e:
+                    pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
+
+        except (EOFError, KeyboardInterrupt):
+            # Gracefully break the loop on Ctrl-D or Ctrl-C
+            break
         except Exception as e:
-            # Catch errors inside the handler to prevent the entire app from crashing.
+            # Catch other exceptions, print them, and continue the loop
             client.display.finish_response()
             pt_printer(f"\n❌ An error occurred: {e}")
+            continue
 
-    try:
-        await session.prompt_async(
-            HTML(
-                f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
-            ),
-            bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
-            refresh_interval=0.1,  # Faster refresh for live stats
-            accept_handler=accept_handler,
-            multiline=False,
-        )
-    except (EOFError, KeyboardInterrupt):
-        pass  # Gracefully exit on Ctrl-D or Ctrl-C
-    finally:
-        closing(client.stats, printer=pt_printer)
+    closing(client.stats, printer=pt_printer)
 
 
 async def async_main(args: argparse.Namespace):

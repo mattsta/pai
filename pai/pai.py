@@ -583,7 +583,7 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     client.display.set_printer(pt_printer, is_interactive=True)
 
     # This buffer will hold the text for the live-streaming window.
-    streaming_output_buffer = Buffer(read_only=True)
+    streaming_output_buffer = Buffer()
     client.display.output_buffer = streaming_output_buffer
 
     pt_printer(f"🎯 {'Chat' if is_chat_mode else 'Completion'} Mode | Endpoint: {client.config.name} | Model: {client.config.model_name}")
@@ -626,7 +626,6 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     input_buffer = Buffer(
         name="input_buffer",
         multiline=False,
-        read_only=Condition(lambda: generation_in_progress.is_set()),
     )
 
     @kb.add("enter", eager=True)
@@ -688,8 +687,14 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     # This is the main input bar at the bottom of the screen.
     prompt_ui = VSplit([
         Window(FormattedTextControl(lambda: HTML(f"<style fg='ansigreen'>👤 ({client.config.name}) User:</style> ")), width=lambda: len(f"👤 ({client.config.name}) User: ") + 1),
-        Window(BufferControl(buffer=input_buffer)),
+        Window(BufferControl(buffer=input_buffer, has_focus=True)),
     ])
+
+    # A UI to show when waiting for a response.
+    waiting_ui = Window(
+        FormattedTextControl(HTML("<style fg='ansiyellow'>[Waiting for response...]</style>")),
+        height=1,
+    )
 
     # This is the window that will appear *above* the prompt to show live streaming output.
     live_output_window = ConditionalContainer(
@@ -705,7 +710,8 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
             HSplit([
                 # This container holds the main UI elements. The history is printed above this.
                 live_output_window,
-                prompt_ui,
+                ConditionalContainer(prompt_ui, filter=Condition(lambda: not generation_in_progress.is_set())),
+                ConditionalContainer(waiting_ui, filter=Condition(lambda: generation_in_progress.is_set())),
                 Window(
                     content=FormattedTextControl(
                         lambda: get_toolbar_text(client, args, session_dir)
@@ -714,7 +720,6 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     style="reverse",
                 ),
             ]),
-            focused_element=input_buffer,
         ),
         key_bindings=kb,
         refresh_interval=0.2,

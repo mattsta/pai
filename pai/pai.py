@@ -526,6 +526,7 @@ class InteractiveUI:
             multiline=False,
             history=self.history,
             enable_history_search=True,
+            accept_handler=self._on_buffer_accepted,
         )
 
         # State management
@@ -597,40 +598,35 @@ class InteractiveUI:
 
         return Application(
             layout=layout,
-            key_bindings=self._create_key_bindings(),
+            # By omitting key_bindings, we use prompt-toolkit's defaults,
+            # which include history search and call the buffer's accept_handler on Enter.
             refresh_interval=0.2,
             full_screen=False,
         )
 
-    def _create_key_bindings(self) -> KeyBindings:
-        kb = KeyBindings()
+    def _on_buffer_accepted(self, buffer: Buffer):
+        """Callback for when the user presses Enter on the input buffer."""
+        if self.generation_in_progress.is_set():
+            return
 
-        @kb.add("enter", eager=True)
-        def _(event):
-            if self.generation_in_progress.is_set():
-                return
-
-            user_input = self.input_buffer.text.strip()
-            if user_input:
-                # When building a custom Application, we must manually add entries
-                # to the history on submission. This is the correct pattern.
-                self.history.store_string(user_input)
-                self.pt_printer(
-                    HTML(
-                        f"\n<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> {user_input}"
-                    )
+        user_input = buffer.text.strip()
+        if user_input:
+            # When using accept_handler, we still must manually add entries
+            # to the history on submission.
+            self.history.store_string(user_input)
+            self.pt_printer(
+                HTML(
+                    f"\n<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> {user_input}"
                 )
-                self.input_buffer.reset()
+            )
+            buffer.reset()
 
-                if user_input.startswith("/"):
-                    self._handle_command(user_input, event.app)
-                else:
-                    asyncio.create_task(self._process_and_generate(user_input))
-
-        # By not defining custom 'c-c' or 'c-d' handlers, we allow the default
-        # prompt-toolkit behavior, which is to raise EOFError or KeyboardInterrupt.
-        # These are caught in the `run` method to exit gracefully.
-        return merge_key_bindings([load_key_bindings(), kb])
+            if user_input.startswith("/"):
+                # Because the app is created after the buffer, we can safely
+                # reference self.app here, as it will exist when this handler is called.
+                self._handle_command(user_input, self.app)
+            else:
+                asyncio.create_task(self._process_and_generate(user_input))
 
     def _handle_command(self, text: str, app: Application):
         parts = text[1:].lower().split(" ", 1)

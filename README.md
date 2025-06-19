@@ -49,7 +49,6 @@ pyproject.toml            # Project dependencies and definition
 Polyglot AI loads API keys from environment variables. Set them in your shell or `.env` file:
 
 ```bash
-export FEATHERLESS_API_KEY="sk-your-featherless-key"
 export OPENAI_API_KEY="sk-your-openai-key"
 ```
 
@@ -57,18 +56,13 @@ export OPENAI_API_KEY="sk-your-openai-key"
 
 **Install the package in editable mode:**
 ```bash
-pip install -e .
+uv sync -U
 ```
 This will install the `pai` command.
 
 **Start in Interactive Mode (Default: OpenAI)**
 ```bash
 pai --chat
-```
-
-**Start with a Different Endpoint (e.g., Featherless)**
-```bash
-pai --chat --endpoint featherless --model featherless/claude-3-opus
 ```
 
 **Run a Single, Non-Interactive Prompt**

@@ -2,7 +2,8 @@ import inspect
 import json
 import enum
 import pathlib
-import importlib.util
+import sys
+import importlib
 from typing import Callable, List, Dict, Any
 
 TOOL_REGISTRY: Dict[str, Callable] = {}
@@ -129,16 +130,29 @@ def load_tools_from_directory(directory: str, printer: Callable = print):
         # Don't print an error if the default dir doesn't exist.
         return
 
+    # To enable relative imports, we treat the tool directory as a package.
+    # Its parent directory must be on the Python path.
+    parent_dir = str(path.parent.resolve())
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+
+    # The directory must contain an __init__.py to be a package.
+    if not (path / "__init__.py").exists():
+        printer(
+            f"  ⚠️  Warning: Skipping tool directory '{path.name}'. It is not a Python package (missing __init__.py)."
+        )
+        return
+
     printer(f"🔎 Loading custom tools from: {path.resolve()}")
     found = False
     for file_path in path.glob("*.py"):
-        if file_path.stem.startswith("_"):
+        # Skip __init__ files and any other private-like files.
+        if file_path.stem.startswith("__init__") or file_path.stem.startswith("_"):
             continue
         try:
-            # Import the module so the @tool decorator can register the function
-            spec = importlib.util.spec_from_file_location(file_path.stem, file_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            # Construct the full module name for a proper import.
+            module_name = f"{path.name}.{file_path.stem}"
+            importlib.import_module(module_name)
             printer(f"  ✅ Loaded custom tool module: {file_path.name}")
             found = True
         except Exception as e:

@@ -510,6 +510,13 @@ class InteractiveUI:
         if user_input.strip():
             # Store the raw string to history and echo it to the user.
             self.history.store_string(user_input)
+
+            # This is a workaround for a prompt-toolkit behavior where the buffer
+            # caches history and doesn't see new items from the current session.
+            # Resetting the history navigation forces it to reload on the next up/down arrow.
+            if hasattr(self.input_buffer, "_reset_history_navigation"):
+                self.input_buffer._reset_history_navigation()
+
             self.pt_printer(
                 HTML(
                     f"\n<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> {escape(user_input)}"

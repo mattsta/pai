@@ -170,6 +170,8 @@ class StreamingDisplay:
             # For interactive mode with a buffer, update the buffer's content.
             # This will be displayed live in the UI's live output window.
             self.output_buffer.text = f"🤖 Assistant: {self.current_response}"
+            # Move the cursor to the end of the buffer to ensure scrolling.
+            self.output_buffer.cursor_position = len(self.output_buffer.text)
         elif not self._is_interactive:
             # For non-interactive, print header once, then stream chunks.
             if self.chunk_count == 1:
@@ -410,6 +412,9 @@ class InteractiveUI:
             Window(
                 content=BufferControl(buffer=self.streaming_output_buffer),
                 wrap_lines=True,
+                # This ensures that prompt-toolkit will scroll the window to
+                # keep the cursor visible, even if the window is not focused.
+                always_show_cursor=True,
             ),
             filter=Condition(
                 lambda: self.generation_in_progress.is_set()

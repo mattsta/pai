@@ -320,8 +320,14 @@ class StreamingDisplay:
         elapsed = time.time() - (self.start_time or 0)
         tokens_received = len(self.current_response.split())
 
-        # On success, print the final output. On failure, do nothing, as the
-        # calling context will print a formatted error message.
+        # In interactive mode, if we have a response, print it to the scrollback
+        # history. This "finalizes" it, moving it from the temporary live
+        # buffer to the main conversation transcript. This happens regardless
+        # of success to ensure partial/cancelled outputs are preserved.
+        if self._is_interactive and self.current_response:
+            self._print(HTML(f"🤖 Assistant: {self.current_response}"))
+
+        # On success, print final stats.
         if success:
             if self.debug_mode:
                 self._print(
@@ -329,18 +335,15 @@ class StreamingDisplay:
                     + f"\n🔍 DEBUG SUMMARY: {self.line_count} lines, {self.chunk_count} chunks, {elapsed:.2f}s\n"
                     + "=" * 60
                 )
-            elif self.first_token_received:
+            elif not self._is_interactive and self.first_token_received:
+                # For non-interactive mode, print the final stats line.
                 tok_per_sec = tokens_received / max(elapsed, 0.1)
                 ttft_str = f" | TTFT: {self.ttft:.2f}s" if self.ttft is not None else ""
-                if not self._is_interactive:
-                    self._print(
-                        f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
-                    )
-                else:
-                    # Finalize the output by printing the complete response with a newline.
-                    self._print(HTML(f"🤖 Assistant: {self.current_response}"))
+                self._print(
+                    f"\n\n📊 Response in {elapsed:.2f}s ({tokens_received} tokens, {tok_per_sec:.1f} tok/s{ttft_str})"
+                )
 
-        # Always clear the live buffer and reset state.
+        # Always clear the live buffer and reset state for the next command.
         if self.output_buffer:
             self.output_buffer.reset()
         self.status = "Idle"
@@ -800,8 +803,57 @@ class InteractiveUI:
                 except Exception as e:
                     self.pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
         except asyncio.CancelledError:
-            self.client.display.finish_response(success=False)
-            self.pt_printer(HTML("\n<style fg='ansiyellow'>🚫 Generation cancelled.</style>"))
+            # When cancelled, we still want to save the partial response.
+            elapsed, tokens_received, ttft = self.client.display.finish_response(
+                success=False
+            )
+            partial_text = self.client.display.current_response
+
+            # Add to stats. This is an approximation of tokens_sent as the
+            # final request payload is constructed inside the adapter.
+            tokens_sent = 0
+            if isinstance(request, ChatRequest):
+                tokens_sent = sum(
+                    len(m.get("content", "").split()) for m in request.messages
+                )
+            elif isinstance(request, CompletionRequest):
+                tokens_sent = len(request.prompt.split())
+            self.client.stats.add_request(
+                tokens_sent, tokens_received, elapsed, success=False, ttft=ttft
+            )
+
+            if self.is_chat_mode and partial_text:
+                # Create a turn with the partial data.
+                request_data = request.to_dict(self.client.config.model_name)
+                # Fabricate a partial response object for logging
+                response_data = {
+                    "pai_note": "This response was cancelled by the user.",
+                    "choices": [
+                        {"message": {"role": "assistant", "content": partial_text}}
+                    ],
+                }
+                turn = Turn(
+                    request_data=request_data,
+                    response_data=response_data,
+                    assistant_message=partial_text,
+                )
+                self.conversation.add_turn(turn)
+                try:
+                    turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
+                    turn_file.write_text(
+                        json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
+                    )
+                    save_conversation_formats(
+                        self.conversation, self.session_dir, printer=self.pt_printer
+                    )
+                except Exception as e:
+                    self.pt_printer(
+                        f"\n⚠️  Warning: Could not save cancelled session turn: {e}"
+                    )
+
+            self.pt_printer(
+                HTML("\n<style fg='ansiyellow'>🚫 Generation cancelled.</style>")
+            )
         except Exception as e:
             self.client.display.finish_response(success=False)
             self.pt_printer(HTML(f"<style fg='ansired'>❌ ERROR: {e}</style>"))

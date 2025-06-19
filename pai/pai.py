@@ -5,6 +5,7 @@ and fixing the circular import error.
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -356,6 +357,7 @@ class InteractiveUI:
         )
 
         # State management
+        self.legacy_agent_mode = False
         self.generation_in_progress = asyncio.Event()
         self.generation_task: Optional[asyncio.Task] = None
         self.spinner_chars = ["|", "/", "-", "\\"]
@@ -526,45 +528,10 @@ class InteractiveUI:
     async def _process_and_generate(self, user_input_str: str):
         self.generation_in_progress.set()
         try:
-            request: Union[ChatRequest, CompletionRequest]
-            if self.is_chat_mode:
-                messages = self.conversation.get_messages_for_next_turn(user_input_str)
-                request = ChatRequest(
-                    messages=messages,
-                    model=self.client.config.model_name,
-                    max_tokens=self.args.max_tokens,
-                    temperature=self.args.temperature,
-                    stream=self.args.stream,
-                    tools=get_tool_schemas() if self.client.tools_enabled else [],
-                )
+            if self.is_chat_mode and self.legacy_agent_mode:
+                await self._run_legacy_agent_loop(user_input_str)
             else:
-                request = CompletionRequest(
-                    prompt=user_input_str,
-                    model=self.client.config.model_name,
-                    max_tokens=self.args.max_tokens,
-                    temperature=self.args.temperature,
-                    stream=self.args.stream,
-                )
-
-            result = await self.client.generate(request, self.args.verbose)
-
-            if self.is_chat_mode and result:
-                turn = Turn(
-                    request_data=result.get("request", {}),
-                    response_data=result.get("response", {}),
-                    assistant_message=result.get("text", ""),
-                )
-                self.conversation.add_turn(turn)
-                try:
-                    turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
-                    turn_file.write_text(
-                        json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
-                    )
-                    save_conversation_formats(
-                        self.conversation, self.session_dir, printer=self.pt_printer
-                    )
-                except Exception as e:
-                    self.pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
+                await self._run_standard_generation(user_input_str)
         except asyncio.CancelledError:
             # When cancelled, we still want to save the partial response.
             # finish_response() sets success=False and returns the incomplete stats.
@@ -622,6 +589,128 @@ class InteractiveUI:
         finally:
             self.generation_in_progress.clear()
             self.generation_task = None
+
+    async def _run_standard_generation(self, user_input_str: str):
+        request: Union[ChatRequest, CompletionRequest]
+        if self.is_chat_mode:
+            messages = self.conversation.get_messages_for_next_turn(user_input_str)
+            request = ChatRequest(
+                messages=messages,
+                model=self.client.config.model_name,
+                max_tokens=self.args.max_tokens,
+                temperature=self.args.temperature,
+                stream=self.args.stream,
+                tools=get_tool_schemas() if self.client.tools_enabled else [],
+            )
+        else:
+            request = CompletionRequest(
+                prompt=user_input_str,
+                model=self.client.config.model_name,
+                max_tokens=self.args.max_tokens,
+                temperature=self.args.temperature,
+                stream=self.args.stream,
+            )
+
+        result = await self.client.generate(request, self.args.verbose)
+
+        if self.is_chat_mode and result:
+            turn = Turn(
+                request_data=result.get("request", {}),
+                response_data=result.get("response", {}),
+                assistant_message=result.get("text", ""),
+            )
+            self.conversation.add_turn(turn)
+            try:
+                turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
+                turn_file.write_text(
+                    json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
+                )
+                save_conversation_formats(
+                    self.conversation, self.session_dir, printer=self.pt_printer
+                )
+            except Exception as e:
+                self.pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
+
+    async def _run_legacy_agent_loop(self, user_input_str: str):
+        from .tools import execute_tool
+
+        messages = self.conversation.get_messages_for_next_turn(user_input_str)
+        max_loops = 5
+
+        for i in range(max_loops):
+            request = ChatRequest(
+                messages=messages,
+                model=self.client.config.model_name,
+                max_tokens=self.args.max_tokens,
+                temperature=self.args.temperature,
+                stream=self.args.stream,
+                tools=[],  # Legacy mode does not use native tools
+            )
+
+            # We force non-streaming for the agent's internal calls
+            # to reliably parse for tool calls.
+            request.stream = False
+            result = await self.client.generate(request, self.args.verbose)
+            assistant_response = result.get("text", "")
+
+            # Add the assistant's raw response to the message history
+            messages.append({"role": "assistant", "content": assistant_response})
+
+            tool_match = re.search(
+                r"<tool_call>(.*?)</tool_call>", assistant_response, re.DOTALL
+            )
+
+            if tool_match:
+                self.pt_printer(
+                    HTML("\n<style fg='ansimagenta'>🔧 Agent wants to use a tool...</style>")
+                )
+                tool_xml = tool_match.group(1)
+                name_match = re.search(r"<name>(.*?)</name>", tool_xml)
+                args_match = re.search(r"<args>(.*?)</args>", tool_xml, re.DOTALL)
+
+                if not name_match or not args_match:
+                    tool_result = "Error: Invalid tool_call format. Missing <name> or <args> tag."
+                else:
+                    tool_name = name_match.group(1).strip()
+                    tool_args_str = args_match.group(1).strip()
+                    try:
+                        tool_args = json.loads(tool_args_str)
+                        self.pt_printer(
+                            f"  - Executing: {tool_name}({json.dumps(tool_args)})"
+                        )
+                        tool_result = execute_tool(tool_name, tool_args)
+                    except json.JSONDecodeError:
+                        tool_result = f"Error: Invalid JSON in <args> for tool {tool_name}."
+                    except Exception as e:
+                        tool_result = f"Error executing tool {tool_name}: {e}"
+
+                # Append the tool result to the conversation for the next loop
+                # We use the 'user' role to make it clear this is external input.
+                tool_result_message = f"TOOL_RESULT:\n```\n{tool_result}\n```"
+                messages.append({"role": "user", "content": tool_result_message})
+                self.pt_printer(HTML(f"<style fg='ansimagenta'>  - Result: {escape(str(tool_result))[:300]}...</style>"))
+                # Continue the loop
+            else:
+                # No tool call found, this is the final answer.
+                # Re-run the final generation with streaming enabled for a better user experience.
+                self.pt_printer(
+                    HTML("\n<style fg='ansigreen'>✅ Agent decided to respond directly.</style>")
+                )
+                request.stream = self.args.stream
+                final_result = await self.client.generate(request, self.args.verbose)
+                
+                turn = Turn(
+                    request_data=final_result.get("request", {}),
+                    response_data=final_result.get("response", {}),
+                    assistant_message=final_result.get("text", ""),
+                )
+                self.conversation.add_turn(turn)
+                save_conversation_formats(
+                    self.conversation, self.session_dir, printer=self.pt_printer
+                )
+                break
+        else:
+            self.pt_printer("⚠️ Agent reached maximum loops.")
 
     def _get_toolbar_text(self) -> HTML:
         """Generates the HTML for the multi-line bottom toolbar."""

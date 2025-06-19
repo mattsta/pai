@@ -76,5 +76,17 @@ uv sync -U
 **AI's Final Response:**
 > I have applied the edit to `README.md`. The tool reported success. The typo should now be fixed.
 
-This multi-step process—exploring, investigating, and acting—is the foundation of agentic behavior in Polyglot AI. By
-giving the AI the right tools and guiding it, you can accomplish complex tasks.
+This multi-step process—exploring, investigating, and acting—is the foundation of agentic behavior in Polyglot AI. By giving the AI the right tools and guiding it, you can accomplish complex tasks.
+
+## Step 4: Using Legacy Agent Mode
+
+What if your model doesn't support native tool calling (like OpenAI's API)? Polyglot AI provides `/legacy_agent` mode for this.
+
+In this mode, `pai` includes a text-based list of available tools directly in the system prompt. It instructs the model to respond with a special XML tag (`<tool_call>...`) when it wants to use a tool. `pai` then parses this text, runs the tool, and feeds the result back to the model.
+
+**How to use it:**
+1.  Start with `--tools` to load the tools: `pai --chat --endpoint <your-endpoint> --tools`
+2.  Type `/legacy_agent`. This loads a special prompt and disables native tool calling.
+3.  Give the AI a task.
+
+The AI will follow the same thought process, but instead of the API handling tool calls, the agent's reasoning and `pai`'s parsing logic manage the entire loop via plain text. This brings agentic capabilities to a much wider range of models.

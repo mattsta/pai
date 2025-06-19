@@ -71,6 +71,30 @@ def get_tool_schemas() -> List[Dict[str, Any]]:
     return [t["schema"] for t in TOOL_REGISTRY.values()] if TOOL_REGISTRY else []
 
 
+def get_tool_manifest() -> str:
+    """Generates a text manifest of all registered tools for legacy models."""
+    if not TOOL_REGISTRY:
+        return "No tools available."
+
+    manifest = "You have access to the following tools:\n\n"
+    for name, info in TOOL_REGISTRY.items():
+        schema = info["schema"]["function"]
+        manifest += f"- Name: {name}\n"
+        manifest += f"  Description: {schema['description']}\n"
+        if properties := schema["parameters"]["properties"]:
+            manifest += "  Arguments:\n"
+            for arg_name, details in properties.items():
+                arg_type = details.get("type", "any")
+                enum_values = details.get("enum")
+                if enum_values:
+                    arg_type = f"string (enum: {', '.join(enum_values)})"
+                manifest += f"    - {arg_name} ({arg_type}): {details.get('description', '')}\n"
+        else:
+            manifest += "  Arguments: None\n"
+        manifest += "\n"
+    return manifest
+
+
 def execute_tool(name: str, args: Dict) -> Any:
     if name not in TOOL_REGISTRY:
         return f"Error: Tool '{name}' not found."

@@ -92,7 +92,8 @@ class HelpCommand(Command):
   /clear                 - Clear conversation history
   /prompts               - List available, loadable system prompts
   /prompt <name>         - Load a system prompt from file (clears history)
-  /agent                 - Start agent mode (loads code_editor prompt)
+  /agent                 - Start agent mode for OpenAI-compatible tool-use
+  /legacy_agent          - Start agent mode for models without native tool-use
     """
         )
 
@@ -244,6 +245,7 @@ class ClearCommand(Command):
     def execute(self, app: "Application", param: Optional[str] = None):
         if self.ui.is_chat_mode:
             self.ui.conversation.clear()
+            self.ui.legacy_agent_mode = False
             self.ui.pt_printer("🧹 History cleared.")
         else:
             self.ui.pt_printer("❌ /clear is only available in chat mode.")
@@ -260,6 +262,7 @@ class SystemCommand(Command):
 
     def execute(self, app: "Application", param: Optional[str] = None):
         if self.ui.is_chat_mode:
+            self.ui.legacy_agent_mode = False
             self.ui.conversation.set_system_prompt(param)
             self.ui.pt_printer("🤖 System prompt set.")
         else:
@@ -300,6 +303,8 @@ class PromptCommand(Command):
             self.ui.pt_printer("❌ /prompt is only available in chat mode.")
             return
 
+        self.ui.legacy_agent_mode = False
+
         prompt_path = self.ui.prompts_dir / f"{param}.md"
         if not prompt_path.exists():
             prompt_path = self.ui.prompts_dir / f"{param}.txt"
@@ -327,6 +332,14 @@ class AgentCommand(Command):
             self.ui.pt_printer("❌ /agent is only available in chat mode.")
             return
 
+        if not self.ui.args.tools:
+            self.ui.pt_printer(
+                "⚠️  Warning: Native agent mode works best with the --tools flag enabled at startup."
+            )
+
+        self.ui.legacy_agent_mode = False
+        self.ui.client.tools_enabled = True
+
         param = "code_editor"
         prompt_path = self.ui.prompts_dir / f"{param}.md"
 
@@ -334,11 +347,51 @@ class AgentCommand(Command):
             content = prompt_path.read_text(encoding="utf-8")
             self.ui.conversation.set_system_prompt(content)
             self.ui.pt_printer(
-                f"🤖 Agent mode enabled (loaded '{param}' prompt). History cleared."
+                f"🤖 Native Agent mode enabled (loaded '{param}' prompt). History cleared."
             )
         else:
             self.ui.pt_printer(
                 f"❌ Agent prompt '{param}.md' not found in '{self.ui.prompts_dir}'."
+            )
+
+
+class LegacyAgentCommand(Command):
+    @property
+    def name(self):
+        return "legacy_agent"
+
+    def execute(self, app: "Application", param: Optional[str] = None):
+        """Loads a prompt that teaches a generic model to use tools via text."""
+        if not self.ui.is_chat_mode:
+            self.ui.pt_printer("❌ /legacy_agent is only available in chat mode.")
+            return
+
+        if not get_tool_schemas():
+            self.ui.pt_printer(
+                "❌ No tools loaded. To use agent mode, please restart and add the `--tools` flag."
+            )
+            return
+
+        self.ui.legacy_agent_mode = True
+        self.ui.client.tools_enabled = False  # Disable native tools
+
+        param = "legacy_agent"
+        prompt_path = self.ui.prompts_dir / f"{param}.md"
+
+        if prompt_path.exists() and prompt_path.is_file():
+            from .tools import get_tool_manifest
+
+            template = prompt_path.read_text(encoding="utf-8")
+            manifest = get_tool_manifest()
+            content = template.replace("{{ tool_manifest }}", manifest)
+
+            self.ui.conversation.set_system_prompt(content)
+            self.ui.pt_printer(
+                f"🤖 Legacy Agent mode enabled. Tools will be used via text prompt."
+            )
+        else:
+            self.ui.pt_printer(
+                f"❌ Legacy agent prompt '{param}.md' not found in '{self.ui.prompts_dir}'."
             )
 
 
@@ -349,6 +402,7 @@ class ToggleModeCommand(Command):
 
     def execute(self, app: "Application", param: Optional[str] = None):
         self.ui.is_chat_mode = not self.ui.is_chat_mode
+        self.ui.legacy_agent_mode = False
         mode_name = "Chat" if self.ui.is_chat_mode else "Completion"
         self.ui.conversation.clear()
         self.ui.pt_printer(f"✅ Switched to {mode_name} mode. History cleared.")
@@ -384,6 +438,7 @@ class CommandHandler:
             PromptsCommand,
             PromptCommand,
             AgentCommand,
+            LegacyAgentCommand,
             ToggleModeCommand,
         ]
         for cmd_class in command_classes:

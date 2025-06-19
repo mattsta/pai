@@ -748,13 +748,17 @@ async def async_main(args: argparse.Namespace):
     except Exception as e:
         sys.exit(f"❌ FATAL: Could not parse '{args.config}': {e}")
 
-    # Load custom tools from directories specified in the config
-    if tool_config := loaded_config.get("tool_config"):
-        if tool_dirs := tool_config.get("directories"):
-            from .tools import load_tools_from_directory
+    # Conditionally load tools only if the --tools flag is active.
+    if args.tools:
+        print("🛠️  --tools flag detected. Loading tools...")
+        if tool_config := loaded_config.get("tool_config"):
+            if tool_dirs := tool_config.get("directories"):
+                from .tools import load_tools_from_directory
 
-            for tool_dir in tool_dirs:
-                load_tools_from_directory(tool_dir, printer=print)
+                for tool_dir in tool_dirs:
+                    load_tools_from_directory(tool_dir, printer=print)
+        else:
+            print("  (No 'tool_config' section in polyglot.toml)")
 
     # Use a single httpx client session for the application's lifecycle
     transport = httpx.AsyncHTTPTransport(retries=3)
@@ -832,7 +836,7 @@ def main():
     parser.add_argument(
         "--tools",
         action="store_true",
-        help="Enable tool calling feature (requires chat mode).",
+        help="Enable tool-use capabilities by loading tools from the directories specified in polyglot.toml. (requires chat mode).",
     )
     args = parser.parse_args()
 

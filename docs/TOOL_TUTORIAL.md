@@ -1,21 +1,26 @@
-# Polyglot AI: A Practical Guide to Using Tools
+# Polyglot AI: A Practical Guide to Agentic Tool Use
 
-This tutorial provides a step-by-step guide on how to use tools in an interactive `pai` session. For a guide on how to *create* your own tools, see the [Tool System Guide](./TOOLS.md).
+This tutorial provides a step-by-step guide on how to use tools in an interactive `pai` session. For a guide on how to *create* tools, see the [Tool System Guide](./TOOLS.md).
 
-Using tools effectively allows you to turn the AI into a powerful agent that can interact with your local file system, browse the web, and even edit code.
+## The Core Concepts: Capability vs. Behavior
 
-## Step 1: Start a Session with Tools Enabled
+Using tools effectively requires understanding two key concepts:
 
-To use tools, you need two things:
-1. A capable model that is good at following instructions (e.g., `gpt-4o`, `claude-3-5-sonnet`).
-2. The `--tools` flag when launching `pai`.
+1.  **Tool Capability:** This is the AI's *ability* to see and execute tools. You enable this capability by starting `pai` with the `--tools` flag. This is the master switch; without it, no tools are loaded, and the AI is unaware of them.
+2.  **Agentic Behavior:** This is the AI's set of instructions on *how* to behave. You guide its behavior by setting a system prompt. Prompts like the one loaded with `/agent` instruct the AI to think step-by-step, explore problems, use tools to achieve goals, and verify its work.
 
-Here is the recommended command to start a tool-enabled session:
+You need both to accomplish complex tasks: the capability to act, and the instructions on how to act.
+
+## Step 1: Start a Session with Tool Capability
+
+To load all available tools and enable the tool-use capability, you **must** start `pai` with the `--tools` flag.
+
 ```bash
+# This loads tools from custom_tools/ and enables the /tools command
 pai --chat --endpoint openai --model gpt-4o --tools
 ```
 
-## Step 2: Your First Tool Call (Single-Turn)
+## Step 2: Your First Tool Call (Simple Task)
 
 The easiest way to trigger a tool is to ask a question that directly maps to a tool's description.
 
@@ -32,51 +37,35 @@ The easiest way to trigger a tool is to ask a question that directly maps to a t
 **AI's Final Response:**
 > The weather in Paris is 22°C and Sunny.
 
-## Step 3: A Complex Task (Multi-Turn Agentic Behavior)
+## Step 3: A Complex Task (Agentic Behavior)
 
-For more complex tasks, you need to guide the AI step-by-step. Let's try to fix a typo in `README.md`.
+For a complex task like editing a file, simply having the tool *capability* is not enough. You also need to give the AI a behavioral framework. This is where "agent mode" comes in.
 
-**User Prompt 1: Set the Context**
-First, let's load the `code_editor` system prompt to tell the AI to act like a software engineer.
-> /prompt code_editor
+**User Prompt 1: Enable Agent Behavior**
+The `/agent` command is a shortcut that loads the `prompts/code_editor.md` system prompt. This prompt tells the AI to act like a methodical software engineer.
+
+> /agent
 
 **AI Response:**
 > 🤖 System prompt loaded from 'code_editor'. History cleared.
 
-**User Prompt 2: Explore**
-Now, let's start the task. Assume there is a typo in `README.md` where `uv sync -U` is written as `uv cync -U`.
+**User Prompt 2: Start the Task**
+Now that the AI has both the capability (`--tools`) and the behavior (`/agent`), you can give it a high-level goal. Assume there is a typo in `README.md` where `uv sync -U` is written as `uv cync -U`.
 
-> I need to fix a typo in the project's README file. First, can you confirm the file `README.md` exists?
+> There is a typo in the `README.md` file in the installation instructions. The command `uv cync -U` should be `uv sync -U`. Please fix it.
 
-**AI's Thought Process:** "The user wants to find a file. I have a `find_files` tool that seems perfect for this."
-*   **Tool Call:** `find_files(pattern="README.md")`
-*   **Tool Result:** `["README.md"]`
+**AI's Thought Process (following the `/agent` prompt):**
+1.  **Explore:** "Okay, I need to edit `README.md`. First I'll verify it exists."
+    *   **Tool Call:** `find_files(pattern="README.md")`
+    *   **Tool Result:** `["README.md"]`
+2.  **Investigate:** "Now I'll find the exact line with the typo to make sure my `SEARCH` block is correct."
+    *   **Tool Call:** `search_code(pattern="uv cync -U", search_path="README.md")`
+    *   **Tool Result:** A JSON object showing the match.
+3.  **Execute:** "I have confirmed the text. Now I will construct and execute the `apply_search_replace` command."
+    *   **Tool Call:** An `edit_script` containing the `SEARCH/REPLACE` block.
+4.  **Verify:** "The tool reported success. The task is complete."
 
-**AI's Response to User:**
-> Yes, I found the file `README.md`. What should I look for?
-
-**User Prompt 3: Investigate**
-> Great. Search for the line containing `uv cync -U` in that file.
-
-**AI's Thought Process:** "The user wants to search inside a file. The `search_code` tool is the right choice."
-*   **Tool Call:** `search_code(pattern="uv cync -U", search_path="README.md")`
-*   **Tool Result:** A JSON object showing the match, file path, and line number.
-
-**AI's Response to User:**
-> Okay, I found a match. The text `uv cync -U` appears on line 60 of `README.md`.
-
-**User Prompt 4: Execute the Edit**
-> Perfect. Please correct it to `uv sync -U`.
-
-**AI's Thought Process:** "The user wants to modify a file. The `apply_search_replace` tool is designed for this. I need to construct the correct `SEARCH/REPLACE` block."
-
-*   **Tool Call:** `apply_search_replace(edit_script=...)` with the following script:
-
-```
-´´´´markdown
-README.md
-<<<<<<< SEARCH
-uv cync -U
+uv sync -U
 =======
 uv sync -U
 >>>>>>> REPLACE

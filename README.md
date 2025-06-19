@@ -11,9 +11,9 @@ Polyglot AI is an interactive, provider-agnostic CLI designed for developers, re
 *   **Provider Agnostic:** Seamlessly switch between different AI providers (`Featherless`, `OpenAI`, etc.) in a single session.
 *   **Interactive Chat:** A rich, terminal-based chat experience with persistent and searchable command history (up/down arrows for navigation, prefix search, and `Ctrl+R` for reverse search), streaming, helper commands, and a live status toolbar.
 *   **Powerful Debugging:** A first-class, verbose debug mode to inspect raw API traffic, essential for development and research.
-*   **Tool & Function Calling:** A powerful, extensible system for allowing models to use local Python functions. Create your own tools and load them dynamically from a custom directory.
+*   **Agentic Tool Use:** A powerful, extensible system allowing models to use local Python functions. Tools are **only loaded if you use the `--tools` flag**. You can then guide the AI with a system prompt (like the one loaded via `/agent`) to perform complex, multi-step tasks.
     *   **To create tools:** See the [Tool System Guide](./docs/TOOLS.md).
-    *   **To use tools:** Check out the [Tool Usage Tutorial](./docs/TOOL_TUTORIAL.md).
+    *   **For a walkthrough:** Check out the [Tool Usage Tutorial](./docs/TOOL_TUTORIAL.md).
 *   **Agentic Looping:** The framework supports agentic loops where the model can use tools iteratively to solve complex problems.
 *   **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in the `sessions/` directory. Each turn is saved as a structured JSON file, and the entire conversation is rendered into multiple browseable HTML formats.
 *   **Extensible by Design:** Adding a new provider is as simple as creating a new class and registering it.
@@ -76,11 +76,16 @@ pai --endpoint openai --prompt "Explain quantum computing in one sentence."
 pai --endpoint openai --prompt "Explain quantum computing in one sentence." --no-stream
 ```
 
-**Enable Tool Calling**
+**Using Tools**
+To load and enable tools, you must start `pai` with the `--tools` flag. This gives the AI the *capability* to see and use tools.
 ```bash
 pai --chat --endpoint openai --model gpt-4o --tools
 ```
-Inside the interactive session, you can then ask it to interact with the local filesystem: `List the files in the current directory.`
+For complex tasks, you can then switch into "agent mode" to give the AI a better reasoning framework for using those tools.
+```
+/agent
+```
+Now you can ask it to perform tasks that require tools: `Refactor the 'get_current_weather' function in 'pai/tools.py' to handle a 'kelvin' unit.`
 
 ### Interactive Commands
 
@@ -92,7 +97,7 @@ Once in interactive mode, use `/` commands to control the session:
 *   `/model <name>`: Change the model (e.g., `/model gpt-4o-mini`).
 *   `/system <prompt>`: Set a new system prompt for the chat.
 *   `/prompt <name>`: Load a system prompt from the `prompts/` directory.
-*   `/tools`: Toggle tool-calling on or off.
+*   `/tools`: Toggle tool-use on or off for the current session (Requires starting with `--tools`).
 *   `/debug`: Toggle raw protocol debugging on or off.
 *   `/clear`: Clear the current conversation history.
 *   `/quit`: Exit the application.

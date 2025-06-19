@@ -6,6 +6,7 @@ class-based approach where each command is a self-contained object.
 import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional
+from .tools import get_tool_schemas
 
 if TYPE_CHECKING:
     from .pai import InteractiveUI
@@ -210,6 +211,13 @@ class ToggleToolsCommand(Command):
         return "tools"
 
     def execute(self, app: "Application", param: Optional[str] = None):
+        # Prevent enabling tools if none were loaded at startup.
+        if not self.ui.client.tools_enabled and not get_tool_schemas():
+            self.ui.pt_printer(
+                "❌ No tools loaded. To use tools, please restart and add the `--tools` flag."
+            )
+            return
+
         self.ui.client.tools_enabled = not self.ui.client.tools_enabled
         self.ui.pt_printer(
             f"✅ Tool calling {'enabled' if self.ui.client.tools_enabled else 'disabled'}."

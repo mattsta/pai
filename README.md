@@ -9,7 +9,7 @@ Polyglot AI is an interactive, provider-agnostic CLI designed for developers, re
 ### Key Features
 
 *   **Provider Agnostic:** Seamlessly switch between different AI providers (`Featherless`, `OpenAI`, etc.) in a single session.
-*   **Interactive Chat:** A rich, terminal-based chat experience with history, streaming, helper commands, and a live status toolbar.
+*   **Interactive Chat:** A rich, terminal-based chat experience with persistent command history (up/down arrows), streaming, helper commands, and a live status toolbar.
 *   **Powerful Debugging:** A first-class, verbose debug mode to inspect raw API traffic, essential for development and research.
 *   **Tool & Function Calling:** An integrated system for allowing models to use local Python functions to answer questions (e.g., for real-time data or actions).
 *   **Agentic Looping:** The framework supports basic agentic loops where the model can use tools iteratively to solve complex problems.

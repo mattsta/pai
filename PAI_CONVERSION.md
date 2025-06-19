@@ -51,6 +51,7 @@ We will implement `gptwink`'s most useful UI feature: a live status bar.
     -   **Stable Streaming Output:** All previous rendering bugs (overwriting text, multiple newlines) were solved by introducing a dedicated `Buffer` for live output. The background generation task no longer `prints` to the screen; it simply updates the `.text` property of this buffer. The `Application` is responsible for rendering the buffer's contents, eliminating all rendering artifacts.
     -   **Multi-Line, Readable Layout:** The `get_toolbar_text()` function has been updated to produce a multi-line display, giving stats more room to breathe and making them easier to read at a glance.
     -   **Live Tokens/Second:** A new "live tokens/second" metric for the *current* response stream has been added to the toolbar. This is calculated in real-time as tokens arrive, providing immediate feedback on model performance for the active generation task.
+    -   [x] **Persistent Command History:** The interactive prompt now saves command history across sessions. This includes up/down arrow navigation and searchable history (`Ctrl+R`), powered by `prompt-toolkit`'s `FileHistory`. All history is stored in `~/.pai/history.txt`.
 -   [x] This provides the user with immediate, persistent context about their session state.
 
 ### Step 4: Add a File-Based Prompt System

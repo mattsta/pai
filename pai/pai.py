@@ -30,6 +30,7 @@ from prompt_toolkit.layout.containers import (
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.filters import Condition
+from prompt_toolkit.history import FileHistory
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import toml
@@ -574,10 +575,14 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     if is_chat_mode and args.system:
         conversation.set_system_prompt(args.system)
 
+    # Setup directories for sessions and persistent history
     session_dir = pathlib.Path("sessions") / datetime.now().strftime(
         "%Y-%m-%d_%H-%M-%S-interactive"
     )
     session_dir.mkdir(parents=True, exist_ok=True)
+    pai_user_dir = pathlib.Path.home() / ".pai"
+    pai_user_dir.mkdir(exist_ok=True)
+    history = FileHistory(str(pai_user_dir / "history.txt"))
 
     pt_printer = print_formatted_text
     client.display.set_printer(pt_printer, is_interactive=True)
@@ -626,6 +631,7 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     input_buffer = Buffer(
         name="input_buffer",
         multiline=False,
+        history=history,
     )
 
     @kb.add("enter", eager=True)

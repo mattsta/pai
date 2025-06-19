@@ -40,7 +40,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 
 1.  **`pai/pai.py` (The Orchestrator)**
     *   **Entrypoint:** Contains the `main()` function that parses command-line arguments using `argparse`.
-    *   **Interactive Loop:** The `interactive_mode` function sets up and runs a persistent `prompt_toolkit.Application`. This application, not a simple `while` loop, manages the entire UI lifecycle, including the input prompt, live output window, and status toolbar. This approach is essential for a non-blocking, stable user interface.
+    *   **Interactive Loop:** The `interactive_mode` function sets up and runs a persistent `prompt_toolkit.Application`. This application, not a simple `while` loop, manages the entire UI lifecycle, including the input prompt, live output window, and status toolbar. This approach is essential for a non-blocking, stable user interface. It also uses `prompt-toolkit`'s `FileHistory` to provide persistent command history across sessions, saved to `~/.pai/history.txt`.
     *   **Command Parser:** Handles all `/` commands within the interactive loop, modifying session state.
     *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`TestSession`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It orchestrates the flow from user input to protocol adapter execution.
 

@@ -43,7 +43,8 @@ def make_http_request(
 
     response_data = {}
     try:
-        with httpx.Client() as client:
+        # The timeout is configured on the client, not on the send call.
+        with httpx.Client(timeout=15.0) as client:
             request = httpx.Request(
                 method.value,
                 url,
@@ -51,7 +52,7 @@ def make_http_request(
                 params=parsed_params,
                 content=body,
             )
-            response = client.send(request, timeout=15.0)
+            response = client.send(request)
 
             response_data = {
                 "status_code": response.status_code,

@@ -20,6 +20,7 @@ from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.application import get_app
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.patch_stdout import patch_stdout
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import toml

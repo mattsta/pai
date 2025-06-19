@@ -13,7 +13,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
               |                                   |
 +-------------v-----------------------------------+-------------+
 |                       pai.py / PolyglotClient                   |
-|        (Orchestrator, State Management, Command Parser)       |
+|        (Orchestrator, State Management, Command Handler)      |
 +-----------------------+---------------------------------------+
 | (Delegate Task)       | (Render Output)      | (Pass Context) |
 |      (Adapter)        v (Display)            |                |
@@ -41,7 +41,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 1.  **`pai/pai.py` (The Orchestrator)**
     *   **Entrypoint:** Contains the `main()` function that parses command-line arguments using `argparse`.
     *   **`InteractiveUI` and `Application`:** The `InteractiveUI` class encapsulates all logic for the text user interface. It creates and manages a persistent `prompt_toolkit.Application`. This application, not a simple `while` loop, manages the entire UI lifecycle, including the input prompt, live output window, `SearchToolbar` for history, and status toolbar. This approach is essential for a non-blocking, stable user interface. It uses `prompt-toolkit`'s `FileHistory` for history and a custom `Ctrl+C` key binding to allow for gracefully cancelling running completions without exiting the application.
-    *   **Command Parser:** The `InteractiveUI` class handles all `/` commands, modifying session state.
+    *   **`CommandHandler` (`pai/commands.py`):** A dedicated class that parses and executes all `/` commands. Each command is its own class, making the system clean and easy to extend. The `CommandHandler` is instantiated by `InteractiveUI`.
     *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`TestSession`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It is passed to the `InteractiveUI` to orchestrate the flow from user input to protocol adapter execution.
 
 2.  **Protocol Adapter System (`pai/protocols/`)**
@@ -58,9 +58,9 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   `@tool` Decorator: Registers functions into a `TOOL_REGISTRY`. It introspects the function's signature and docstring to automatically generate a JSON Schema that provider APIs (like OpenAI's) can understand.
     *   `execute_tool()`: A simple function that takes a tool name and arguments, runs the corresponding Python function, and returns the result.
 
-4.  **Core Data Classes (within `pai/pai.py`)**
-    *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. a `Conversation` holds a list of `Turn` objects, and each `Turn` captures a single, complete request/response cycle, including all request/response data and metadata.
-    *   **`TestSession`:** A dataclass for tracking all metrics of a session. It's an accumulator for requests, tokens, and timings. It also stores statistics for the most recent request (like TTFT and tokens/sec) to power the live UI toolbar.
+4.  **Core Data Models (`pai/models.py`)**
+    *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. A `Conversation` holds a list of `Turn` objects, and each `Turn` captures a single, complete request/response cycle, including all request/response data and metadata.
+    *   **`TestSession` & `RequestStats`:** These dataclasses track all metrics. `TestSession` is the accumulator for the entire session (total tokens, errors etc.). `RequestStats` holds detailed metrics for a single request, including `ttft` and `finish_reason`, and is used to power the live stats in the UI toolbar.
     *   **`StreamingDisplay`:** A critical component that manages all console output. It ensures that streaming responses do not corrupt the `prompt-toolkit` interface. It uses a swappable "printer" function to either print normally (for non-interactive use) or use `prompt-toolkit`'s thread-safe method (for interactive mode). It also tracks and exposes live state like `status` ("Waiting", "Streaming", etc.) and `live_tok_per_sec` (a smoothed average over the current stream's duration) to power the real-time UI toolbar.
 
 ### Session Persistence and Logging
@@ -91,7 +91,7 @@ This system ensures that no data is lost and provides multiple, easy-to-review f
 9.  The adapter parses this tool call. Instead of finishing, it calls `execute_tool("get_current_weather", ...)` from `tools.py`.
 10. The tool runs and returns a JSON string: `{"location": "Tokyo", ...}`.
 11. The adapter appends both the model's `tool_calls` request and the local `tool` result to its internal message list for the next iteration.
-12. It **loops**, sending the *entire new history* back to the API in a second.
+12. It **loops**, sending the *entire new history* back to the API in a second API call.
 13. The model, now having the weather data, generates the final text response: "The weather in Tokyo is 15°C and cloudy."
 14. This text is streamed to the `StreamingDisplay`. The adapter returns the final request data, response data, and assistant text.
 15. Back in `interactive_mode`, a `Turn` object is created with this data. It is added to the `Conversation` object, updating the managed history.

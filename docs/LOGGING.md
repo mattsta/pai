@@ -46,7 +46,7 @@ If you need a new output format (e.g., a plain text log or a different HTML stru
 
 1.  **Create a New Template:** Add a new template file to the `pai/templates/` directory (e.g., `my_custom_log.txt`). Design it using Jinja2 syntax to render the `history` object as you see fit.
 
-2.  **Register the Template:** Open `pai/pai.py` and find the `save_conversation_formats` function. Inside this function, there is a `formats` dictionary. Add a new entry for your template:
+2.  **Register the Template:** Open `pai/log_utils.py` and find the `save_conversation_formats` function. Inside this function, there is a `formats` dictionary. Add a new entry for your template:
 
     ```python
     # In save_conversation_formats()

@@ -17,8 +17,19 @@ from typing import Optional, Dict, Any, Union, List
 from dataclasses import dataclass, field
 from datetime import datetime
 from prompt_toolkit import PromptSession, print_formatted_text
+from prompt_toolkit.application import Application
+from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.layout.containers import (
+    ConditionalContainer,
+    HSplit,
+    VSplit,
+    Window,
+)
+from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+from prompt_toolkit.layout.layout import Layout
+from prompt_toolkit.filters import Condition
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import toml
@@ -537,7 +548,7 @@ def print_help(printer: callable = print):
 
 
 async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
-    """The main interactive mode, using a classic while-loop paired with asyncio tasks."""
+    """The main interactive mode, which uses a prompt-toolkit Application for a stable UI."""
     is_chat_mode = args.chat
     conversation = Conversation()
     if is_chat_mode and args.system:
@@ -551,161 +562,122 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     pt_printer = print_formatted_text
     client.display.set_printer(pt_printer, is_interactive=True)
 
-    pt_printer(
-        f"🎯 {'Chat' if is_chat_mode else 'Completion'} Mode | Endpoint: {client.config.name} | Model: {client.config.model_name}"
-    )
+    pt_printer(f"🎯 {'Chat' if is_chat_mode else 'Completion'} Mode | Endpoint: {client.config.name} | Model: {client.config.model_name}")
     pt_printer(f"💾 Session logs will be saved to: {session_dir}")
     pt_printer("Type '/help' for commands, '/quit' to exit.")
     pt_printer("-" * 60)
 
-    # This helper function will be run as a background task.
-    async def _process_and_generate(user_input_str: str, generation_done: asyncio.Event):
+    generation_in_progress = asyncio.Event()
+
+    async def _process_and_generate(user_input_str: str):
+        generation_in_progress.set()
         try:
             request: Union[ChatRequest, CompletionRequest]
             if is_chat_mode:
-                next_messages = conversation.get_messages_for_next_turn(user_input_str)
-                request = ChatRequest(
-                    messages=next_messages,
-                    model=client.config.model_name,
-                    max_tokens=args.max_tokens,
-                    temperature=args.temperature,
-                    stream=args.stream,
-                )
+                messages = conversation.get_messages_for_next_turn(user_input_str)
+                request = ChatRequest(messages=messages, model=client.config.model_name, max_tokens=args.max_tokens, temperature=args.temperature, stream=args.stream)
             else:
-                request = CompletionRequest(
-                    prompt=user_input_str,
-                    model=client.config.model_name,
-                    max_tokens=args.max_tokens,
-                    temperature=args.temperature,
-                    stream=args.stream,
-                )
+                request = CompletionRequest(prompt=user_input_str, model=client.config.model_name, max_tokens=args.max_tokens, temperature=args.temperature, stream=args.stream)
 
             result = await client.generate(request, args.verbose)
 
             if is_chat_mode and result:
-                turn = Turn(
-                    request_data=result.get("request", {}),
-                    response_data=result.get("response", {}),
-                    assistant_message=result.get("text", ""),
-                )
+                turn = Turn(request_data=result.get("request", {}), response_data=result.get("response", {}), assistant_message=result.get("text", ""))
                 conversation.add_turn(turn)
                 try:
                     turn_file = session_dir / f"{turn.turn_id}-turn.json"
-                    with open(turn_file, "w", encoding="utf-8") as f:
-                        json.dump(turn.to_dict(), f, indent=2)
-                    save_conversation_formats(
-                        conversation, session_dir, printer=pt_printer
-                    )
+                    turn_file.write_text(json.dumps(turn.to_dict(), indent=2), encoding="utf-8")
+                    save_conversation_formats(conversation, session_dir, printer=pt_printer)
                 except Exception as e:
                     pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
         except Exception as e:
             client.display.finish_response()
             pt_printer(f"\n\n❌ ERROR: {e}")
         finally:
-            # Signal that generation is complete so the main loop can continue.
-            generation_done.set()
+            generation_in_progress.clear()
 
-    # The main run loop for the interactive session.
-    while True:
-        try:
-            user_input = (
-                await session.prompt_async(
-                    HTML(
-                        f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> "
-                    ),
-                    bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
-                    refresh_interval=0.1,  # Required for live toolbar updates
-                )
-            ).strip()
+    kb = KeyBindings()
+    input_buffer = Buffer(name="input_buffer", multiline=False)
 
-            if not user_input:
-                continue
+    @kb.add("enter", eager=True)
+    def _(event):
+        if generation_in_progress.is_set(): return
+        user_input = input_buffer.text.strip()
+        if not user_input: return
 
-            # --- Command Handling ---
-            if user_input.startswith("/"):
-                parts = user_input[1:].lower().split(" ", 1)
-                cmd, params = parts[0], parts[1] if len(parts) > 1 else ""
-                if cmd in ["quit", "exit", "q"]:
-                    break
-                elif cmd == "stats":
-                    print_stats(client.stats, printer=pt_printer)
-                elif cmd == "help":
-                    print_help(printer=pt_printer)
-                elif cmd == "endpoints":
-                    pt_printer("Available Endpoints:")
-                    for ep in client.all_endpoints:
-                        pt_printer(f" - {ep['name']}")
-                elif cmd == "switch" and params:
-                    client.switch_endpoint(params)
-                elif cmd == "model" and params:
-                    client.config.model_name = params
-                    pt_printer(f"✅ Model set to: {params}")
-                elif cmd == "temp" and params:
-                    try:
-                        args.temperature = float(params)
-                        pt_printer(
-                            f"✅ Temperature for next request set to: {args.temperature}"
-                        )
-                    except ValueError:
-                        pt_printer("❌ Invalid value.")
-                elif cmd == "tokens" and params:
-                    try:
-                        args.max_tokens = int(params)
-                        pt_printer(
-                            f"✅ Max tokens for next request set to: {args.max_tokens}"
-                        )
-                    except ValueError:
-                        pt_printer("❌ Invalid value.")
-                elif cmd == "stream":
-                    args.stream = not args.stream
-                    pt_printer(
-                        f"✅ Streaming {'enabled' if args.stream else 'disabled'}."
-                    )
-                elif cmd == "verbose":
-                    args.verbose = not args.verbose
-                    pt_printer(
-                        f"✅ Verbose mode {'enabled' if args.verbose else 'disabled'}."
-                    )
-                elif cmd == "debug":
-                    client.display.debug_mode = not client.display.debug_mode
-                    pt_printer(
-                        f"✅ Debug mode {'enabled' if client.display.debug_mode else 'disabled'}."
-                    )
-                elif cmd == "tools":
-                    client.tools_enabled = not client.tools_enabled
-                    pt_printer(
-                        f"✅ Tool calling {'enabled' if client.tools_enabled else 'disabled'}."
-                    )
-                elif is_chat_mode and cmd == "history":
-                    pt_printer(json.dumps(conversation.get_history(), indent=2))
-                elif is_chat_mode and cmd == "clear":
-                    conversation.clear()
-                    pt_printer("🧹 History cleared.")
-                elif is_chat_mode and cmd == "system" and params:
-                    conversation.set_system_prompt(params)
-                    pt_printer(f"🤖 System prompt set.")
-                else:
-                    pt_printer("❌ Unknown command.")
-                continue
+        pt_printer(HTML(f"\n<style fg='ansigreen'>👤 ({client.config.name}) User:</style> {user_input}"))
+        input_buffer.reset()
 
-            # --- Non-blocking Generation ---
-            generation_done = asyncio.Event()
-            asyncio.create_task(_process_and_generate(user_input, generation_done))
+        if user_input.startswith("/"):
+            parts = user_input[1:].lower().split(" ", 1)
+            cmd, params = parts[0], parts[1] if len(parts) > 1 else ""
+            if cmd in ["quit", "exit", "q"]: event.app.exit(); return
+            elif cmd == "stats": print_stats(client.stats, printer=pt_printer)
+            elif cmd == "help": print_help(printer=pt_printer)
+            elif cmd == "endpoints":
+                pt_printer("Available Endpoints:")
+                for ep in client.all_endpoints: pt_printer(f" - {ep['name']}")
+            elif cmd == "switch" and params: client.switch_endpoint(params)
+            elif cmd == "model" and params:
+                client.config.model_name = params
+                pt_printer(f"✅ Model set to: {params}")
+            elif cmd == "temp" and params:
+                try: args.temperature = float(params); pt_printer(f"✅ Temp set to: {args.temperature}")
+                except ValueError: pt_printer("❌ Invalid value.")
+            elif cmd == "tokens" and params:
+                try: args.max_tokens = int(params); pt_printer(f"✅ Max tokens set to: {args.max_tokens}")
+                except ValueError: pt_printer("❌ Invalid value.")
+            elif cmd == "stream":
+                args.stream = not args.stream
+                pt_printer(f"✅ Streaming {'enabled' if args.stream else 'disabled'}.")
+            elif cmd == "verbose":
+                args.verbose = not args.verbose
+                pt_printer(f"✅ Verbose mode {'enabled' if args.verbose else 'disabled'}.")
+            elif cmd == "debug":
+                client.display.debug_mode = not client.display.debug_mode
+                pt_printer(f"✅ Debug mode {'enabled' if client.display.debug_mode else 'disabled'}.")
+            elif cmd == "tools":
+                client.tools_enabled = not client.tools_enabled
+                pt_printer(f"✅ Tool calling {'enabled' if client.tools_enabled else 'disabled'}.")
+            elif is_chat_mode and cmd == "history": pt_printer(json.dumps(conversation.get_history(), indent=2))
+            elif is_chat_mode and cmd == "clear":
+                conversation.clear(); pt_printer("🧹 History cleared.")
+            elif is_chat_mode and cmd == "system" and params:
+                conversation.set_system_prompt(params); pt_printer(f"🤖 System prompt set.")
+            else: pt_printer("❌ Unknown command.")
+            return
 
-            # Wait for the background task to finish without blocking the event loop.
-            # This allows the toolbar to keep refreshing.
-            with patch_stdout():
-                while not generation_done.is_set():
-                    await asyncio.sleep(0.1)
+        asyncio.create_task(_process_and_generate(user_input))
 
-        except (EOFError, KeyboardInterrupt):
-            break
-        except Exception as e:
-            client.display.finish_response()
-            pt_printer(f"\n❌ An unexpected error occurred in the main loop: {e}")
-            continue
+    @kb.add("c-c", eager=True); @kb.add("c-d", eager=True)
+    def _(event):
+        if input_buffer.text: input_buffer.reset()
+        else: event.app.exit()
 
-    closing(client.stats, printer=pt_printer)
+    prompt_ui = VSplit([
+        Window(FormattedTextControl(lambda: HTML(f"<style fg='ansigreen'>👤 ({client.config.name}) User:</style> ")), width=lambda: len(f"👤 ({client.config.name}) User: ") + 1),
+        Window(BufferControl(buffer=input_buffer)),
+    ])
+    waiting_ui = Window(FormattedTextControl(HTML("<style fg='ansiyellow'>[Generating response...]</style>")))
+
+    app = Application(
+        layout=Layout(
+            HSplit([
+                ConditionalContainer(prompt_ui, filter=Condition(lambda: not generation_in_progress.is_set())),
+                ConditionalContainer(waiting_ui, filter=Condition(lambda: generation_in_progress.is_set())),
+            ]),
+            focused_element=input_buffer,
+        ),
+        key_bindings=kb,
+        bottom_toolbar=lambda: get_toolbar_text(client, args, session_dir),
+        refresh_interval=0.2,
+        full_screen=False,
+    )
+    try:
+        await app.run_async()
+    except (EOFError, KeyboardInterrupt): pass
+    finally:
+        closing(client.stats, printer=pt_printer)
 
 
 async def async_main(args: argparse.Namespace):

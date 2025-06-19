@@ -704,17 +704,15 @@ class InteractiveUI:
                 # Continue the loop
             else:
                 # No tool call found, this is the final answer.
-                # Re-run the final generation with streaming enabled for a better user experience.
+                # The response has already been printed by the non-streaming `generate`
+                # call at the top of the loop. We just need to log the turn and break.
                 self.pt_printer(
                     HTML("\n<style fg='ansigreen'>✅ Agent decided to respond directly.</style>")
                 )
-                request.stream = self.args.stream
-                final_result = await self.client.generate(request, self.args.verbose)
-                
                 turn = Turn(
-                    request_data=final_result.get("request", {}),
-                    response_data=final_result.get("response", {}),
-                    assistant_message=final_result.get("text", ""),
+                    request_data=result.get("request", {}),
+                    response_data=result.get("response", {}),
+                    assistant_message=assistant_response,
                 )
                 self.conversation.add_turn(turn)
                 save_conversation_formats(

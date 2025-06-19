@@ -613,7 +613,7 @@ class InteractiveUI:
         )
 
     def _create_key_bindings(self) -> KeyBindings:
-        """Creates key bindings, including a custom Ctrl+C handler."""
+        """Creates key bindings, including custom Ctrl+C and Ctrl+D handlers."""
         kb = KeyBindings()
 
         @kb.add("c-c", eager=True)
@@ -622,7 +622,7 @@ class InteractiveUI:
             Custom Ctrl+C handler.
             - If a generation is in progress, cancel it.
             - If the input buffer has text, clear it.
-            - If the input buffer is empty, this emulates a new prompt line.
+            - If the input buffer is empty, invalidate to redraw the prompt without a newline.
             """
             if self.generation_in_progress.is_set() and self.generation_task:
                 self.generation_task.cancel()
@@ -630,13 +630,17 @@ class InteractiveUI:
                 if event.app.current_buffer.text:
                     event.app.current_buffer.reset()
                 else:
-                    # Printing an empty string effectively creates a new line
-                    # and redraws the prompt, giving the user a fresh prompt line.
-                    self.pt_printer("")
+                    # Invalidate the screen, which causes a redraw of the prompt
+                    # without printing an extra newline.
+                    event.app.invalidate()
 
-        # Merge our binding with the defaults. Ours will take precedence for c-c.
-        # Ctrl+D is handled by the default bindings (raises EOFError on empty prompt).
-        return merge_key_bindings([load_key_bindings(), kb])
+        @kb.add("c-d", filter=Condition(lambda: not self.input_buffer.text), eager=True)
+        def _(event):
+            """Handle Ctrl+D on an empty buffer to exit cleanly."""
+            event.app.exit(result=EOFError())
+
+        # Merge our bindings with the defaults. Ours take precedence.
+        return merge_key_bindings([kb, load_key_bindings()])
 
     def _on_buffer_accepted(self, buffer: Buffer):
         """Callback for when the user presses Enter on the input buffer."""

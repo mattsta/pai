@@ -147,15 +147,19 @@ class TestSession:
     last_request_stats: Optional[RequestStats] = None
 
     def add_completed_request(self, stats: RequestStats):
-        """Adds statistics from a completed request to the session totals."""
+        """
+        Adds statistics from a completed request to the session totals.
+        Token and time stats are always accumulated, even for failed/cancelled requests.
+        """
         self.requests_sent += 1
-        if stats.success:
-            self.total_tokens_sent += stats.tokens_sent
-            self.total_tokens_received += stats.tokens_received
-            if stats.response_time:
-                self.total_response_time += stats.response_time
-            self.last_request_stats = stats
-        else:
+        self.total_tokens_sent += stats.tokens_sent
+        self.total_tokens_received += stats.tokens_received
+        if stats.response_time:
+            self.total_response_time += stats.response_time
+
+        self.last_request_stats = stats
+
+        if not stats.success:
             self.errors += 1
 
     def get_stats(self) -> Dict[str, Any]:

@@ -569,6 +569,7 @@ class InteractiveUI:
 
             # Add to session stats.
             if request_stats:
+                request_stats.finish_reason = "cancelled"
                 # This is an approximation of tokens_sent as the final request
                 # payload is constructed inside the adapter.
                 if isinstance(request, ChatRequest):

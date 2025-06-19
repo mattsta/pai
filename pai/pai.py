@@ -412,7 +412,9 @@ def closing(stats: TestSession, printer: callable = print):
     sys.exit(0)
 
 
-def save_conversation_formats(conversation: "Conversation", session_dir: pathlib.Path):
+def save_conversation_formats(
+    conversation: "Conversation", session_dir: pathlib.Path, printer: callable = print
+):
     """Serializes a conversation to multiple HTML formats using Jinja2 templates."""
     try:
         script_dir = pathlib.Path(__file__).parent
@@ -440,19 +442,19 @@ def save_conversation_formats(conversation: "Conversation", session_dir: pathlib
                 output_path = session_dir / output_filename
                 output_path.write_text(final_html, encoding="utf-8")
             except Exception as e:
-                print(f"\n⚠️ Warning: Could not render template '{template_name}': {e}")
+                printer(f"\n⚠️ Warning: Could not render template '{template_name}': {e}")
                 # Don't fallback here, just try the next template
 
     except Exception as e:
-        print(f"\n⚠️ Warning: Could not initialize template environment: {e}")
+        printer(f"\n⚠️ Warning: Could not initialize template environment: {e}")
         # As a global fallback, just write the raw turn data as JSON.
         try:
             all_turns = [turn.to_dict() for turn in conversation.turns]
             fallback_path = session_dir / "conversation_fallback.json"
             fallback_path.write_text(json.dumps(all_turns, indent=2), encoding="utf-8")
-            print(f"  -> Fallback data saved to {fallback_path}")
+            printer(f"  -> Fallback data saved to {fallback_path}")
         except Exception as fallback_e:
-            print(f"  -> Could not even save fallback JSON: {fallback_e}")
+            printer(f"  -> Could not even save fallback JSON: {fallback_e}")
 
 
 def get_toolbar_text(
@@ -558,6 +560,51 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     pt_printer("Type '/help' for commands, '/quit' to exit.")
     pt_printer("-" * 60)
 
+    async def _process_and_generate(user_input_str: str):
+        """Helper to run generation logic in a way that keeps the UI alive."""
+        request: Union[ChatRequest, CompletionRequest]
+        if is_chat_mode:
+            next_messages = conversation.get_messages_for_next_turn(user_input_str)
+            request = ChatRequest(
+                messages=next_messages,
+                model=client.config.model_name,
+                max_tokens=args.max_tokens,
+                temperature=args.temperature,
+                stream=args.stream,
+            )
+        else:
+            # Completion mode does not have history
+            request = CompletionRequest(
+                prompt=user_input_str,
+                model=client.config.model_name,
+                max_tokens=args.max_tokens,
+                temperature=args.temperature,
+                stream=args.stream,
+            )
+
+        result = await client.generate(request, args.verbose)
+
+        # For chat mode, create a Turn and add it to the conversation
+        if is_chat_mode and result:
+            turn = Turn(
+                request_data=result.get("request", {}),
+                response_data=result.get("response", {}),
+                assistant_message=result.get("text", ""),
+            )
+            conversation.add_turn(turn)
+
+            # --- Save Turn & Conversation ---
+            try:
+                # Save the raw Turn object to its own file
+                turn_file = session_dir / f"{turn.turn_id}-turn.json"
+                with open(turn_file, "w", encoding="utf-8") as f:
+                    json.dump(turn.to_dict(), f, indent=2)
+
+                # Save the full conversation to all configured HTML formats
+                save_conversation_formats(conversation, session_dir, printer=pt_printer)
+            except Exception as e:
+                pt_printer(f"\n⚠️  Warning: Could not save session turn: {e}")
+
     while True:
         try:
             user_input = (
@@ -637,48 +684,11 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     pt_printer("❌ Unknown command.")
                 continue
 
-            request: Union[ChatRequest, CompletionRequest]
-            if is_chat_mode:
-                next_messages = conversation.get_messages_for_next_turn(user_input)
-                request = ChatRequest(
-                    messages=next_messages,
-                    model=client.config.model_name,
-                    max_tokens=args.max_tokens,
-                    temperature=args.temperature,
-                    stream=args.stream,
-                )
-            else:
-                # Completion mode does not have conversation history
-                request = CompletionRequest(
-                    prompt=user_input,
-                    model=client.config.model_name,
-                    max_tokens=args.max_tokens,
-                    temperature=args.temperature,
-                    stream=args.stream,
-                )
-
-            result = await client.generate(request, args.verbose)
-
-            # For chat mode, create a Turn and add it to the conversation
-            if is_chat_mode and result:
-                turn = Turn(
-                    request_data=result.get("request", {}),
-                    response_data=result.get("response", {}),
-                    assistant_message=result.get("text", ""),
-                )
-                conversation.add_turn(turn)
-
-                # --- Save Turn & Conversation ---
-                try:
-                    # Save the raw Turn object to its own file
-                    turn_file = session_dir / f"{turn.turn_id}-turn.json"
-                    with open(turn_file, "w", encoding="utf-8") as f:
-                        json.dump(turn.to_dict(), f, indent=2)
-
-                    # Save the full conversation to all configured HTML formats
-                    save_conversation_formats(conversation, session_dir)
-                except Exception as e:
-                    print(f"\n⚠️  Warning: Could not save session turn: {e}")
+            # This is the key change: run the generation logic inside run_in_terminal
+            # to keep the prompt_toolkit UI alive and responsive.
+            await session.app.run_in_terminal(
+                lambda: _process_and_generate(user_input)
+            )
 
         except KeyboardInterrupt:
             client.display.finish_response()  # Gracefully stop display on ctrl-c

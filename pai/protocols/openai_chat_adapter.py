@@ -38,7 +38,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
             try:
                 if iteration > 0:
-                    print("\n🔄 [Agent Loop] Sending tool results back to model...")
+                    context.display._print("\n🔄 [Agent Loop] Sending tool results back to model...")
 
                 context.display.start_response()
                 tool_calls = []
@@ -92,12 +92,12 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     continue
 
                 if tool_calls:
-                    print("\n🔧 [Agent Action] Model requested tool calls...")
+                    context.display._print("\n🔧 [Agent Action] Model requested tool calls...")
                     messages.append({"role": "assistant", "tool_calls": tool_calls})
                     for tool_call in tool_calls:
                         name = tool_call["function"]["name"]
                         args = json.loads(tool_call["function"]["arguments"])
-                        print(f"  - Executing: {name}({args})")
+                        context.display._print(f"  - Executing: {name}({args})")
                         result = execute_tool(name, args)
                         messages.append(
                             {

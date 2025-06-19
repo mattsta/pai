@@ -1,0 +1,39 @@
+# Polyglot AI Configuration File
+# Define all your provider endpoints here.
+
+[[endpoints]]
+name = "featherless"
+base_url = "https://api.featherless.ai/v1"
+api_key_env = "FEATHERLESS_API_KEY" # Environment variable for the API key
+# The adapter to use for the /chat/completions endpoint
+chat_adapter = "openai_chat"
+# The adapter to use for the legacy /completions endpoint
+completion_adapter = "legacy_completion"
+
+[[endpoints]]
+name = "openai"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+chat_adapter = "openai_chat"
+# OpenAI deprecated /completions, so we don't define an adapter for it.
+
+[[endpoints]]
+name = "together"
+base_url = "https://api.together.xyz/v1"
+api_key_env = "TOGETHER_AI_KEY"
+chat_adapter = "openai_chat"
+completion_adapter = "legacy_completion"
+
+[[endpoints]]
+name = "mistral"
+base_url = "https://api.mistral.ai/v1"
+api_key_env = "MISTRAL_API_KEY"
+chat_adapter = "openai_chat"
+
+[[endpoints]]
+# An example for a local model server
+name = "local-lm-studio"
+base_url = "http://localhost:1234/v1"
+api_key_env = "LM_STUDIO_API_KEY" # Often not needed, can be set to "local"
+chat_adapter = "openai_chat"
+completion_adapter = "legacy_completion"

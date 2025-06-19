@@ -1,6 +1,8 @@
 # Polyglot AI: Tool System Guide
 
-This guide explains how to create, use, and extend the tool system in Polyglot AI. Tools are Python functions that the AI model can call to get information or perform actions, allowing it to interact with the local environment.
+This guide explains how to **create and extend** the tool system in Polyglot AI. For a practical guide on **how to use tools** in a chat session, see the [Tool Usage Tutorial](./TOOL_TUTORIAL.md).
+
+Tools are Python functions that the AI model can call to get information or perform actions, allowing it to interact with the local environment.
 
 ## What is a Tool?
 

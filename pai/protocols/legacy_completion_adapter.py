@@ -5,6 +5,8 @@ from typing import Dict, Any
 
 # MODIFIED: No longer imports from the main script. Imports the context object instead.
 from .base_adapter import BaseProtocolAdapter, ProtocolContext, CompletionRequest
+from ..utils import estimate_tokens
+
 # Import APIError from the main module for type consistency if needed, but it's better to raise generic exceptions
 # from ..polyglot import APIError # We will use a generic exception instead to keep it decoupled.
 
@@ -19,7 +21,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
         # e.g., client.config -> context.config
         url = f"{context.config.base_url}/completions"
         payload = request.to_dict(context.config.model_name)
-        tokens_sent = len(request.prompt.split())
+        tokens_sent = estimate_tokens(request.prompt)
 
         if not request.stream:
             raise NotImplementedError(

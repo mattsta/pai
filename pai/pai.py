@@ -38,6 +38,8 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 import toml
 
+from .utils import estimate_tokens
+
 # --- Protocol Adapter Imports ---
 from .protocols.base_adapter import BaseProtocolAdapter, ProtocolContext
 from .protocols.openai_chat_adapter import OpenAIChatAdapter
@@ -349,11 +351,10 @@ class StreamingDisplay:
         self.current_response += chunk_text
         self.chunk_count += 1
         if self.current_request_stats:
-            # For simplicity, we'll consider a "token" to be a space-separated word.
             # To ensure the live count is consistent with the final count,
             # we recalculate from the full response string on every chunk.
-            self.current_request_stats.tokens_received = len(
-                self.current_response.split()
+            self.current_request_stats.tokens_received = estimate_tokens(
+                self.current_response
             )
 
         # Handle rendering
@@ -385,8 +386,8 @@ class StreamingDisplay:
             # The token count is now calculated live. This final assignment
             # ensures it's perfectly accurate based on the complete final string,
             # but the live value should already match this.
-            self.current_request_stats.tokens_received = len(
-                self.current_response.split()
+            self.current_request_stats.tokens_received = estimate_tokens(
+                self.current_response
             )
 
         # In interactive mode, if we have a response, print it to the scrollback
@@ -961,10 +962,10 @@ class InteractiveUI:
                 # payload is constructed inside the adapter.
                 if isinstance(request, ChatRequest):
                     request_stats.tokens_sent = sum(
-                        len(m.get("content", "").split()) for m in request.messages
+                        estimate_tokens(m.get("content", "")) for m in request.messages
                     )
                 elif isinstance(request, CompletionRequest):
-                    request_stats.tokens_sent = len(request.prompt.split())
+                    request_stats.tokens_sent = estimate_tokens(request.prompt)
                 self.client.stats.add_completed_request(request_stats)
 
             if self.is_chat_mode and partial_text:

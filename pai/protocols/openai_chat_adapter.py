@@ -6,6 +6,7 @@ from typing import Dict, Any
 # MODIFIED: Now uses the clean context object.
 from .base_adapter import BaseProtocolAdapter, ProtocolContext, ChatRequest
 from ..tools import get_tool_schemas, execute_tool
+from ..utils import estimate_tokens
 
 
 class OpenAIChatAdapter(BaseProtocolAdapter):
@@ -29,7 +30,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 payload["tools"] = get_tool_schemas()
                 payload["tool_choice"] = "auto"
 
-            tokens_sent = sum(len(m.get("content", "").split()) for m in messages)
+            tokens_sent = sum(estimate_tokens(m.get("content", "")) for m in messages)
 
             if not request.stream:
                 raise NotImplementedError(

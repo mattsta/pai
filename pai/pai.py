@@ -622,7 +622,7 @@ class InteractiveUI:
             Custom Ctrl+C handler.
             - If a generation is in progress, cancel it.
             - If the input buffer has text, clear it.
-            - If the input buffer is empty, invalidate to redraw the prompt without a newline.
+            - If the input buffer is empty, print a fake prompt to emulate a new line.
             """
             if self.generation_in_progress.is_set() and self.generation_task:
                 self.generation_task.cancel()
@@ -630,9 +630,14 @@ class InteractiveUI:
                 if event.app.current_buffer.text:
                     event.app.current_buffer.reset()
                 else:
-                    # Invalidate the screen, which causes a redraw of the prompt
-                    # without printing an extra newline.
-                    event.app.invalidate()
+                    # To create a "new line" effect, we print a line that looks
+                    # like our prompt to the scrollback buffer. The application
+                    # will then redraw the actual interactive prompt below it.
+                    self.pt_printer(
+                        HTML(
+                            f"<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> "
+                        )
+                    )
 
         @kb.add("c-d", filter=Condition(lambda: not self.input_buffer.text), eager=True)
         def _(event):
@@ -669,10 +674,14 @@ class InteractiveUI:
                     self._process_and_generate(stripped_input)
                 )
         else:
-            # On empty input, just clear the buffer and print a newline to
-            # emulate a new prompt line, giving the user feedback.
+            # On empty or whitespace-only input, we clear the buffer and
+            # print a "fake" prompt to give the user feedback of a new line.
             buffer.reset()
-            self.pt_printer("")
+            self.pt_printer(
+                HTML(
+                    f"<style fg='ansigreen'>👤 ({self.client.config.name}) User:</style> "
+                )
+            )
 
     def _handle_command(self, text: str, app: Application):
         parts = text[1:].lower().split(" ", 1)

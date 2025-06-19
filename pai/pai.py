@@ -267,18 +267,27 @@ class StreamingDisplay:
 
     def show_parsed_chunk(self, chunk_data: Dict, chunk_text: str):
         """Handles printing a parsed chunk of text from the stream."""
+        # Update state first
         if not self.first_token_received:
             self.status = "Streaming"
             if self.start_time:
                 self.ttft = time.time() - self.start_time
-            if self._is_interactive:  # Don't print assistant header in non-interactive
-                self._print("\n🤖 Assistant: ", end="")
             self.first_token_received = True
 
-        self._print(chunk_text, end="", flush=True)
-
-        self.chunk_count += 1
         self.current_response += chunk_text
+        self.chunk_count += 1
+
+        # Handle rendering
+        if self._is_interactive:
+            header = "🤖 Assistant: "
+            # Overwrite the current line with the full, updated response.
+            # A newline is already printed after the user's input line.
+            self._print(f"\r{header}{self.current_response}", end="")
+        else:
+            # For non-interactive, print header once, then stream chunks.
+            if self.chunk_count == 1:
+                self._print("\n🤖 Assistant: ", end="")
+            self._print(chunk_text, end="", flush=True)
 
         # Update live stats
         now = time.time()
@@ -672,6 +681,7 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                         lambda: get_toolbar_text(client, args, session_dir)
                     ),
                     height=3,
+                    style="reverse",
                 ),
             ]),
             focused_element=input_buffer,

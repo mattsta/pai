@@ -517,6 +517,8 @@ class InteractiveUI:
         self.session_dir.mkdir(parents=True, exist_ok=True)
         pai_user_dir = pathlib.Path.home() / ".pai"
         pai_user_dir.mkdir(exist_ok=True)
+        self.prompts_dir = pathlib.Path("prompts")
+        self.prompts_dir.mkdir(exist_ok=True)
 
         # Setup UI components
         self.pt_printer = print_formatted_text
@@ -684,6 +686,8 @@ class InteractiveUI:
             "history": self._cmd_history,
             "clear": self._cmd_clear,
             "system": self._cmd_system,
+            "prompts": self._cmd_prompts,
+            "prompt": self._cmd_prompt,
         }
 
         if cmd in COMMANDS:
@@ -761,6 +765,36 @@ class InteractiveUI:
         if self.is_chat_mode:
             self.conversation.set_system_prompt(params)
             self.pt_printer(f"🤖 System prompt set.")
+
+    def _cmd_prompts(self):
+        """Lists available prompt files."""
+        self.pt_printer("Available prompts:")
+        found = False
+        for p in sorted(self.prompts_dir.glob("*.md")):
+            self.pt_printer(f"  - {p.stem}")
+            found = True
+        for p in sorted(self.prompts_dir.glob("*.txt")):
+            self.pt_printer(f"  - {p.stem}")
+            found = True
+        if not found:
+            self.pt_printer("  (None found. Add .md or .txt files to 'prompts/' directory)")
+
+    def _cmd_prompt(self, params: str):
+        """Loads a prompt file as the new system prompt."""
+        if not self.is_chat_mode:
+            self.pt_printer("❌ /prompt command only available in chat mode.")
+            return
+
+        prompt_path = self.prompts_dir / f"{params}.md"
+        if not prompt_path.exists():
+            prompt_path = self.prompts_dir / f"{params}.txt"
+
+        if prompt_path.exists() and prompt_path.is_file():
+            content = prompt_path.read_text(encoding="utf-8")
+            self.conversation.set_system_prompt(content)
+            self.pt_printer(f"🤖 System prompt loaded from '{params}'. History cleared.")
+        else:
+            self.pt_printer(f"❌ Prompt '{params}' not found in '{self.prompts_dir}'.")
 
     async def _process_and_generate(self, user_input_str: str):
         self.generation_in_progress.set()
@@ -934,6 +968,8 @@ class InteractiveUI:
   /system <text>         - Set a new system prompt (clears history)
   /history               - Show conversation history
   /clear                 - Clear conversation history
+  /prompts               - List available, loadable system prompts
+  /prompt <name>         - Load a system prompt from file (clears history)
     """)
 
     async def run(self):

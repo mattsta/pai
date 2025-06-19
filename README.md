@@ -73,7 +73,11 @@ pai --chat --endpoint featherless --model featherless/claude-3-opus
 
 **Run a Single, Non-Interactive Prompt**
 ```bash
+# This will stream the response by default.
 pai --endpoint openai --prompt "Explain quantum computing in one sentence."
+
+# Use --no-stream to get the full response at once.
+pai --endpoint openai --prompt "Explain quantum computing in one sentence." --no-stream
 ```
 
 **Enable Tool Calling**

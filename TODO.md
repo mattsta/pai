@@ -4,7 +4,7 @@ This is a list of concrete, near-term tasks to improve the framework.
 
 ### High Priority
 
-- [ ] Implement full, non-streaming support for all providers for single-shot command-line use.
+- [x] Implement full, non-streaming support for all providers for single-shot command-line use.
 - [ ] Add robust error handling within the stream-parsing loops of each provider to prevent crashes on malformed data.
 - [ ] Create an `ANTHROPIC.md` guide in a `docs/providers` folder explaining how to build a new provider.
 - [ ] Write basic unit tests for the `tools.py` decorator and execution logic.

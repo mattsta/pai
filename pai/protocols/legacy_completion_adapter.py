@@ -23,13 +23,29 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
         payload = request.to_dict(context.config.model_name)
         tokens_sent = estimate_tokens(request.prompt)
 
-        if not request.stream:
-            raise NotImplementedError(
-                "Non-streaming /completions is not implemented in this adapter."
-            )
-
         try:
             context.display.start_response()
+
+            if not request.stream:
+                response = await context.http_session.post(
+                    url, json=payload, timeout=context.config.timeout
+                )
+                response.raise_for_status()
+                response_data = response.json()
+                text = response_data.get("choices", [{}])[0].get("text", "")
+                context.display.show_parsed_chunk(response_data, text)
+
+                request_stats = context.display.finish_response(success=True)
+                if request_stats:
+                    request_stats.tokens_sent = tokens_sent
+                    context.stats.add_completed_request(request_stats)
+
+                return {
+                    "text": context.display.current_response,
+                    "request": payload,
+                    "response": response_data,
+                }
+
             async with context.http_session.stream(
                 "POST", url, json=payload, timeout=context.config.timeout
             ) as response:

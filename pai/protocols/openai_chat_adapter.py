@@ -32,15 +32,58 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
             tokens_sent = sum(estimate_tokens(m.get("content", "")) for m in messages)
 
-            if not request.stream:
-                raise NotImplementedError(
-                    "Non-streaming chat is not implemented in this adapter."
-                )
-
             try:
                 if iteration > 0:
                     context.display._print("\n🔄 [Agent Loop] Sending tool results back to model...")
 
+                if not request.stream:
+                    context.display.start_response()
+                    response = await context.http_session.post(
+                        url, json=payload, timeout=context.config.timeout
+                    )
+                    response.raise_for_status()
+                    response_data = response.json()
+
+                    choice = response_data.get("choices", [{}])[0]
+                    message = choice.get("message", {})
+                    finish_reason = choice.get("finish_reason")
+
+                    if tool_calls_data := message.get("tool_calls"):
+                        context.display._print(
+                            "\n🔧 [Agent Action] Model requested tool calls..."
+                        )
+                        messages.append(message)
+                        for tool_call in tool_calls_data:
+                            name = tool_call["function"]["name"]
+                            args = json.loads(tool_call["function"]["arguments"])
+                            context.display._print(f"  - Executing: {name}({args})")
+                            result = execute_tool(name, args)
+                            messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call["id"],
+                                    "name": name,
+                                    "content": str(result),
+                                }
+                            )
+                        continue  # Next agent iteration
+
+                    # No tool calls, regular response
+                    final_text = message.get("content", "")
+                    context.display.show_parsed_chunk(response_data, final_text)
+                    request_stats = context.display.finish_response(success=True)
+                    if request_stats:
+                        request_stats.tokens_sent = tokens_sent
+                        request_stats.finish_reason = finish_reason
+                        context.stats.add_completed_request(request_stats)
+
+                    return {
+                        "request": final_request_payload,
+                        "response": response_data,
+                        "text": context.display.current_response,
+                    }
+
+                # Streaming logic starts here
                 context.display.start_response()
                 tool_calls = []
 

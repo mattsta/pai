@@ -693,7 +693,10 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
 
     # This is the window that will appear *above* the prompt to show live streaming output.
     live_output_window = ConditionalContainer(
-        Window(content=BufferControl(buffer=streaming_output_buffer, wrap_lines=True)),
+        Window(
+            content=BufferControl(buffer=streaming_output_buffer),
+            wrap_lines=True
+        ),
         filter=Condition(lambda: generation_in_progress.is_set() and streaming_output_buffer.text),
     )
 

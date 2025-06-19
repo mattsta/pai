@@ -687,7 +687,7 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
     # This is the main input bar at the bottom of the screen.
     prompt_ui = VSplit([
         Window(FormattedTextControl(lambda: HTML(f"<style fg='ansigreen'>👤 ({client.config.name}) User:</style> ")), width=lambda: len(f"👤 ({client.config.name}) User: ") + 1),
-        Window(BufferControl(buffer=input_buffer, has_focus=True)),
+        Window(BufferControl(buffer=input_buffer)),
     ])
 
     # A UI to show when waiting for a response.
@@ -720,6 +720,7 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
                     style="reverse",
                 ),
             ]),
+            focused_element=input_buffer,
         ),
         key_bindings=kb,
         refresh_interval=0.2,

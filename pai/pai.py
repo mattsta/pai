@@ -432,6 +432,11 @@ class InteractiveUI:
         )
 
         def get_status_text():
+            if self.arena_state and not self.arena_paused_event.is_set():
+                return HTML(
+                    "<style fg='ansiyellow'>[--- Arena Paused --- Use /resume or /say &lt;...&gt; ---]</style>"
+                )
+
             display = self.client.display
             status = display.status
             live_stats = display.current_request_stats
@@ -487,6 +492,10 @@ class InteractiveUI:
                         prompt_ui,
                         filter=Condition(
                             lambda: not self.generation_in_progress.is_set()
+                            or (
+                                self.arena_state
+                                and not self.arena_paused_event.is_set()
+                            )
                         ),
                     ),
                     ConditionalContainer(
@@ -544,48 +553,58 @@ class InteractiveUI:
 
     def _on_buffer_accepted(self, buffer: Buffer):
         """Callback for when the user presses Enter on the input buffer."""
-        if self.generation_in_progress.is_set():
+        # An active task can only be interrupted if it's a paused arena.
+        is_paused_arena = self.arena_state and not self.arena_paused_event.is_set()
+        if self.generation_in_progress.is_set() and not is_paused_arena:
             return
 
         user_input = buffer.text
-        # Only process if the input is not just whitespace
-        if user_input.strip():
-            # Let the buffer handle appending to history and resetting itself.
-            # This is the idiomatic way to ensure history is updated live.
+        stripped_input = user_input.strip()
+
+        # Always add non-empty input to history manually for consistent behavior.
+        if stripped_input:
             buffer.reset(append_to_history=True)
-
-            # We still print the user input manually for our UI format.
-            self.pt_printer(
-                HTML(
-                    f"\n<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> {escape(user_input)}"
-                )
-            )
-
-            stripped_input = user_input.strip()
-            if stripped_input.startswith("/"):
-                # The command handler needs a reference to the app object to exit.
-                self.command_handler.handle(stripped_input, self.app)
-            else:
-                if self.arena_state and not self.generation_task:
-                    # This is the initial prompt to kick off the arena.
-                    self.arena_state.last_message = stripped_input
-                    self.generation_task = asyncio.create_task(
-                        self._run_arena_orchestrator()
-                    )
-                    self.arena_paused_event.set()  # Start the loop
-                else:
-                    self.generation_task = asyncio.create_task(
-                        self._process_and_generate(stripped_input)
-                    )
         else:
-            # On empty or whitespace-only input, we clear the buffer and
-            # print a "fake" prompt to give the user feedback of a new line.
             buffer.reset()
             self.pt_printer(
                 HTML(
                     f"<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> "
                 )
             )
+            return
+
+        # Print the user's input to the log area.
+        self.pt_printer(
+            HTML(
+                f"\n<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> {escape(user_input)}"
+            )
+        )
+
+        if stripped_input.startswith("/"):
+            self.command_handler.handle(stripped_input, self.app)
+        else:
+            # Handle plain text input.
+            if self.arena_state:
+                if not self.generation_task:
+                    # This is the initial prompt that kicks off the arena.
+                    self.arena_state.last_message = stripped_input
+                    self.generation_task = asyncio.create_task(
+                        self._run_arena_orchestrator()
+                    )
+                    self.arena_paused_event.set()  # Start the loop running.
+                else:
+                    # The user has typed plain text into a paused arena. This is
+                    # an invalid action, so we guide them.
+                    self.pt_printer(
+                        HTML(
+                            "<style fg='ansiyellow'>ℹ️ Arena is paused. Use /say &lt;message&gt; to interject, or /resume to continue.</style>"
+                        )
+                    )
+            else:
+                # Standard generation outside of arena mode.
+                self.generation_task = asyncio.create_task(
+                    self._process_and_generate(stripped_input)
+                )
 
     # Command handling logic has been extracted to `pai/commands.py`.
 

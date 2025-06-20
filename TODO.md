@@ -34,17 +34,17 @@ This is a list of concrete, near-term tasks to improve the framework.
         - [x] Created `ArenaParticipant` dataclass to hold the configured state for one model in the arena.
         - [x] Created `Arena` dataclass to hold the configuration for a two-participant arena session.
         - [x] Modified the `Turn` dataclass to include `model_name` and `participant_name` to track which model generated a response.
-- [ ] **Phase 2: Core Logic and Orchestration**
-    - [ ] **Commands (`pai/commands.py`):**
-        - [ ] Add a new `/arena <arena_name> [max_turns]` command.
-        - [ ] Implement the command logic to load the arena configuration from `polyglot.toml`.
-        - [ ] The command will enable a new "arena mode" in the UI.
-    - [ ] **Orchestration (`pai/pai.py`):**
-        - [ ] In `InteractiveUI`, add an `arena_mode` flag and state for the active `Arena` config.
-        - [ ] Create a new `_run_arena_loop` async method, similar to `_run_legacy_agent_loop`.
-        - [ ] **Crucial Design:** The loop must manage two separate `Conversation` objects, one for each participant, to maintain valid, alternating user/assistant message histories for each model.
-        - [ ] The loop will manage the turn-based conversation, feeding one model's output as the user input to the other.
-        - [ ] The loop should run for the specified number of turns or until `Ctrl+C` is pressed.
+- [x] **Phase 2: Core Logic and Orchestration**
+    - [x] **Commands (`pai/commands.py`):**
+        - [x] Added a new `/arena <arena_name> [max_turns]` command.
+        - [x] Command logic loads the arena configuration from `polyglot.toml`, validating that it has two participants on the current endpoint.
+        - [x] The command enables a new `arena_mode` in the UI and clears history for the new session.
+    - [x] **Orchestration (`pai/pai.py`):**
+        - [x] In `InteractiveUI`, added `arena_mode` flag and state for the active `Arena` config.
+        - [x] Created a new `_run_arena_loop` async method to manage the conversation.
+        - [x] The loop correctly manages separate `Conversation` objects for each participant, ensuring valid turn-by-turn histories are maintained for each model.
+        - [x] The loop feeds one model's output as the user input to the other.
+        - [x] The loop runs for the specified number of turns and can be interrupted by `Ctrl+C`.
 - [ ] **Phase 3: User Interface and Experience**
     - [ ] **UI State (`pai/pai.py`):**
         - [ ] The bottom toolbar (`_get_toolbar_text`) needs to display the active arena and participants when in arena mode.

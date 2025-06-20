@@ -7,6 +7,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional
 from .tools import get_tool_schemas
+from .models import Arena, ArenaParticipant, Conversation
 
 if TYPE_CHECKING:
     from .pai import InteractiveUI
@@ -95,6 +96,7 @@ class HelpCommand(Command):
   /prompt <name>         - Load a system prompt from file (clears history)
   /agent                 - Start agent mode for OpenAI-compatible tool-use
   /legacy_agent          - Start agent mode for models without native tool-use
+  /arena <name> [turns]  - Start a multi-model arena conversation (clears history)
     """
         )
 
@@ -421,6 +423,100 @@ class LegacyAgentCommand(Command):
             )
 
 
+class ArenaCommand(Command):
+    @property
+    def name(self):
+        return "arena"
+
+    @property
+    def requires_param(self):
+        return True
+
+    def execute(self, app: "Application", param: Optional[str] = None):
+        if not self.ui.is_chat_mode:
+            self.ui.pt_printer("❌ /arena is only available in chat mode.")
+            return
+
+        parts = param.strip().split(" ", 1)
+        arena_name, max_turns_str = (parts + [None])[:2]
+
+        try:
+            max_turns = int(max_turns_str) if max_turns_str else 10
+        except (ValueError, TypeError):
+            self.ui.pt_printer("❌ Invalid value for turns. Must be an integer.")
+            return
+
+        arenas_config = self.ui.client.raw_config.get("arenas", {})
+        arena_config = arenas_config.get(arena_name)
+
+        if not arena_config:
+            self.ui.pt_printer(f"❌ Arena '{arena_name}' not found in polyglot.toml.")
+            return
+
+        participant_configs = arena_config.get("participants", {})
+        if len(participant_configs) != 2:
+            self.ui.pt_printer(f"❌ Arena '{arena_name}' must have exactly 2 participants.")
+            return
+
+        try:
+            participants = {}
+            for p_id, p_config in participant_configs.items():
+                prompt_key = p_config["system_prompt_key"]
+                prompt_path = self.ui.prompts_dir / f"{prompt_key}.md"
+                if not prompt_path.exists():
+                    prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
+
+                if not prompt_path.is_file():
+                    raise FileNotFoundError(f"System prompt file for '{prompt_key}' not found.")
+
+                system_prompt = prompt_path.read_text(encoding="utf-8")
+
+                conversation = Conversation()
+                conversation.set_system_prompt(system_prompt)
+
+                participants[p_id] = ArenaParticipant(
+                    id=p_id,
+                    name=p_config["name"],
+                    endpoint=p_config["endpoint"],
+                    model=p_config["model"],
+                    system_prompt=system_prompt,
+                    conversation=conversation,
+                )
+
+            current_endpoint = self.ui.client.config.name
+            for p in participants.values():
+                if p.endpoint != current_endpoint:
+                    self.ui.pt_printer(
+                        f"❌ Participant '{p.name}' uses endpoint '{p.endpoint}', but session is on '{current_endpoint}'."
+                    )
+                    self.ui.pt_printer(
+                        "   (Cross-endpoint arenas are not yet supported. Please /switch first.)"
+                    )
+                    return
+
+            arena = Arena(
+                name=arena_name,
+                participants=participants,
+                initiator_id=arena_config["initiator"],
+            )
+
+            self.ui.conversation.clear()
+            self.ui.native_agent_mode = False
+            self.ui.legacy_agent_mode = False
+            self.ui.arena_mode = True
+            self.ui.active_arena = arena
+            self.ui.arena_max_turns = max_turns
+
+            initiator_name = arena.get_initiator().name
+            self.ui.pt_printer(f"⚔️  Arena '{arena_name}' activated for {max_turns} turns.")
+            self.ui.pt_printer(
+                f"   Your next prompt will be given to '{initiator_name}' to start the conversation."
+            )
+
+        except (KeyError, FileNotFoundError) as e:
+            self.ui.pt_printer(f"❌ Error setting up arena: {e}")
+
+
 class ToggleModeCommand(Command):
     @property
     def name(self):
@@ -467,6 +563,7 @@ class CommandHandler:
             PromptCommand,
             AgentCommand,
             LegacyAgentCommand,
+            ArenaCommand,
             ToggleModeCommand,
         ]
         for cmd_class in command_classes:

@@ -50,6 +50,7 @@ from .models import (
     EndpointConfig,
     CompletionRequest,
     ChatRequest,
+    Arena,
 )
 
 # --- Protocol Adapter Imports ---
@@ -244,6 +245,7 @@ class PolyglotClient:
         http_session: httpx.AsyncClient,
     ):
         self.all_endpoints = loaded_config.get("endpoints", [])
+        self.raw_config = loaded_config
         self.config = EndpointConfig()
         self.stats = TestSession()
         self.display = StreamingDisplay(args.debug)
@@ -362,6 +364,9 @@ class InteractiveUI:
         # State management
         self.native_agent_mode = False
         self.legacy_agent_mode = False
+        self.arena_mode = False
+        self.active_arena: Optional[Arena] = None
+        self.arena_max_turns = 10
         self.generation_in_progress = asyncio.Event()
         self.generation_task: Optional[asyncio.Task] = None
         self.spinner_chars = ["|", "/", "-", "\\"]
@@ -375,6 +380,8 @@ class InteractiveUI:
 
     def _get_mode_display_name(self) -> str:
         """Returns the string name of the current interaction mode."""
+        if self.arena_mode and self.active_arena:
+            return f"Arena: {self.active_arena.name}"
         if self.native_agent_mode:
             return "Agent"
         if self.legacy_agent_mode:
@@ -536,9 +543,14 @@ class InteractiveUI:
                 # The command handler needs a reference to the app object to exit.
                 self.command_handler.handle(stripped_input, self.app)
             else:
-                self.generation_task = asyncio.create_task(
-                    self._process_and_generate(stripped_input)
-                )
+                if self.arena_mode:
+                    self.generation_task = asyncio.create_task(
+                        self._run_arena_loop(stripped_input)
+                    )
+                else:
+                    self.generation_task = asyncio.create_task(
+                        self._process_and_generate(stripped_input)
+                    )
         else:
             # On empty or whitespace-only input, we clear the buffer and
             # print a "fake" prompt to give the user feedback of a new line.
@@ -765,6 +777,104 @@ class InteractiveUI:
                 break
         else:
             self.pt_printer("⚠️ Agent reached maximum loops.")
+
+    async def _run_arena_loop(self, user_input_str: str):
+        self.generation_in_progress.set()
+        try:
+            arena = self.active_arena
+            # One turn = one response from each participant
+            max_dialogue_turns = self.arena_max_turns
+
+            participant_ids = list(arena.participants.keys())
+            initiator_idx = participant_ids.index(arena.initiator_id)
+            # Create a turn order starting with the initiator
+            turn_order_ids = (
+                participant_ids[initiator_idx:] + participant_ids[:initiator_idx]
+            )
+
+            current_input = user_input_str
+
+            # A full dialogue turn consists of each participant speaking once.
+            for turn_num in range(max_dialogue_turns):
+                # Loop through the two participants for this dialogue turn
+                for participant_idx in range(len(turn_order_ids)):
+                    participant_id = turn_order_ids[participant_idx]
+                    participant = arena.participants[participant_id]
+
+                    # Switch client model for this participant, saving original
+                    original_model = self.client.config.model_name
+                    self.client.config.model_name = participant.model
+
+                    # Print turn header
+                    self.pt_printer(
+                        HTML(
+                            f"\n<style bg='ansiblue' fg='white'> 🥊 TURN {turn_num + 1} | Participant: {participant.name} ({participant.model}) </style>"
+                        )
+                    )
+
+                    messages = participant.conversation.get_messages_for_next_turn(
+                        current_input
+                    )
+                    request = ChatRequest(
+                        messages=messages,
+                        model=participant.model,
+                        max_tokens=self.args.max_tokens,
+                        temperature=self.args.temperature,
+                        stream=self.args.stream,
+                        tools=get_tool_schemas() if self.client.tools_enabled else [],
+                    )
+
+                    result = await self.client.generate(request, self.args.verbose)
+                    assistant_message = result.get("text", "")
+
+                    # Create a Turn object with all metadata
+                    turn = Turn(
+                        request_data=result.get("request", {}),
+                        response_data=result.get("response", {}),
+                        assistant_message=assistant_message,
+                        participant_name=participant.name,
+                        model_name=participant.model,
+                    )
+                    request_stats = self.client.stats.last_request_stats
+
+                    # Add to the main unified conversation for logging
+                    self.conversation.add_turn(turn, request_stats)
+                    # Add to the participant's individual conversation history
+                    participant.conversation.add_turn(turn, request_stats)
+                    # Save logs after each participant's turn
+                    save_conversation_formats(
+                        self.conversation, self.session_dir, printer=self.pt_printer
+                    )
+
+                    # The output of this participant is the input for the next
+                    current_input = assistant_message
+
+                    # Restore original model
+                    self.client.config.model_name = original_model
+
+            self.pt_printer(
+                f"\n🏁 Arena finished: Maximum turns ({max_dialogue_turns}) reached."
+            )
+
+        except asyncio.CancelledError:
+            self.pt_printer(
+                HTML("\n<style fg='ansiyellow'>🚫 Arena cancelled by user.</style>")
+            )
+        except Exception as e:
+            # Finish response can fail if there was none in progress.
+            if self.client.display.current_request_stats:
+                self.client.display.finish_response(success=False)
+            self.pt_printer(HTML(f"<style fg='ansired'>❌ ARENA ERROR: {e}</style>"))
+        finally:
+            if self.active_arena:
+                self.pt_printer(
+                    f"\n🏁 Arena '{self.active_arena.name}' session ended."
+                )
+            # Reset state
+            self.arena_mode = False
+            self.active_arena = None
+            self.generation_in_progress.clear()
+            self.generation_task = None
 
     def _get_toolbar_text(self) -> HTML:
         """Generates the HTML for the multi-line bottom toolbar."""

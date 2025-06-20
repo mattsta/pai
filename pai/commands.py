@@ -463,7 +463,9 @@ class ArenaCommand(Command):
         judge_config = arena_config.get("judge")
 
         if len(participant_configs) < 2:
-            self.ui.pt_printer(f"❌ Arena '{arena_name}' must have at least 2 participants.")
+            self.ui.pt_printer(
+                f"❌ Arena '{arena_name}' must have at least 2 participants."
+            )
             return
 
         try:
@@ -501,7 +503,9 @@ class ArenaCommand(Command):
                     prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
 
                 if not prompt_path.is_file():
-                    raise FileNotFoundError(f"System prompt file for judge '{prompt_key}' not found.")
+                    raise FileNotFoundError(
+                        f"System prompt file for judge '{prompt_key}' not found."
+                    )
 
                 system_prompt = prompt_path.read_text(encoding="utf-8")
                 judge_participant = ArenaParticipant(

@@ -1039,9 +1039,7 @@ class InteractiveUI:
                         if p_id != "judge"
                     ]
                 )
-                judge_str = (
-                    " w/ Judge" if self.arena_state.arena_config.judge else ""
-                )
+                judge_str = " w/ Judge" if self.arena_state.arena_config.judge else ""
                 arena_name_esc = escape(self.arena_state.arena_config.name)
                 p_details_esc = escape(p_details)
                 line1 = f"<b><style bg='ansiblue' fg='white'> ⚔️ ARENA: {arena_name_esc}{judge_str} </style></b> | {p_details_esc}"

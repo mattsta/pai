@@ -837,8 +837,9 @@ class InteractiveUI:
                         tools=get_tool_schemas() if self.client.tools_enabled else [],
                     )
 
+                    actor_name = f"🤖 {participant.name}"
                     result = await self.client.generate(
-                        request, self.args.verbose
+                        request, self.args.verbose, actor_name=actor_name
                     )
                     assistant_message = result.get("text", "")
 

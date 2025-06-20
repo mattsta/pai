@@ -26,6 +26,9 @@ class Turn:
     request_data: Dict[str, Any] = field(default_factory=dict)
     response_data: Dict[str, Any] = field(default_factory=dict)
     assistant_message: str = ""
+    # Arena mode fields
+    participant_name: Optional[str] = None
+    model_name: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes the turn to a dictionary, handling non-native JSON types."""
@@ -35,6 +38,8 @@ class Turn:
             "request_data": self.request_data,
             "response_data": self.response_data,
             "assistant_message": self.assistant_message,
+            "participant_name": self.participant_name,
+            "model_name": self.model_name,
         }
 
 
@@ -81,6 +86,41 @@ class Conversation:
             for m in self._messages
             if m.get("content")
         )
+
+    def get_rich_history_for_template(self) -> List[Dict[str, Any]]:
+        """
+        Generates a enriched history list suitable for detailed HTML logging.
+        It reconstructs the message flow from turns, adding participant info.
+        """
+        # Start with the system prompt if one exists.
+        history = [m for m in self._messages if m["role"] == "system"]
+        if history:
+            # We only show the initial system prompt, not history from previous turns.
+            history = history[:1]
+
+        for turn in self.turns:
+            # Add the user message that initiated this turn
+            for msg in turn.request_data.get("messages", []):
+                # Avoid duplicating the system prompt or prior turns' messages.
+                if msg["role"] == "user":
+                    history.append(msg)
+                    break  # Assume one user message per turn start
+
+            # Add the assistant's response for this turn, with participant info
+            assistant_msg = {
+                "role": "assistant",
+                "content": turn.assistant_message,
+                "participant_name": turn.participant_name,
+                "model_name": turn.model_name,
+            }
+            # Add tool calls from the response if they exist
+            if turn.response_data.get("choices"):
+                response_message = turn.response_data["choices"][0].get("message", {})
+                if "tool_calls" in response_message:
+                    assistant_msg["tool_calls"] = response_message["tool_calls"]
+            history.append(assistant_msg)
+
+        return history
 
     def set_system_prompt(self, system_prompt: str):
         """Sets a new system prompt, clearing all subsequent history."""
@@ -156,9 +196,9 @@ class TestSession:
     total_response_time: float = 0.0
     errors: int = 0
     # Holds the stats for the most recently *completed* successful request.
-    last_request_stats: Optional[RequestStats] = None
+        last_request_stats: Optional[RequestStats] = None
 
-    def add_completed_request(self, stats: RequestStats):
+        def add_completed_request(self, stats: RequestStats):
         """
         Adds statistics from a completed request to the session totals.
         Token and time stats are always accumulated, even for failed/cancelled requests.
@@ -188,6 +228,39 @@ class TestSession:
             "avg_response_time": f"{avg_response_time:.2f}s",
             "tokens_per_second": f"{self.total_tokens_received / max(self.total_response_time, 1):.1f}",
         }
+
+
+# --- Arena Data Models ---
+
+
+@dataclass
+class ArenaParticipant:
+    """Configuration for a single participant in a multi-model arena."""
+
+    id: str  # The key from the config, e.g., "proposer"
+    name: str  # Display name, e.g., "Proposer"
+    endpoint: str
+    model: str
+    system_prompt: str
+    # Each participant gets their own conversation history.
+    conversation: "Conversation" = field(default_factory=Conversation)
+
+
+@dataclass
+class Arena:
+    """Configuration for a two-participant arena session."""
+
+    name: str  # e.g., "debate"
+    participants: Dict[str, ArenaParticipant]
+    initiator_id: str
+
+    def get_participant(self, participant_id: str) -> Optional[ArenaParticipant]:
+        return self.participants.get(participant_id)
+
+    def get_initiator(self) -> ArenaParticipant:
+        """Returns the participant designated to start the conversation."""
+        # This assumes the initiator_id from the config is always valid.
+        return self.participants[self.initiator_id]
 
 
 @dataclass

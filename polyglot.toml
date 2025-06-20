@@ -47,3 +47,30 @@ completion_adapter = "legacy_completion"
 # Paths can be absolute or relative to the project root.
 # Example: directories = ["/abs/path/to/tools", "custom_tools"]
 directories = ["custom_tools"]
+
+# --- Multi-Model Arena Configurations ---
+# Defines a set of participants for automated model-vs-model conversations.
+# Use '/arena <name>' to start a session. Arena configurations are defined as
+# sub-tables of `arenas`. The name of the arena (e.g., "debate") is used
+# in the command.
+[arenas.debate]
+# `initiator` is the `id` of the participant who speaks first.
+initiator = "proposer"
+
+  # Each participant is defined as a table within `participants`.
+  # The key of the table (e.g., "proposer") is its unique ID.
+  [arenas.debate.participants.proposer]
+  # Display name for this participant in the UI.
+  name = "Proposer"
+  # The endpoint to use for this participant. Must exist in [[endpoints]].
+  endpoint = "openai"
+  # The model to use.
+  model = "gpt-4o-mini"
+  # The key for the system prompt in the `prompts/` directory (without extension).
+  system_prompt_key = "tutor"
+
+  [arenas.debate.participants.critic]
+  name = "Critic"
+  endpoint = "openai"
+  model = "gpt-4o-mini"
+  system_prompt_key = "code_refactor"

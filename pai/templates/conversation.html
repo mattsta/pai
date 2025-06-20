@@ -17,15 +17,28 @@
     </style>
 </head>
 <body>
+    <style>
+        .assistant.participant { border-left: 4px solid #673ab7; }
+        .participant-info { font-size: 0.8em; color: #555; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
     <h1>PAI Conversation ({{ conversation_id }})</h1>
 
     {% for message in history %}
-    <div class="message {{ message.role }}">
+    <div class="message {{ message.role }}{% if message.participant_name %} participant{% endif %}">
         {% if message.role == 'tool' %}
             <strong>Tool: {{ message.name }}</strong>
             <pre>{{ message.content }}</pre>
         {% else %}
-            <strong>{{ message.role | capitalize }}</strong>
+            {% if message.participant_name %}
+                <div class="participant-info">
+                    <strong>{{ message.participant_name }}</strong> ({{ message.model_name }})
+                </div>
+            {% else %}
+                <strong>{{ message.role | capitalize }}</strong>
+            {% endif %}
+
             {% if message.content %}
             <div>{{ message.content.strip() }}</div>
             {% endif %}

@@ -25,15 +25,15 @@ This is a list of concrete, near-term tasks to improve the framework.
 - [ ] Add a `--log-file` option to write all debug output to a file for later analysis.
 
 ### Feature: Multi-Model Arena
-- [ ] **Phase 1: Configuration and Data Models**
-    - [ ] **Config (`polyglot.toml`):**
-        - [ ] Add a new top-level `[[arenas]]` table.
-        - [ ] Each arena configuration will define two participants. Example: `[arenas.debate_arena]`.
-        - [ ] Each participant needs a `name` (e.g., "Proposer"), a `model` (e.g., "gpt-4o-mini"), a `system_prompt_key` (from `prompts/`), and an `endpoint`.
-    - [ ] **Data Models (`pai/models.py`):**
-        - [ ] Create an `ArenaParticipant` dataclass to hold the configured state for one model in the arena.
-        - [ ] Create an `Arena` dataclass to hold the configuration for a two-participant arena session.
-        - [ ] Modify the `Turn` dataclass to include `model_name: str` and `participant_name: Optional[str]` to track which model generated the response.
+- [x] **Phase 1: Configuration and Data Models**
+    - [x] **Config (`polyglot.toml`):**
+        - [x] Add a new `[arenas.NAME]` table format for defining arenas.
+        - [x] Each arena configuration now defines two or more participants.
+        - [x] Each participant has a `name`, `model`, `system_prompt_key`, and `endpoint`.
+    - [x] **Data Models (`pai/models.py`):**
+        - [x] Created `ArenaParticipant` dataclass to hold the configured state for one model in the arena.
+        - [x] Created `Arena` dataclass to hold the configuration for a two-participant arena session.
+        - [x] Modified the `Turn` dataclass to include `model_name` and `participant_name` to track which model generated a response.
 - [ ] **Phase 2: Core Logic and Orchestration**
     - [ ] **Commands (`pai/commands.py`):**
         - [ ] Add a new `/arena <arena_name> [max_turns]` command.

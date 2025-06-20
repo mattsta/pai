@@ -42,7 +42,8 @@ def save_conversation_formats(
             autoescape=select_autoescape(["html", "xml"]),
         )
         env.filters["prettyjson"] = lambda v: json.dumps(v, indent=2)
-        history = conversation.get_history()
+        # Use the new method to get a richer history for logging.
+        history = conversation.get_rich_history_for_template()
 
         # Defines the templates to render and their output filenames.
         formats = {

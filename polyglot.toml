@@ -74,3 +74,21 @@ initiator = "proposer"
   endpoint = "openai"
   model = "gpt-4o-mini"
   system_prompt_key = "code_refactor"
+
+[arenas.cross_talk]
+# An example of an arena with participants on different endpoints.
+# This requires API keys for both endpoints to be configured.
+initiator = "historian"
+
+  [arenas.cross_talk.participants.historian]
+  name = "Historian"
+  endpoint = "openai"
+  model = "gpt-4o-mini"
+  system_prompt_key = "tutor"
+
+  [arenas.cross_talk.participants.futurist]
+  name = "Futurist"
+  endpoint = "together"
+  # This model must be supported by the 'together' endpoint.
+  model = "meta-llama/Llama-3-8b-chat-hf"
+  system_prompt_key = "code_refactor"

@@ -793,6 +793,7 @@ class InteractiveUI:
 
     async def _run_arena_loop(self, user_input_str: str):
         self.generation_in_progress.set()
+        original_endpoint_name = self.client.config.name  # Save original state
         try:
             arena = self.active_arena
             # One turn = one response from each participant
@@ -814,14 +815,15 @@ class InteractiveUI:
                     participant_id = turn_order_ids[participant_idx]
                     participant = arena.participants[participant_id]
 
-                    # Switch client model for this participant, saving original
-                    original_model = self.client.config.model_name
+                    # Switch client endpoint AND model for this participant
+                    if self.client.config.name.lower() != participant.endpoint.lower():
+                        self.client.switch_endpoint(participant.endpoint)
                     self.client.config.model_name = participant.model
 
                     # Print turn header
                     self.pt_printer(
                         HTML(
-                            f"\n<style bg='ansiblue' fg='white'> 🥊 TURN {turn_num + 1} | Participant: {participant.name} ({participant.model}) </style>"
+                            f"\n<style bg='ansiblue' fg='white'> 🥊 TURN {turn_num + 1} | Participant: {participant.name} ({participant.endpoint}/{participant.model}) </style>"
                         )
                     )
 
@@ -886,6 +888,14 @@ class InteractiveUI:
                 self.pt_printer(
                     f"\n🏁 Arena '{self.active_arena.name}' session ended."
                 )
+
+            # Restore client to the original endpoint state
+            if self.client.config.name.lower() != original_endpoint_name.lower():
+                self.pt_printer(
+                    f"✅ Restoring client to original endpoint: {original_endpoint_name}"
+                )
+                self.client.switch_endpoint(original_endpoint_name)
+
             # Reset state
             self.arena_mode = False
             self.active_arena = None

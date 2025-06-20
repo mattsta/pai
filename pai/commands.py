@@ -483,17 +483,6 @@ class ArenaCommand(Command):
                     conversation=conversation,
                 )
 
-            current_endpoint = self.ui.client.config.name
-            for p in participants.values():
-                if p.endpoint != current_endpoint:
-                    self.ui.pt_printer(
-                        f"❌ Participant '{p.name}' uses endpoint '{p.endpoint}', but session is on '{current_endpoint}'."
-                    )
-                    self.ui.pt_printer(
-                        "   (Cross-endpoint arenas are not yet supported. Please /switch first.)"
-                    )
-                    return
-
             arena = Arena(
                 name=arena_name,
                 participants=participants,

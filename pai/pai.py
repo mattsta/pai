@@ -867,9 +867,6 @@ class InteractiveUI:
                     # The output of this participant is the input for the next
                     current_input = assistant_message
 
-                    # Restore original model
-                    self.client.config.model_name = original_model
-
             self.pt_printer(
                 f"\n🏁 Arena finished: Maximum turns ({max_dialogue_turns}) reached."
             )

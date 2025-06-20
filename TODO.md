@@ -61,5 +61,5 @@ This is a list of concrete, near-term tasks to improve the framework.
         - [x] The HTML template now uses this index to assign unique CSS classes and colors, visually distinguishing messages from each participant in the arena log.
 - [ ] **Phase 5: Future Enhancements (Post-MVP)**
     - [x] Allow participants to be on different endpoints within the same arena.
-    - [ ] Implement a mechanism for the user to interject and steer the conversation mid-loop.
+    - [x] Implemented a mechanism for the user to interject and steer the conversation mid-loop using `/pause`, `/resume`, and `/say` commands.
     - [ ] Add a third "judge" model that observes the conversation and provides a summary or verdict at the end.

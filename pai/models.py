@@ -272,6 +272,23 @@ class Arena:
 
 
 @dataclass
+class ArenaState:
+    """Holds the dynamic state of an ongoing arena session."""
+
+    arena_config: Arena
+    turn_order_ids: List[str]
+    max_turns: int
+    last_message: str = ""
+    # Multiply by number of participants since one "turn" involves everyone speaking once.
+    current_speech: int = 0
+
+    @property
+    def max_speeches(self) -> int:
+        """Total number of individual model responses in the arena session."""
+        return self.max_turns * len(self.arena_config.participants)
+
+
+@dataclass
 class EndpointConfig:
     name: str = "default"
     api_key: Optional[str] = None

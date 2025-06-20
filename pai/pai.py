@@ -51,6 +51,7 @@ from .models import (
     CompletionRequest,
     ChatRequest,
     Arena,
+    ArenaState,
 )
 
 # --- Protocol Adapter Imports ---
@@ -369,9 +370,10 @@ class InteractiveUI:
         # State management
         self.native_agent_mode = False
         self.legacy_agent_mode = False
-        self.arena_mode = False
-        self.active_arena: Optional[Arena] = None
-        self.arena_max_turns = 10
+        # Arena state
+        self.arena_state: Optional[ArenaState] = None
+        self.arena_paused_event = asyncio.Event()
+
         self.generation_in_progress = asyncio.Event()
         self.generation_task: Optional[asyncio.Task] = None
         self.spinner_chars = ["|", "/", "-", "\\"]
@@ -385,8 +387,14 @@ class InteractiveUI:
 
     def _get_mode_display_name(self) -> str:
         """Returns the string name of the current interaction mode."""
-        if self.arena_mode and self.active_arena:
-            return f"Arena: {self.active_arena.name}"
+        if self.arena_state:
+            status = (
+                "Paused"
+                if not self.arena_paused_event.is_set()
+                and self.generation_in_progress.is_set()
+                else "Running"
+            )
+            return f"Arena: {self.arena_state.arena_config.name} ({status})"
         if self.native_agent_mode:
             return "Agent"
         if self.legacy_agent_mode:
@@ -399,8 +407,10 @@ class InteractiveUI:
         """Constructs the prompt_toolkit Application object."""
         # This is the main input bar at the bottom of the screen.
         def get_prompt_text() -> HTML:
-            if self.arena_mode and self.active_arena and not self.generation_in_progress.is_set():
-                initiator = self.active_arena.get_initiator()
+            # If we are in arena mode, but there is no active generation task,
+            # it means we are waiting for the very first prompt from the user.
+            if self.arena_state and not self.generation_in_progress.is_set():
+                initiator = self.arena_state.arena_config.get_initiator()
                 # Use a specific prompt for the arena's first turn
                 return HTML(
                     f"<style fg='ansigreen'>⚔️  Prompt for {initiator.name}:</style> "
@@ -556,10 +566,13 @@ class InteractiveUI:
                 # The command handler needs a reference to the app object to exit.
                 self.command_handler.handle(stripped_input, self.app)
             else:
-                if self.arena_mode:
+                if self.arena_state and not self.generation_task:
+                    # This is the initial prompt to kick off the arena.
+                    self.arena_state.last_message = stripped_input
                     self.generation_task = asyncio.create_task(
-                        self._run_arena_loop(stripped_input)
+                        self._run_arena_orchestrator()
                     )
+                    self.arena_paused_event.set()  # Start the loop
                 else:
                     self.generation_task = asyncio.create_task(
                         self._process_and_generate(stripped_input)
@@ -791,99 +804,89 @@ class InteractiveUI:
         else:
             self.pt_printer("⚠️ Agent reached maximum loops.")
 
-    async def _run_arena_loop(self, user_input_str: str):
+    async def _run_arena_orchestrator(self):
         self.generation_in_progress.set()
         original_endpoint_name = self.client.config.name  # Save original state
         try:
-            arena = self.active_arena
-            # One turn = one response from each participant
-            max_dialogue_turns = self.arena_max_turns
+            state = self.arena_state
+            while state.current_speech < state.max_speeches:
+                # This is the core of the pause/resume mechanic.
+                # The loop will not proceed until the event is set.
+                await self.arena_paused_event.wait()
 
-            participant_ids = list(arena.participants.keys())
-            initiator_idx = participant_ids.index(arena.initiator_id)
-            # Create a turn order starting with the initiator
-            turn_order_ids = (
-                participant_ids[initiator_idx:] + participant_ids[:initiator_idx]
-            )
+                participant_id = state.turn_order_ids[0]
+                participant = state.arena_config.participants[participant_id]
+                turn_num = (state.current_speech // len(state.turn_order_ids)) + 1
 
-            current_input = user_input_str
+                # Switch client endpoint AND model for this participant
+                if self.client.config.name.lower() != participant.endpoint.lower():
+                    self.client.switch_endpoint(participant.endpoint)
+                self.client.config.model_name = participant.model
 
-            # A full dialogue turn consists of each participant speaking once.
-            for turn_num in range(max_dialogue_turns):
-                # Loop through the two participants for this dialogue turn
-                for participant_idx in range(len(turn_order_ids)):
-                    participant_id = turn_order_ids[participant_idx]
-                    participant = arena.participants[participant_id]
-
-                    # Switch client endpoint AND model for this participant
-                    if self.client.config.name.lower() != participant.endpoint.lower():
-                        self.client.switch_endpoint(participant.endpoint)
-                    self.client.config.model_name = participant.model
-
-                    # Print turn header
-                    self.pt_printer(
-                        HTML(
-                            f"\n<style bg='ansiblue' fg='white'> 🥊 TURN {turn_num + 1} | Participant: {participant.name} ({participant.endpoint}/{participant.model}) </style>"
-                        )
+                # Print turn header
+                self.pt_printer(
+                    HTML(
+                        f"\n<style bg='ansiblue' fg='white'> 🥊 TURN {turn_num} | Participant: {participant.name} ({participant.endpoint}/{participant.model}) </style>"
                     )
+                )
 
-                    messages = participant.conversation.get_messages_for_next_turn(
-                        current_input
-                    )
-                    request = ChatRequest(
-                        messages=messages,
-                        model=participant.model,
-                        max_tokens=self.args.max_tokens,
-                        temperature=self.args.temperature,
-                        stream=self.args.stream,
-                        tools=get_tool_schemas() if self.client.tools_enabled else [],
-                    )
+                messages = participant.conversation.get_messages_for_next_turn(
+                    state.last_message
+                )
+                request = ChatRequest(
+                    messages=messages,
+                    model=participant.model,
+                    max_tokens=self.args.max_tokens,
+                    temperature=self.args.temperature,
+                    stream=self.args.stream,
+                    tools=get_tool_schemas() if self.client.tools_enabled else [],
+                )
 
-                    actor_name = f"🤖 {participant.name}"
-                    result = await self.client.generate(
-                        request, self.args.verbose, actor_name=actor_name
-                    )
-                    assistant_message = result.get("text", "")
+                actor_name = f"🤖 {participant.name}"
+                result = await self.client.generate(
+                    request, self.args.verbose, actor_name=actor_name
+                )
+                assistant_message = result.get("text", "")
 
-                    # Create a Turn object with all metadata
-                    turn = Turn(
-                        request_data=result.get("request", {}),
-                        response_data=result.get("response", {}),
-                        assistant_message=assistant_message,
-                        participant_name=participant.name,
-                        model_name=participant.model,
-                    )
-                    request_stats = self.client.stats.last_request_stats
+                # Create a Turn object with all metadata
+                turn = Turn(
+                    request_data=result.get("request", {}),
+                    response_data=result.get("response", {}),
+                    assistant_message=assistant_message,
+                    participant_name=participant.name,
+                    model_name=participant.model,
+                )
+                request_stats = self.client.stats.last_request_stats
 
-                    # Add to the main unified conversation for logging
-                    self.conversation.add_turn(turn, request_stats)
-                    # Add to the participant's individual conversation history
-                    participant.conversation.add_turn(turn, request_stats)
-                    # Save logs after each participant's turn
-                    save_conversation_formats(
-                        self.conversation, self.session_dir, printer=self.pt_printer
-                    )
+                # Add to the main unified conversation for logging
+                self.conversation.add_turn(turn, request_stats)
+                # Add to the participant's individual conversation history
+                participant.conversation.add_turn(turn, request_stats)
+                save_conversation_formats(
+                    self.conversation, self.session_dir, printer=self.pt_printer
+                )
 
-                    # The output of this participant is the input for the next
-                    current_input = assistant_message
+                # Update state for the next iteration
+                state.last_message = assistant_message
+                state.current_speech += 1
+                state.turn_order_ids = (
+                    state.turn_order_ids[1:] + state.turn_order_ids[:1]
+                )
 
-            self.pt_printer(
-                f"\n🏁 Arena finished: Maximum turns ({max_dialogue_turns}) reached."
-            )
+            self.pt_printer(f"\n🏁 Arena finished: Maximum turns reached.")
 
         except asyncio.CancelledError:
             self.pt_printer(
                 HTML("\n<style fg='ansiyellow'>🚫 Arena cancelled by user.</style>")
             )
         except Exception as e:
-            # Finish response can fail if there was none in progress.
             if self.client.display.current_request_stats:
                 self.client.display.finish_response(success=False)
             self.pt_printer(HTML(f"<style fg='ansired'>❌ ARENA ERROR: {e}</style>"))
         finally:
-            if self.active_arena:
+            if self.arena_state:
                 self.pt_printer(
-                    f"\n🏁 Arena '{self.active_arena.name}' session ended."
+                    f"\n🏁 Arena '{self.arena_state.arena_config.name}' session ended."
                 )
 
             # Restore client to the original endpoint state
@@ -893,9 +896,8 @@ class InteractiveUI:
                 )
                 self.client.switch_endpoint(original_endpoint_name)
 
-            # Reset state
-            self.arena_mode = False
-            self.active_arena = None
+            # Reset all arena-related state
+            self.arena_state = None
             self.generation_in_progress.clear()
             self.generation_task = None
 
@@ -934,14 +936,14 @@ class InteractiveUI:
                     live_stats.tokens_sent + live_stats.tokens_received
                 )
 
-            if self.arena_mode and self.active_arena:
+            if self.arena_state:
                 p_details = " vs ".join(
                     [
                         f"{p.name} ({p.model})"
-                        for p in self.active_arena.participants.values()
+                        for p in self.arena_state.arena_config.participants.values()
                     ]
                 )
-                arena_name_esc = escape(self.active_arena.name)
+                arena_name_esc = escape(self.arena_state.arena_config.name)
                 p_details_esc = escape(p_details)
                 line1 = f"<b><style bg='ansiblue' fg='white'> ⚔️ ARENA: {arena_name_esc} </style></b> | {p_details_esc}"
             else:

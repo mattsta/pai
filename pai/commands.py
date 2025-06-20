@@ -7,7 +7,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional
 from .tools import get_tool_schemas
-from .models import Arena, ArenaParticipant, Conversation
+from .models import Arena, ArenaParticipant, Conversation, ArenaState
 
 if TYPE_CHECKING:
     from .pai import InteractiveUI
@@ -96,7 +96,11 @@ class HelpCommand(Command):
   /prompt <name>         - Load a system prompt from file (clears history)
   /agent                 - Start agent mode for OpenAI-compatible tool-use
   /legacy_agent          - Start agent mode for models without native tool-use
+  --- Arena Mode Commands ---
   /arena <name> [turns]  - Start a multi-model arena conversation (clears history)
+  /pause                 - Pause the arena conversation after the current turn
+  /resume                - Resume a paused arena conversation
+  /say <message>         - Interject with a message in a paused arena
     """
         )
 
@@ -483,27 +487,100 @@ class ArenaCommand(Command):
                     conversation=conversation,
                 )
 
-            arena = Arena(
+            arena_config_obj = Arena(
                 name=arena_name,
                 participants=participants,
                 initiator_id=arena_config["initiator"],
             )
 
+            # Setup turn order, starting with the initiator
+            p_ids = list(participants.keys())
+            initiator_idx = p_ids.index(arena_config_obj.initiator_id)
+            turn_order_ids = p_ids[initiator_idx:] + p_ids[:initiator_idx]
+
+            # Create the dynamic state object for the session
+            arena_state = ArenaState(
+                arena_config=arena_config_obj,
+                turn_order_ids=turn_order_ids,
+                max_turns=max_turns,
+            )
+
+            # Reset all other modes
             self.ui.conversation.clear()
             self.ui.native_agent_mode = False
             self.ui.legacy_agent_mode = False
-            self.ui.arena_mode = True
-            self.ui.active_arena = arena
-            self.ui.arena_max_turns = max_turns
+            self.ui.arena_state = arena_state
+            self.ui.arena_paused_event.clear()  # Start in a paused state
 
-            initiator_name = arena.get_initiator().name
+            initiator_name = arena_state.arena_config.get_initiator().name
             self.ui.pt_printer(f"⚔️  Arena '{arena_name}' activated for {max_turns} turns.")
             self.ui.pt_printer(
                 f"   Your next prompt will be given to '{initiator_name}' to start the conversation."
             )
+            self.ui.pt_printer(
+                "   The arena will auto-run. Use /pause, /resume, and /say to control it."
+            )
 
         except (KeyError, FileNotFoundError) as e:
             self.ui.pt_printer(f"❌ Error setting up arena: {e}")
+
+
+class PauseCommand(Command):
+    @property
+    def name(self):
+        return "pause"
+
+    def execute(self, app: "Application", param: Optional[str] = None):
+        if not self.ui.arena_state:
+            self.ui.pt_printer("❌ /pause is only available in arena mode.")
+            return
+        if not self.ui.arena_paused_event.is_set():
+            self.ui.pt_printer("ℹ️  Arena is already paused.")
+            return
+
+        self.ui.arena_paused_event.clear()
+        self.ui.pt_printer("⏸️  Arena will pause after the current participant finishes.")
+
+
+class ResumeCommand(Command):
+    @property
+    def name(self):
+        return "resume"
+
+    def execute(self, app: "Application", param: Optional[str] = None):
+        if not self.ui.arena_state:
+            self.ui.pt_printer("❌ /resume is only available in arena mode.")
+            return
+        if self.ui.arena_paused_event.is_set():
+            self.ui.pt_printer("ℹ️  Arena is already running.")
+            return
+
+        self.ui.arena_paused_event.set()
+        self.ui.pt_printer("▶️  Resuming arena conversation.")
+
+
+class SayCommand(Command):
+    @property
+    def name(self):
+        return "say"
+
+    @property
+    def requires_param(self):
+        return True
+
+    def execute(self, app: "Application", param: Optional[str] = None):
+        if not self.ui.arena_state:
+            self.ui.pt_printer("❌ /say is only available in arena mode.")
+            return
+        if self.ui.arena_paused_event.is_set():
+            self.ui.pt_printer(
+                "❌ Arena must be paused to interject. Use /pause first."
+            )
+            return
+
+        self.ui.arena_state.last_message = param
+        self.ui.pt_printer(f"💬 Interjecting with message. Resuming arena...")
+        self.ui.arena_paused_event.set()
 
 
 class ToggleModeCommand(Command):
@@ -553,6 +630,9 @@ class CommandHandler:
             AgentCommand,
             LegacyAgentCommand,
             ArenaCommand,
+            PauseCommand,
+            ResumeCommand,
+            SayCommand,
             ToggleModeCommand,
         ]
         for cmd_class in command_classes:

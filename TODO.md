@@ -16,7 +16,7 @@ This is a list of concrete, near-term tasks to improve the framework.
 - [ ] Add an `Anthropic` provider for Claude models.
 - [ ] Integrate the `rich` library to render model output as Markdown.
 - [ ] Implement session saving and loading (`/save` and `/load` commands).
-- [ ] Improve the `/stats` command to show tokens-per-second for the *last* request in addition to the session average.
+- [x] Improve the `/stats` command to show tokens-per-second for the *last* request in addition to the session average.
 
 ### Low Priority / Research
 

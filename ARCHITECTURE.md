@@ -60,8 +60,8 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   **Dynamic Loading:** The framework can automatically discover and load custom tools from user-defined directories, making it easy to add new capabilities without modifying core code. For a detailed guide, see [`docs/TOOLS.md`](./TOOLS.md).
 
 4.  **Core Data Models (`pai/models.py`)**
-    *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. A `Conversation` holds a list of `Turn` objects, and each `Turn` captures a single, complete request/response cycle, including all request/response data and metadata.
-    *   **`TestSession` & `RequestStats`:** These dataclasses track all metrics. `TestSession` is the accumulator for the entire session (total tokens, errors etc.). `RequestStats` holds detailed metrics for a single request, including `ttft` and `finish_reason`, and is used to power the live stats in the UI toolbar.
+    *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. A `Conversation` holds a list of `Turn` objects and also tracks `session_token_count`, which is the running total of tokens for the current conversation since the last `/clear`.
+    *   **`TestSession` & `RequestStats`:** These dataclasses track all metrics. `TestSession` is the accumulator for the entire application lifetime (total tokens, errors etc.). `RequestStats` holds detailed metrics for a single request, including `ttft` and `finish_reason`, and is used to power the live stats in the UI toolbar.
     *   **`StreamingDisplay`:** A critical component that manages all console output. It ensures that streaming responses do not corrupt the `prompt-toolkit` interface. It uses a swappable "printer" function to either print normally (for non-interactive use) or use `prompt-toolkit`'s thread-safe method (for interactive mode). It also tracks and exposes live state like `status` ("Waiting", "Streaming", etc.) and `live_tok_per_sec` (a smoothed average over the current stream's duration) to power the real-time UI toolbar. When waiting for a provider to respond, it will show a timer for requests that take longer than a few seconds, improving visibility into network latency.
 
 ### Session Persistence and Logging
@@ -84,9 +84,9 @@ This system ensures that no data is lost and provides multiple, easy-to-review f
 1.  User enters a prompt in the CLI: `What is the weather in Tokyo?`
 2.  `interactive_mode()` in `pai.py` captures the input.
 3.  It calls `conversation.get_messages_for_next_turn()` to construct the message history for the API call.
-4.  A `ChatRequest` object is created with this history.
-5.  `client.generate()` is called. It looks up the correct protocol adapter for the current endpoint (e.g., `OpenAIChatAdapter`) and calls its `.generate()` method, passing a `ProtocolContext` object.
-6.  A `ChatRequest` object is created, and if tools are enabled, it is populated with the tool schemas from the `TOOL_REGISTRY`. The `OpenAIChatAdapter` then ensures the model receives this payload.
+4.  A `ChatRequest` object is created with this history. If tools are enabled, the request object is populated with the tool schemas from the `TOOL_REGISTRY`.
+5.  `client.generate()` is called. It looks up the correct protocol adapter for the current endpoint (e.g., `OpenAIChatAdapter`) and calls its `.generate()` method, passing a `ProtocolContext` object containing the request and other state.
+6.  The adapter formats the final payload, including the message history and any tool schemas, for the provider's specific API.
 7.  It makes a streaming POST request to the provider's API via the shared `http_session` from the context.
 8.  The API responds. Instead of text, it sends back a `tool_calls` object requesting to run `get_current_weather(location="Tokyo")`.
 9.  The adapter parses this tool call. Instead of finishing, it calls `execute_tool("get_current_weather", ...)` from `tools.py`.

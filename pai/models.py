@@ -98,6 +98,12 @@ class Conversation:
             # We only show the initial system prompt, not history from previous turns.
             history = history[:1]
 
+        # Create a stable mapping of participant names to a unique index for color-coding.
+        participant_names = sorted(
+            list(set(t.participant_name for t in self.turns if t.participant_name))
+        )
+        participant_index_map = {name: i for i, name in enumerate(participant_names)}
+
         for turn in self.turns:
             # Add the user message that initiated this turn
             for msg in turn.request_data.get("messages", []):
@@ -107,11 +113,13 @@ class Conversation:
                     break  # Assume one user message per turn start
 
             # Add the assistant's response for this turn, with participant info
+            p_name = turn.participant_name
             assistant_msg = {
                 "role": "assistant",
                 "content": turn.assistant_message,
-                "participant_name": turn.participant_name,
+                "participant_name": p_name,
                 "model_name": turn.model_name,
+                "participant_index": participant_index_map.get(p_name),
             }
             # Add tool calls from the response if they exist
             if turn.response_data.get("choices"):

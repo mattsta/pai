@@ -52,13 +52,13 @@ This is a list of concrete, near-term tasks to improve the framework.
     - [x] **UI Display (`pai/pai.py`):**
         - [x] The `StreamingDisplay` now accepts an `actor_name` to display which participant is "speaking".
         - [x] Instead of "🤖 Assistant:", the output is now clearly labeled (e.g., "🤖 Proposer:"). The call stack was updated to pass this metadata through the display pipeline.
-- [ ] **Phase 4: Logging and Persistence**
-    - [ ] **Turn Logging (`pai/pai.py`):**
-        - [ ] When creating `Turn` objects inside the arena loop, the new `model_name` and `participant_name` fields must be correctly populated.
-        - [ ] This ensures the unified session log will contain an interleaved sequence of turns from both models, each clearly attributed.
-    - [ ] **HTML Templates (`pai/templates/conversation.html`):**
-        - [ ] Modify the template to use the `participant_name` and `model_name` from the turn/message data.
-        - [ ] Add CSS classes and logic to visually distinguish messages from each participant (e.g., using different background colors or labels).
+- [x] **Phase 4: Logging and Persistence**
+    - [x] **Turn Logging (`pai/pai.py`):**
+        - [x] `Turn` objects created in the arena loop are correctly populated with `model_name` and `participant_name`.
+        - [x] The main session log now contains a correctly interleaved sequence of turns from all participants.
+    - [x] **HTML Templates (`pai/templates/conversation.html`):**
+        - [x] Modified `get_rich_history_for_template` to add a `participant_index` to each message.
+        - [x] The HTML template now uses this index to assign unique CSS classes and colors, visually distinguishing messages from each participant in the arena log.
 - [ ] **Phase 5: Future Enhancements (Post-MVP)**
     - [ ] Allow participants to be on different endpoints within the same arena.
     - [ ] Implement a mechanism for the user to interject and steer the conversation mid-loop.

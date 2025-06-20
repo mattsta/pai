@@ -14,11 +14,9 @@
         div, pre { white-space: pre-wrap; word-wrap: break-word; }
         pre { background-color: #2d2d2d; color: #f2f2f2; padding: 15px; border-radius: 4px; }
         h1 { color: #444; }
-    </style>
-</head>
-<body>
-    <style>
-        .assistant.participant { border-left: 4px solid #673ab7; }
+        /* Arena participant styling */
+        .assistant.participant-0 { border-left: 4px solid #673ab7; background-color: #f7f5fa; }
+        .assistant.participant-1 { border-left: 4px solid #009688; background-color: #f2faf9; }
         .participant-info { font-size: 0.8em; color: #555; margin-bottom: 5px; }
     </style>
 </head>
@@ -26,7 +24,7 @@
     <h1>PAI Conversation ({{ conversation_id }})</h1>
 
     {% for message in history %}
-    <div class="message {{ message.role }}{% if message.participant_name %} participant{% endif %}">
+    <div class="message {{ message.role }}{% if message.participant_index is not none %} participant-{{ message.participant_index }}{% endif %}">
         {% if message.role == 'tool' %}
             <strong>Tool: {{ message.name }}</strong>
             <pre>{{ message.content }}</pre>

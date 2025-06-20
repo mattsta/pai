@@ -40,7 +40,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 
 1.  **`pai/pai.py` (The Orchestrator)**
     *   **Entrypoint:** Contains the `main()` function that parses command-line arguments using `argparse`.
-    *   **`InteractiveUI` and `Application`:** The `InteractiveUI` class encapsulates all logic for the text user interface. It creates and manages a persistent `prompt_toolkit.Application`. This application, not a simple `while` loop, manages the entire UI lifecycle, including the input prompt, live output window, `SearchToolbar` for history, and status toolbar. This approach is essential for a non-blocking, stable user interface. It uses `prompt-toolkit`'s `FileHistory` for history and a custom `Ctrl+C` key binding to allow for gracefully cancelling running completions without exiting the application.
+    *   **`InteractiveUI` and `Application`:** The `InteractiveUI` class encapsulates all logic for the text user interface. It creates and manages a persistent `prompt_toolkit.Application`. This application, not a simple `while` loop, manages the entire UI lifecycle, including the input prompt, live output window, `SearchToolbar` for history, and status toolbar. This approach is essential for a non-blocking, stable user interface. It uses `prompt-toolkit`'s `FileHistory` for history and a custom `Ctrl+C` key binding to allow for gracefully cancelling running completions without exiting the application. It contains handler methods for different modes, such as `_process_and_generate`, `_run_legacy_agent_loop`, and `_run_arena_loop`.
     *   **`CommandHandler` (`pai/commands.py`):** A dedicated class that parses and executes all `/` commands. Each command is its own class, making the system clean and easy to extend. The `CommandHandler` is instantiated by `InteractiveUI`.
     *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`TestSession`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It is passed to the `InteractiveUI` to orchestrate the flow from user input to protocol adapter execution.
 
@@ -60,9 +60,18 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   **Dynamic Loading:** The framework can automatically discover and load custom tools from user-defined directories, making it easy to add new capabilities without modifying core code. For a detailed guide, see [`docs/TOOLS.md`](./TOOLS.md).
 
 4.  **Core Data Models (`pai/models.py`)**
-    *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. A `Conversation` holds a list of `Turn` objects and also tracks `session_token_count`, which is the running total of tokens for the current conversation since the last `/clear`.
+    *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. A `Conversation` holds a list of `Turn` objects and also tracks `session_token_count`, which is the running total of tokens for the current conversation since the last `/clear`. `Turn` objects include optional fields for `participant_name` and `model_name` to support advanced logging scenarios.
     *   **`TestSession` & `RequestStats`:** These dataclasses track all metrics. `TestSession` is the accumulator for the entire application lifetime (total tokens, errors etc.). `RequestStats` holds detailed metrics for a single request, including `ttft` and `finish_reason`, and is used to power the live stats in the UI toolbar.
+    *   **`Arena` & `ArenaParticipant`:** To support multi-model conversations, these dataclasses model an "arena" session. The `Arena` holds the configuration for the overall session, including a dictionary of `ArenaParticipant` objects. Each participant has its own model configuration and a dedicated `Conversation` history object.
     *   **`StreamingDisplay`:** A critical component that manages all console output. It ensures that streaming responses do not corrupt the `prompt-toolkit` interface. It uses a swappable "printer" function to either print normally (for non-interactive use) or use `prompt-toolkit`'s thread-safe method (for interactive mode). It also tracks and exposes live state like `status` ("Waiting", "Streaming", etc.) and `live_tok_per_sec` (a smoothed average over the current stream's duration) to power the real-time UI toolbar. When waiting for a provider to respond, it will show a timer for requests that take longer than a few seconds, improving visibility into network latency.
+
+### Multi-Model Arena
+
+The framework supports a "Multi-Model Arena" mode where two AI models can converse with each other. This is orchestrated by the `_run_arena_loop` method in `InteractiveUI`.
+
+*   **Configuration:** Arenas are defined in `polyglot.toml` and loaded into `Arena` and `ArenaParticipant` data models.
+*   **Orchestration:** The `_run_arena_loop` manages the turn-based conversation. Crucially, it maintains **two separate `Conversation` objects**—one for each participant. This ensures that each model receives a valid, alternating `user`/`assistant` history from its own perspective.
+*   **Unified Logging:** While each participant has a private conversation history for generating its next turn, all turns from all participants are also added to a **single, unified `Conversation` object** managed by the `InteractiveUI`. This unified history is what gets saved to the session log, providing a complete, interleaved record of the multi-model dialogue.
 
 ### Session Persistence and Logging
 

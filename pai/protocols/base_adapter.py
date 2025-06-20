@@ -32,6 +32,7 @@ class BaseProtocolAdapter(ABC):
         context: ProtocolContext,
         request: Union["CompletionRequest", "ChatRequest"],
         verbose: bool,
+        actor_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """The main generation method."""
         pass

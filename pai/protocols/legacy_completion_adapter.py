@@ -16,7 +16,11 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
     """Handles the legacy /completions endpoint format."""
 
     async def generate(
-        self, context: ProtocolContext, request: CompletionRequest, verbose: bool
+        self,
+        context: ProtocolContext,
+        request: CompletionRequest,
+        verbose: bool,
+        actor_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         # MODIFIED: All client properties are now accessed through the context object.
         # e.g., client.config -> context.config
@@ -25,7 +29,9 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
         tokens_sent = estimate_tokens(request.prompt)
 
         try:
-            context.display.start_response(tokens_sent=tokens_sent)
+            context.display.start_response(
+                tokens_sent=tokens_sent, actor_name=actor_name
+            )
 
             if not request.stream:
                 response = await context.http_session.post(

@@ -14,7 +14,11 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
     """Handles any OpenAI-compatible /chat/completions endpoint."""
 
     async def generate(
-        self, context: ProtocolContext, request: ChatRequest, verbose: bool
+        self,
+        context: ProtocolContext,
+        request: ChatRequest,
+        verbose: bool,
+        actor_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         messages = list(request.messages)
         max_iterations = 5
@@ -33,7 +37,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
             try:
                 # Must start the response *before* printing the agent loop message
-                context.display.start_response(tokens_sent=tokens_sent)
+                context.display.start_response(
+                    tokens_sent=tokens_sent, actor_name=actor_name
+                )
                 if iteration > 0:
                     context.display._print(
                         "\n🔄 [Agent Loop] Sending tool results back to model..."

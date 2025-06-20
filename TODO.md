@@ -45,13 +45,13 @@ This is a list of concrete, near-term tasks to improve the framework.
         - [x] The loop correctly manages separate `Conversation` objects for each participant, ensuring valid turn-by-turn histories are maintained for each model.
         - [x] The loop feeds one model's output as the user input to the other.
         - [x] The loop runs for the specified number of turns and can be interrupted by `Ctrl+C`.
-- [ ] **Phase 3: User Interface and Experience**
-    - [ ] **UI State (`pai/pai.py`):**
-        - [ ] The bottom toolbar (`_get_toolbar_text`) needs to display the active arena and participants when in arena mode.
-        - [ ] The input prompt (`_create_application`) should change to reflect arena mode, an_d indicate which model will receive the user's initial prompt.
-    - [ ] **UI Display (`pai/pai.py`):**
-        - [ ] The `StreamingDisplay` and UI print functions must be updated to show which participant is "speaking".
-        - [ ] Instead of just "🤖 Assistant:", the output should be clearly labeled, e.g., "🤖 Proposer (gpt-4o-mini):". This will require passing participant metadata through the display pipeline.
+- [x] **Phase 3: User Interface and Experience**
+    - [x] **UI State (`pai/pai.py`):**
+        - [x] The bottom toolbar (`_get_toolbar_text`) now displays the active arena name, participants, and their models.
+        - [x] The input prompt (`_create_application`) now changes in arena mode to show which participant will receive the initial user prompt (e.g., "⚔️ Prompt for Proposer:").
+    - [x] **UI Display (`pai/pai.py`):**
+        - [x] The `StreamingDisplay` now accepts an `actor_name` to display which participant is "speaking".
+        - [x] Instead of "🤖 Assistant:", the output is now clearly labeled (e.g., "🤖 Proposer:"). The call stack was updated to pass this metadata through the display pipeline.
 - [ ] **Phase 4: Logging and Persistence**
     - [ ] **Turn Logging (`pai/pai.py`):**
         - [ ] When creating `Turn` objects inside the arena loop, the new `model_name` and `participant_name` fields must be correctly populated.

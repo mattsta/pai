@@ -80,6 +80,7 @@ class StreamingDisplay:
         self._printer = print  # Default to standard print
         self._is_interactive = False
         self.output_buffer: Optional[Buffer] = None
+        self.actor_name = "🤖 Assistant"
 
         # State for UI
         self.status = "Idle"
@@ -98,12 +99,13 @@ class StreamingDisplay:
         self._printer = printer
         self._is_interactive = is_interactive
 
-    def start_response(self, tokens_sent: int = 0):
+    def start_response(self, tokens_sent: int = 0, actor_name: Optional[str] = None):
         """Prepares for a new response stream."""
         self.current_response = ""
         if self.output_buffer:
             self.output_buffer.reset()
 
+        self.actor_name = actor_name or "🤖 Assistant"
         self.current_request_stats = RequestStats(tokens_sent=tokens_sent)
         self._last_token_time = None
         self.line_count = 0
@@ -170,13 +172,13 @@ class StreamingDisplay:
         if self._is_interactive and self.output_buffer:
             # For interactive mode with a buffer, update the buffer's content.
             # This will be displayed live in the UI's live output window.
-            self.output_buffer.text = f"🤖 Assistant: {self.current_response}"
+            self.output_buffer.text = f"{self.actor_name}: {self.current_response}"
             # Move the cursor to the end of the buffer to ensure scrolling.
             self.output_buffer.cursor_position = len(self.output_buffer.text)
         elif not self._is_interactive:
             # For non-interactive, print header once, then stream chunks.
             if self.chunk_count == 1:
-                self._print("\n🤖 Assistant: ", end="")
+                self._print(f"\n{self.actor_name}: ", end="")
             self._print(chunk_text, end="", flush=True)
 
         if self.debug_mode:
@@ -206,7 +208,7 @@ class StreamingDisplay:
         # buffer to the main conversation transcript. This happens regardless
         # of success to ensure partial/cancelled outputs are preserved.
         if self._is_interactive and self.current_response:
-            self._print(HTML(f"🤖 Assistant: {escape(self.current_response)}"))
+            self._print(HTML(f"{escape(self.actor_name)}: {escape(self.current_response)}"))
 
         # On success, print final stats.
         if success and self.current_request_stats:
@@ -289,7 +291,10 @@ class PolyglotClient:
         self.display._print(f"✅ Switched to endpoint: {self.config.name}")
 
     async def generate(
-        self, request: Union[CompletionRequest, ChatRequest], verbose: bool
+        self,
+        request: Union[CompletionRequest, ChatRequest],
+        verbose: bool,
+        actor_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         is_chat = isinstance(request, ChatRequest)
         adapter = (
@@ -315,7 +320,7 @@ class PolyglotClient:
             config=self.config,
             tools_enabled=self.tools_enabled,
         )
-        return await adapter.generate(context, request, verbose)
+        return await adapter.generate(context, request, verbose, actor_name=actor_name)
 
 
 def print_banner():
@@ -393,15 +398,23 @@ class InteractiveUI:
     def _create_application(self) -> Application:
         """Constructs the prompt_toolkit Application object."""
         # This is the main input bar at the bottom of the screen.
+        def get_prompt_text() -> HTML:
+            if self.arena_mode and self.active_arena and not self.generation_in_progress.is_set():
+                initiator = self.active_arena.get_initiator()
+                # Use a specific prompt for the arena's first turn
+                return HTML(
+                    f"<style fg='ansigreen'>⚔️  Prompt for {initiator.name}:</style> "
+                )
+            return HTML(
+                f"<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> "
+            )
+
         prompt_ui = VSplit(
             [
                 Window(
-                    FormattedTextControl(
-                        lambda: HTML(
-                            f"<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> "
-                        )
-                    ),
-                    width=lambda: len(f"👤 ({self._get_mode_display_name()}) User: ")
+                    FormattedTextControl(get_prompt_text),
+                    # The width must calculate the length of the *unformatted* string.
+                    width=lambda: len(re.sub("<[^<]+?>", "", get_prompt_text().value))
                     + 1,
                 ),
                 Window(BufferControl(buffer=self.input_buffer)),
@@ -824,7 +837,9 @@ class InteractiveUI:
                         tools=get_tool_schemas() if self.client.tools_enabled else [],
                     )
 
-                    result = await self.client.generate(request, self.args.verbose)
+                    result = await self.client.generate(
+                        request, self.args.verbose
+                    )
                     assistant_message = result.get("text", "")
 
                     # Create a Turn object with all metadata
@@ -911,7 +926,18 @@ class InteractiveUI:
                     live_stats.tokens_sent + live_stats.tokens_received
                 )
 
-            line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Total:</b> {total_tokens} | <b>Session:</b> {session_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
+            if self.arena_mode and self.active_arena:
+                p_details = " vs ".join(
+                    [
+                        f"{p.name} ({p.model})"
+                        for p in self.active_arena.participants.values()
+                    ]
+                )
+                arena_name_esc = escape(self.active_arena.name)
+                p_details_esc = escape(p_details)
+                line1 = f"<b><style bg='ansiblue' fg='white'> ⚔️ ARENA: {arena_name_esc} </style></b> | {p_details_esc}"
+            else:
+                line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Total:</b> {total_tokens} | <b>Session:</b> {session_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
 
             # --- Line 2: Live and Last Request Stats ---
             last_req = session_stats.last_request_stats
@@ -956,10 +982,12 @@ class InteractiveUI:
             debug_status = (
                 f"<style fg='ansiyellow'>ON</style>" if display.debug_mode else "OFF"
             )
+            mode_str = escape(self._get_mode_display_name())
+
             line3_parts = [
                 f"<b>Tools:</b> {tools_status}",
                 f"<b>Debug:</b> {debug_status}",
-                f"<b>Mode:</b> {'Chat' if self.is_chat_mode else 'Completion'}",
+                f"<b>Mode:</b> {mode_str}",
                 f"<style fg='grey'>Log: {session_dir_esc}</style>",
             ]
 

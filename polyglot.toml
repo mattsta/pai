@@ -75,6 +75,13 @@ initiator = "proposer"
   model = "gpt-4o-mini"
   system_prompt_key = "code_refactor"
 
+  # An optional third participant who observes and summarizes the conversation.
+  [arenas.debate.judge]
+  name = "Judge"
+  endpoint = "openai"
+  model = "gpt-4o"
+  system_prompt_key = "judge"
+
 [arenas.cross_talk]
 # An example of an arena with participants on different endpoints.
 # This requires API keys for both endpoints to be configured.

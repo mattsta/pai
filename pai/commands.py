@@ -493,14 +493,38 @@ class ArenaCommand(Command):
                     conversation=conversation,
                 )
 
+            judge_participant = None
+            if judge_config:
+                prompt_key = judge_config["system_prompt_key"]
+                prompt_path = self.ui.prompts_dir / f"{prompt_key}.md"
+                if not prompt_path.exists():
+                    prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
+
+                if not prompt_path.is_file():
+                    raise FileNotFoundError(f"System prompt file for judge '{prompt_key}' not found.")
+
+                system_prompt = prompt_path.read_text(encoding="utf-8")
+                judge_participant = ArenaParticipant(
+                    id="judge",
+                    name=judge_config["name"],
+                    endpoint=judge_config["endpoint"],
+                    model=judge_config["model"],
+                    system_prompt=system_prompt,
+                    conversation=Conversation(
+                        _messages=[{"role": "system", "content": system_prompt}]
+                    ),
+                )
+                participants["judge"] = judge_participant
+
             arena_config_obj = Arena(
                 name=arena_name,
                 participants=participants,
                 initiator_id=arena_config["initiator"],
+                judge=judge_participant,
             )
 
-            # Setup turn order, starting with the initiator
-            p_ids = list(participants.keys())
+            # Setup turn order (without the judge), starting with the initiator
+            p_ids = [p for p in participants.keys() if p != "judge"]
             initiator_idx = p_ids.index(arena_config_obj.initiator_id)
             turn_order_ids = p_ids[initiator_idx:] + p_ids[:initiator_idx]
 

@@ -67,11 +67,12 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 
 ### Multi-Model Arena
 
-The framework supports a "Multi-Model Arena" mode where two AI models can converse with each other. This is orchestrated by the `_run_arena_loop` method in `InteractiveUI`.
+The framework supports a "Multi-Model Arena" mode where two AI models can converse with each other. This is orchestrated by the `_run_arena_orchestrator` method in `InteractiveUI`.
 
-*   **Configuration:** Arenas are defined in `polyglot.toml` and loaded into `Arena` and `ArenaParticipant` data models.
-*   **Orchestration:** The `_run_arena_loop` manages the turn-based conversation. Crucially, it maintains **two separate `Conversation` objects**—one for each participant. This ensures that each model receives a valid, alternating `user`/`assistant` history from its own perspective.
-*   **Unified Logging:** While each participant has a private conversation history for generating its next turn, all turns from all participants are also added to a **single, unified `Conversation` object** managed by the `InteractiveUI`. This unified history is what gets saved to the session log, providing a complete, interleaved record of the multi-model dialogue.
+*   **Configuration:** Arenas are defined in `polyglot.toml`. They consist of two or more `participants` and an optional `judge`. These are loaded into `Arena` and `ArenaParticipant` data models.
+*   **Orchestration:** The `_run_arena_orchestrator` manages the pausable, turn-based conversation. Crucially, it maintains a separate `Conversation` object for each participant, ensuring each model receives a valid, alternating `user`/`assistant` history from its own perspective.
+*   **Judge Model:** After the primary dialogue concludes (or is cancelled), the orchestrator can invoke an optional judge model. The judge is provided with the *entire unified conversation history* and a special prompt to generate a final summary and verdict.
+*   **Unified Logging:** While each participant has a private conversation history for generating its next turn, all turns—including the final verdict from the judge—are added to a **single, unified `Conversation` object** managed by the `InteractiveUI`. This unified history is what gets saved to the session log, providing a complete, interleaved record of the entire multi-model session.
 
 ### Session Persistence and Logging
 

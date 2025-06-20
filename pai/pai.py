@@ -393,7 +393,8 @@ class InteractiveUI:
                 and self.generation_in_progress.is_set()
                 else "Running"
             )
-            return f"Arena: {self.arena_state.arena_config.name} ({status})"
+            judge_str = " w/ Judge" if self.arena_state.arena_config.judge else ""
+            return f"Arena: {self.arena_state.arena_config.name}{judge_str} ({status})"
         if self.native_agent_mode:
             return "Agent"
         if self.legacy_agent_mode:
@@ -914,6 +915,8 @@ class InteractiveUI:
             self.pt_printer(HTML(f"<style fg='ansired'>❌ ARENA ERROR: {e}</style>"))
         finally:
             if self.arena_state:
+                # If cancelled, still try to run the judge for a summary
+                await self._run_arena_judge()
                 self.pt_printer(
                     f"\n🏁 Arena '{self.arena_state.arena_config.name}' session ended."
                 )
@@ -929,6 +932,69 @@ class InteractiveUI:
             self.arena_state = None
             self.generation_in_progress.clear()
             self.generation_task = None
+
+    async def _run_arena_judge(self):
+        """If a judge is configured, run it to get a final verdict."""
+        if not self.arena_state or not self.arena_state.arena_config.judge:
+            return
+
+        judge = self.arena_state.arena_config.judge
+        self.pt_printer(
+            HTML(
+                f"\n<style bg='ansiyellow' fg='black'> 🧑‍⚖️ The Judge is now deliberating... </style>"
+            )
+        )
+
+        # The judge sees the entire conversation, so we create a new history
+        # that includes the judge's own system prompt.
+        messages = judge.conversation.get_history()
+        # It's a list comprehension, but it gets the `content` of the `user` message
+        # that started it all, then the `assistant` message of every turn.
+        full_dialogue = "\n\n".join(
+            [
+                f"{t.participant_name or 'user'}: {t.assistant_message or t.request_data.get('messages', [{}])[-1].get('content', '')}"
+                for t in self.conversation.turns
+            ]
+        )
+        messages.append(
+            {
+                "role": "user",
+                "content": f"Here is the full conversation transcript:\n\n---\n{full_dialogue}\n---\n\nPlease provide your summary and verdict.",
+            }
+        )
+
+        # Switch to the judge's endpoint and model
+        if self.client.config.name.lower() != judge.endpoint.lower():
+            self.client.switch_endpoint(judge.endpoint)
+        self.client.config.model_name = judge.model
+
+        request = ChatRequest(
+            messages=messages,
+            model=judge.model,
+            max_tokens=self.args.max_tokens,
+            temperature=self.args.temperature,
+            stream=self.args.stream,
+        )
+
+        actor_name = f"🧑‍⚖️ {judge.name}"
+        result = await self.client.generate(
+            request, self.args.verbose, actor_name=actor_name
+        )
+        assistant_message = result.get("text", "")
+
+        # Log the judge's turn
+        turn = Turn(
+            request_data=result.get("request", {}),
+            response_data=result.get("response", {}),
+            assistant_message=assistant_message,
+            participant_name=judge.name,
+            model_name=judge.model,
+        )
+        request_stats = self.client.stats.last_request_stats
+        self.conversation.add_turn(turn, request_stats)
+        save_conversation_formats(
+            self.conversation, self.session_dir, printer=self.pt_printer
+        )
 
     def _get_toolbar_text(self) -> HTML:
         """Generates the HTML for the multi-line bottom toolbar."""
@@ -964,15 +1030,20 @@ class InteractiveUI:
                 session_tokens += live_stats.tokens_sent + live_stats.tokens_received
 
             if self.arena_state:
+                p_configs = self.arena_state.arena_config.participants
                 p_details = " vs ".join(
                     [
                         f"{p.name} ({p.model})"
-                        for p in self.arena_state.arena_config.participants.values()
+                        for p_id, p in p_configs.items()
+                        if p_id != "judge"
                     ]
+                )
+                judge_str = (
+                    " w/ Judge" if self.arena_state.arena_config.judge else ""
                 )
                 arena_name_esc = escape(self.arena_state.arena_config.name)
                 p_details_esc = escape(p_details)
-                line1 = f"<b><style bg='ansiblue' fg='white'> ⚔️ ARENA: {arena_name_esc} </style></b> | {p_details_esc}"
+                line1 = f"<b><style bg='ansiblue' fg='white'> ⚔️ ARENA: {arena_name_esc}{judge_str} </style></b> | {p_details_esc}"
             else:
                 line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Total:</b> {total_tokens} | <b>Session:</b> {session_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
 

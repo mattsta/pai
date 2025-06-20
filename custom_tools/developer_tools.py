@@ -1,8 +1,10 @@
 import json
 import shutil
 import subprocess
+
 from pai.tools import tool
-from .file_system import is_safe_path, WORKSPACE
+
+from .file_system import WORKSPACE, is_safe_path
 
 # --- Prerequisite Note ---
 # The tools in this file depend on external command-line utilities.
@@ -35,7 +37,7 @@ def _run_command(command: list[str], check_tool_name: str, working_dir: str) -> 
             return f"Error: Command failed with exit code {result.returncode}.\nSTDERR:\n{result.stderr}"
         return result.stdout
     except subprocess.TimeoutExpired:
-        return f"Error: Command timed out after 15 seconds."
+        return "Error: Command timed out after 15 seconds."
     except Exception as e:
         return f"An unexpected error occurred: {e}"
 
@@ -102,7 +104,7 @@ def read_file_lines(path: str, start_line: int, end_line: int) -> str:
         return "Error: Invalid line range. Start must be > 0 and end >= start."
 
     try:
-        with open(WORKSPACE / path, "r", encoding="utf-8") as f:
+        with open(WORKSPACE / path, encoding="utf-8") as f:
             lines = f.readlines()
 
         start_index = start_line - 1

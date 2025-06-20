@@ -1,9 +1,11 @@
-import re
-import json
 import difflib
+import json
 import pathlib
+import re
+
 from pai.tools import tool
-from .file_system import is_safe_path, WORKSPACE
+
+from .file_system import WORKSPACE, is_safe_path
 
 # The regex to parse a single SEARCH/REPLACE block from a script.
 # It captures the file path, search content, and replace content.

@@ -4,23 +4,26 @@ This version is a direct refactoring of the original code, preserving all featur
 and fixing the circular import error.
 """
 
-import os
-import re
-import sys
-import json
-import time
 import argparse
 import asyncio
-import httpx
-import ulid
+import json
+import os
 import pathlib
-from html import escape
-from typing import Optional, Dict, Any, Union, List
+import re
+import sys
+import time
 from datetime import datetime
+from html import escape
+from typing import Any
+
+import httpx
+import toml
 from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
 from prompt_toolkit.layout.containers import (
@@ -29,35 +32,29 @@ from prompt_toolkit.layout.containers import (
     VSplit,
     Window,
 )
-from prompt_toolkit.widgets import SearchToolbar
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
-from prompt_toolkit.filters import Condition
-from prompt_toolkit.history import FileHistory
+from prompt_toolkit.widgets import SearchToolbar
 
-import toml
-
-from .utils import estimate_tokens
-from .log_utils import print_stats, closing, save_conversation_formats
 from .commands import CommandHandler
-from .tools import get_tool_schemas
-
+from .log_utils import closing, print_stats, save_conversation_formats
 from .models import (
-    Turn,
+    ArenaState,
+    ChatRequest,
+    CompletionRequest,
     Conversation,
+    EndpointConfig,
     RequestStats,
     TestSession,
-    EndpointConfig,
-    CompletionRequest,
-    ChatRequest,
-    Arena,
-    ArenaState,
+    Turn,
 )
 
 # --- Protocol Adapter Imports ---
-from .protocols.base_adapter import BaseProtocolAdapter, ProtocolContext
-from .protocols.openai_chat_adapter import OpenAIChatAdapter
+from .protocols.base_adapter import ProtocolContext
 from .protocols.legacy_completion_adapter import LegacyCompletionAdapter
+from .protocols.openai_chat_adapter import OpenAIChatAdapter
+from .tools import get_tool_schemas
+from .utils import estimate_tokens
 
 # --- Global Definitions ---
 session = PromptSession()
@@ -80,14 +77,14 @@ class StreamingDisplay:
         self.debug_mode = debug_mode
         self._printer = print  # Default to standard print
         self._is_interactive = False
-        self.output_buffer: Optional[Buffer] = None
+        self.output_buffer: Buffer | None = None
         self.actor_name = "🤖 Assistant"
 
         # State for UI
         self.status = "Idle"
         # Holds the stats for the *in-progress* request.
-        self.current_request_stats: Optional[RequestStats] = None
-        self._last_token_time: Optional[float] = None
+        self.current_request_stats: RequestStats | None = None
+        self._last_token_time: float | None = None
 
         # Response tracking
         self.line_count: int = 0
@@ -100,7 +97,7 @@ class StreamingDisplay:
         self._printer = printer
         self._is_interactive = is_interactive
 
-    def start_response(self, tokens_sent: int = 0, actor_name: Optional[str] = None):
+    def start_response(self, tokens_sent: int = 0, actor_name: str | None = None):
         """Prepares for a new response stream."""
         self.current_response = ""
         if self.output_buffer:
@@ -145,7 +142,7 @@ class StreamingDisplay:
                 prefix = f"🔵 [{duration:6.2f}s] L{self.line_count:03d}: "
             self._print(f"{prefix}{repr(line)}")
 
-    def show_parsed_chunk(self, chunk_data: Dict, chunk_text: str):
+    def show_parsed_chunk(self, chunk_data: dict, chunk_text: str):
         """Handles printing a parsed chunk of text from the stream."""
         # Don't do anything for empty chunks, which some providers send.
         if not chunk_text:
@@ -192,7 +189,7 @@ class StreamingDisplay:
                 f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
             )
 
-    def finish_response(self, success: bool = True) -> Optional[RequestStats]:
+    def finish_response(self, success: bool = True) -> RequestStats | None:
         """Finalizes the response, prints stats, and resets the display state."""
         self.status = "Done"
         if self.current_request_stats:
@@ -209,7 +206,9 @@ class StreamingDisplay:
         # buffer to the main conversation transcript. This happens regardless
         # of success to ensure partial/cancelled outputs are preserved.
         if self._is_interactive and self.current_response:
-            self._print(HTML(f"{escape(self.actor_name)}: {escape(self.current_response)}"))
+            self._print(
+                HTML(f"{escape(self.actor_name)}: {escape(self.current_response)}")
+            )
 
         # On success, print final stats.
         if success and self.current_request_stats:
@@ -244,7 +243,7 @@ class PolyglotClient:
     def __init__(
         self,
         args: argparse.Namespace,
-        loaded_config: Dict,
+        loaded_config: dict,
         http_session: httpx.AsyncClient,
     ):
         self.all_endpoints = loaded_config.get("endpoints", [])
@@ -293,10 +292,10 @@ class PolyglotClient:
 
     async def generate(
         self,
-        request: Union[CompletionRequest, ChatRequest],
+        request: CompletionRequest | ChatRequest,
         verbose: bool,
-        actor_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        actor_name: str | None = None,
+    ) -> dict[str, Any]:
         is_chat = isinstance(request, ChatRequest)
         adapter = (
             self.config.chat_adapter if is_chat else self.config.completion_adapter
@@ -371,11 +370,11 @@ class InteractiveUI:
         self.native_agent_mode = False
         self.legacy_agent_mode = False
         # Arena state
-        self.arena_state: Optional[ArenaState] = None
+        self.arena_state: ArenaState | None = None
         self.arena_paused_event = asyncio.Event()
 
         self.generation_in_progress = asyncio.Event()
-        self.generation_task: Optional[asyncio.Task] = None
+        self.generation_task: asyncio.Task | None = None
         self.spinner_chars = ["|", "/", "-", "\\"]
         self.spinner_idx = 0
 
@@ -405,6 +404,7 @@ class InteractiveUI:
 
     def _create_application(self) -> Application:
         """Constructs the prompt_toolkit Application object."""
+
         # This is the main input bar at the bottom of the screen.
         def get_prompt_text() -> HTML:
             # If we are in arena mode, but there is no active generation task,
@@ -610,7 +610,7 @@ class InteractiveUI:
 
     async def _process_and_generate(self, user_input_str: str):
         self.generation_in_progress.set()
-        request: Optional[Union[ChatRequest, CompletionRequest]] = None
+        request: ChatRequest | CompletionRequest | None = None
         try:
             if self.is_chat_mode and self.legacy_agent_mode:
                 await self._run_legacy_agent_loop(user_input_str)
@@ -760,7 +760,9 @@ class InteractiveUI:
             if tool_match:
                 used_tools_in_loop = True
                 self.pt_printer(
-                    HTML("\n<style fg='ansimagenta'>🔧 Agent wants to use a tool...</style>")
+                    HTML(
+                        "\n<style fg='ansimagenta'>🔧 Agent wants to use a tool...</style>"
+                    )
                 )
                 # The full tool_call text is printed by the generate() function's
                 # display handler. We can't easily suppress it, but we can clear
@@ -772,7 +774,9 @@ class InteractiveUI:
                 args_match = re.search(r"<args>(.*?)</args>", tool_xml, re.DOTALL)
 
                 if not name_match or not args_match:
-                    tool_result = "Error: Invalid tool_call format. Missing <name> or <args> tag."
+                    tool_result = (
+                        "Error: Invalid tool_call format. Missing <name> or <args> tag."
+                    )
                 else:
                     tool_name = name_match.group(1).strip()
                     tool_args_str = args_match.group(1).strip()
@@ -783,7 +787,9 @@ class InteractiveUI:
                         )
                         tool_result = execute_tool(tool_name, tool_args)
                     except json.JSONDecodeError:
-                        tool_result = f"Error: Invalid JSON in <args> for tool {tool_name}."
+                        tool_result = (
+                            f"Error: Invalid JSON in <args> for tool {tool_name}."
+                        )
                     except Exception as e:
                         tool_result = f"Error executing tool {tool_name}: {e}"
 
@@ -791,7 +797,11 @@ class InteractiveUI:
                 # We use the 'user' role to make it clear this is external input.
                 tool_result_message = f"TOOL_RESULT:\n```\n{tool_result}\n```"
                 messages.append({"role": "user", "content": tool_result_message})
-                self.pt_printer(HTML(f"<style fg='ansimagenta'>  - Result: {escape(str(tool_result))[:300]}...</style>"))
+                self.pt_printer(
+                    HTML(
+                        f"<style fg='ansimagenta'>  - Result: {escape(str(tool_result))[:300]}...</style>"
+                    )
+                )
                 # Continue the loop
             else:
                 # No tool call found, this is the final answer. `generate()` has already
@@ -892,7 +902,7 @@ class InteractiveUI:
                     state.turn_order_ids[1:] + state.turn_order_ids[:1]
                 )
 
-            self.pt_printer(f"\n🏁 Arena finished: Maximum turns reached.")
+            self.pt_printer("\n🏁 Arena finished: Maximum turns reached.")
 
         except asyncio.CancelledError:
             self.pt_printer(
@@ -923,7 +933,7 @@ class InteractiveUI:
     def _get_toolbar_text(self) -> HTML:
         """Generates the HTML for the multi-line bottom toolbar."""
         try:
-            client, args, session_dir = self.client, self.args, self.session_dir
+            client, _args, session_dir = self.client, self.args, self.session_dir
             endpoint, model = client.config.name, client.config.model_name
             session_stats, display = client.stats, client.display
             live_stats = display.current_request_stats
@@ -951,9 +961,7 @@ class InteractiveUI:
 
             session_tokens = self.conversation.session_token_count
             if live_stats and display.status in ["Waiting...", "Streaming"]:
-                session_tokens += (
-                    live_stats.tokens_sent + live_stats.tokens_received
-                )
+                session_tokens += live_stats.tokens_sent + live_stats.tokens_received
 
             if self.arena_state:
                 p_details = " vs ".join(
@@ -1004,12 +1012,12 @@ class InteractiveUI:
                 ]
 
             tools_status = (
-                f"<style fg='ansigreen'>ON</style>"
+                "<style fg='ansigreen'>ON</style>"
                 if client.tools_enabled
-                else f"<style fg='ansired'>OFF</style>"
+                else "<style fg='ansired'>OFF</style>"
             )
             debug_status = (
-                f"<style fg='ansiyellow'>ON</style>" if display.debug_mode else "OFF"
+                "<style fg='ansiyellow'>ON</style>" if display.debug_mode else "OFF"
             )
             mode_str = escape(self._get_mode_display_name())
 
@@ -1060,7 +1068,7 @@ async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
 async def async_main(args: argparse.Namespace):
     """The async entrypoint for the application."""
     try:
-        with open(args.config, "r", encoding="utf-8") as f:
+        with open(args.config, encoding="utf-8") as f:
             loaded_config = toml.load(f)
     except FileNotFoundError:
         sys.exit(f"❌ FATAL: Config file not found at '{args.config}'")

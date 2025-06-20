@@ -1,13 +1,14 @@
 # protocols/openai_chat_adapter.py
-import time
 import json
-from typing import Dict, Any
+import time
+from typing import Any
+
+from ..models import ChatRequest
+from ..tools import execute_tool
+from ..utils import estimate_tokens
 
 # MODIFIED: Now uses the clean context object.
 from .base_adapter import BaseProtocolAdapter, ProtocolContext
-from ..models import ChatRequest
-from ..tools import get_tool_schemas, execute_tool
-from ..utils import estimate_tokens
 
 
 class OpenAIChatAdapter(BaseProtocolAdapter):
@@ -18,8 +19,8 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
         context: ProtocolContext,
         request: ChatRequest,
         verbose: bool,
-        actor_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        actor_name: str | None = None,
+    ) -> dict[str, Any]:
         messages = list(request.messages)
         max_iterations = 5
 

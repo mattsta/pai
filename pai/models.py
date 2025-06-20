@@ -2,19 +2,18 @@
 Data models for Polyglot AI state, history, and requests.
 """
 
-import json
 import time
-import ulid
-import pathlib
-from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING, Any, Optional
+
+import ulid
 
 from .utils import estimate_tokens
 
 if TYPE_CHECKING:
-    from .protocols.base_adapter import BaseProtocolAdapter
     from .models import RequestStats
+    from .protocols.base_adapter import BaseProtocolAdapter
 
 
 @dataclass
@@ -23,14 +22,14 @@ class Turn:
 
     turn_id: ulid.ULID = field(default_factory=ulid.new)
     timestamp: datetime = field(default_factory=datetime.now)
-    request_data: Dict[str, Any] = field(default_factory=dict)
-    response_data: Dict[str, Any] = field(default_factory=dict)
+    request_data: dict[str, Any] = field(default_factory=dict)
+    response_data: dict[str, Any] = field(default_factory=dict)
     assistant_message: str = ""
     # Arena mode fields
-    participant_name: Optional[str] = None
-    model_name: Optional[str] = None
+    participant_name: str | None = None
+    model_name: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serializes the turn to a dictionary, handling non-native JSON types."""
         return {
             "turn_id": str(self.turn_id),
@@ -48,9 +47,9 @@ class Conversation:
     """Manages the full conversation history, composed of multiple turns."""
 
     conversation_id: ulid.ULID = field(default_factory=ulid.new)
-    turns: List[Turn] = field(default_factory=list)
+    turns: list[Turn] = field(default_factory=list)
     # The messages list represents the state of the conversation *before* the next user input
-    _messages: List[Dict[str, str]] = field(default_factory=list)
+    _messages: list[dict[str, str]] = field(default_factory=list)
     session_token_count: int = 0
 
     def add_turn(self, turn: Turn, request_stats: Optional["RequestStats"] = None):
@@ -67,13 +66,13 @@ class Conversation:
                 request_stats.tokens_sent + request_stats.tokens_received
             )
 
-    def get_messages_for_next_turn(self, user_input: str) -> List[Dict[str, str]]:
+    def get_messages_for_next_turn(self, user_input: str) -> list[dict[str, str]]:
         """Returns the list of messages for the next API call, including the new user input."""
         next_messages = list(self._messages)
         next_messages.append({"role": "user", "content": user_input})
         return next_messages
 
-    def get_history(self) -> List[Dict[str, str]]:
+    def get_history(self) -> list[dict[str, str]]:
         """Returns the current message history."""
         return self._messages
 
@@ -87,7 +86,7 @@ class Conversation:
             if m.get("content")
         )
 
-    def get_rich_history_for_template(self) -> List[Dict[str, Any]]:
+    def get_rich_history_for_template(self) -> list[dict[str, Any]]:
         """
         Generates a enriched history list suitable for detailed HTML logging.
         It reconstructs the message flow from turns, adding participant info.
@@ -142,15 +141,15 @@ class RequestStats:
     """Encapsulates all statistics for a single request-response cycle."""
 
     start_time: float = field(default_factory=time.time)
-    ttft: Optional[float] = None
-    response_time: Optional[float] = None
+    ttft: float | None = None
+    response_time: float | None = None
     tokens_sent: int = 0
     tokens_received: int = 0
     success: bool = True
-    finish_reason: Optional[str] = None
+    finish_reason: str | None = None
 
     # Internal state for live calculations
-    _first_token_time: Optional[float] = None
+    _first_token_time: float | None = None
 
     def record_first_token(self):
         """Call this when the first token is received to capture TTFT."""
@@ -204,7 +203,7 @@ class TestSession:
     total_response_time: float = 0.0
     errors: int = 0
     # Holds the stats for the most recently *completed* successful request.
-    last_request_stats: Optional[RequestStats] = None
+    last_request_stats: RequestStats | None = None
 
     def add_completed_request(self, stats: RequestStats):
         """
@@ -222,7 +221,7 @@ class TestSession:
         if not stats.success:
             self.errors += 1
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         successful_requests = self.requests_sent - self.errors
         success_rate = (successful_requests / max(self.requests_sent, 1)) * 100
         avg_response_time = self.total_response_time / max(successful_requests, 1)
@@ -259,10 +258,10 @@ class Arena:
     """Configuration for a two-participant arena session."""
 
     name: str  # e.g., "debate"
-    participants: Dict[str, ArenaParticipant]
+    participants: dict[str, ArenaParticipant]
     initiator_id: str
 
-    def get_participant(self, participant_id: str) -> Optional[ArenaParticipant]:
+    def get_participant(self, participant_id: str) -> ArenaParticipant | None:
         return self.participants.get(participant_id)
 
     def get_initiator(self) -> ArenaParticipant:
@@ -276,7 +275,7 @@ class ArenaState:
     """Holds the dynamic state of an ongoing arena session."""
 
     arena_config: Arena
-    turn_order_ids: List[str]
+    turn_order_ids: list[str]
     max_turns: int
     last_message: str = ""
     # Multiply by number of participants since one "turn" involves everyone speaking once.
@@ -291,7 +290,7 @@ class ArenaState:
 @dataclass
 class EndpointConfig:
     name: str = "default"
-    api_key: Optional[str] = None
+    api_key: str | None = None
     base_url: str = ""
     model_name: str = "default/model"
     # The timeout for individual requests, in seconds.
@@ -305,12 +304,12 @@ class EndpointConfig:
 @dataclass
 class CompletionRequest:
     prompt: str
-    model: Optional[str] = None
+    model: str | None = None
     max_tokens: int = 1000
     temperature: float = 0.7
     stream: bool = False
 
-    def to_dict(self, default_model: str) -> Dict[str, Any]:
+    def to_dict(self, default_model: str) -> dict[str, Any]:
         return {
             "model": self.model or default_model,
             "prompt": self.prompt,
@@ -322,14 +321,14 @@ class CompletionRequest:
 
 @dataclass
 class ChatRequest:
-    messages: List[Dict[str, str]]
-    model: Optional[str] = None
+    messages: list[dict[str, str]]
+    model: str | None = None
     max_tokens: int = 1000
     temperature: float = 0.7
     stream: bool = False
-    tools: List[Dict[str, Any]] = field(default_factory=list)
+    tools: list[dict[str, Any]] = field(default_factory=list)
 
-    def to_dict(self, default_model: str) -> Dict[str, Any]:
+    def to_dict(self, default_model: str) -> dict[str, Any]:
         """Serializes the request to a dictionary for the API call."""
         payload = {
             "model": self.model or default_model,

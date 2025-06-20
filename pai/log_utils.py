@@ -4,7 +4,8 @@ Utilities for session logging, statistics printing, and persistence.
 
 import json
 import pathlib
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 

@@ -1,12 +1,12 @@
 # protocols/legacy_completion_adapter.py
-import time
 import json
-from typing import Dict, Any
+from typing import Any
+
+from ..models import CompletionRequest
+from ..utils import estimate_tokens
 
 # MODIFIED: No longer imports from the main script. Imports the context object instead.
 from .base_adapter import BaseProtocolAdapter, ProtocolContext
-from ..models import CompletionRequest
-from ..utils import estimate_tokens
 
 # Import APIError from the main module for type consistency if needed, but it's better to raise generic exceptions
 # from ..polyglot import APIError # We will use a generic exception instead to keep it decoupled.
@@ -20,8 +20,8 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
         context: ProtocolContext,
         request: CompletionRequest,
         verbose: bool,
-        actor_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        actor_name: str | None = None,
+    ) -> dict[str, Any]:
         # MODIFIED: All client properties are now accessed through the context object.
         # e.g., client.config -> context.config
         url = f"{context.config.base_url}/completions"

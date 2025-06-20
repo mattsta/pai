@@ -1,12 +1,13 @@
 # protocols/base_adapter.py
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Dict, Any, Union, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, Union
+
 import httpx
 
 # MODIFIED: Import from models and pai separately to avoid circular deps.
 if TYPE_CHECKING:
+    from ..models import ChatRequest, CompletionRequest, EndpointConfig, TestSession
     from ..pai import StreamingDisplay
-    from ..models import EndpointConfig, TestSession, CompletionRequest, ChatRequest
 
 
 # NEW: Define a simple data structure to pass context from the client to the adapters.
@@ -32,7 +33,7 @@ class BaseProtocolAdapter(ABC):
         context: ProtocolContext,
         request: Union["CompletionRequest", "ChatRequest"],
         verbose: bool,
-        actor_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        actor_name: str | None = None,
+    ) -> dict[str, Any]:
         """The main generation method."""
         pass

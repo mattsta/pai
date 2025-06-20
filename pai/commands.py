@@ -5,13 +5,15 @@ class-based approach where each command is a self-contained object.
 
 import json
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING
+
+from .models import Arena, ArenaParticipant, ArenaState, Conversation
 from .tools import get_tool_schemas
-from .models import Arena, ArenaParticipant, Conversation, ArenaState
 
 if TYPE_CHECKING:
-    from .pai import InteractiveUI
     from prompt_toolkit.application import Application
+
+    from .pai import InteractiveUI
 
 
 # --- Base Command Class ---
@@ -28,7 +30,7 @@ class Command(ABC):
         pass
 
     @property
-    def aliases(self) -> List[str]:
+    def aliases(self) -> list[str]:
         """A list of alternative names for the command."""
         return []
 
@@ -38,7 +40,7 @@ class Command(ABC):
         return False
 
     @abstractmethod
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         """The logic to execute when the command is called."""
         pass
 
@@ -53,7 +55,7 @@ class QuitCommand(Command):
     def aliases(self):
         return ["exit", "q"]
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         app.exit()
 
 
@@ -62,7 +64,7 @@ class StatsCommand(Command):
     def name(self):
         return "stats"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         from .log_utils import print_stats
 
         print_stats(self.ui.client.stats, printer=self.ui.pt_printer)
@@ -73,7 +75,7 @@ class HelpCommand(Command):
     def name(self):
         return "help"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         self.ui.pt_printer(
             """
 🔧 AVAILABLE COMMANDS:
@@ -110,7 +112,7 @@ class EndpointsCommand(Command):
     def name(self):
         return "endpoints"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         self.ui.pt_printer("Available Endpoints:")
         for ep in self.ui.client.all_endpoints:
             self.ui.pt_printer(f" - {ep['name']}")
@@ -125,7 +127,7 @@ class SwitchCommand(Command):
     def requires_param(self):
         return True
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         self.ui.client.switch_endpoint(param)
 
 
@@ -138,7 +140,7 @@ class ModelCommand(Command):
     def requires_param(self):
         return True
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         self.ui.client.config.model_name = param
         self.ui.pt_printer(f"✅ Model set to: {param}")
 
@@ -152,7 +154,7 @@ class TempCommand(Command):
     def requires_param(self):
         return True
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         try:
             self.ui.args.temperature = float(param)
             self.ui.pt_printer(f"✅ Temp set to: {self.ui.args.temperature}")
@@ -169,7 +171,7 @@ class TokensCommand(Command):
     def requires_param(self):
         return True
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         try:
             self.ui.args.max_tokens = int(param)
             self.ui.pt_printer(f"✅ Max tokens set to: {self.ui.args.max_tokens}")
@@ -186,7 +188,7 @@ class TimeoutCommand(Command):
     def requires_param(self):
         return True
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         try:
             timeout_val = int(param)
             if timeout_val <= 0:
@@ -204,7 +206,7 @@ class ToggleStreamCommand(Command):
     def name(self):
         return "stream"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         self.ui.args.stream = not self.ui.args.stream
         self.ui.pt_printer(
             f"✅ Streaming {'enabled' if self.ui.args.stream else 'disabled'}."
@@ -216,7 +218,7 @@ class ToggleVerboseCommand(Command):
     def name(self):
         return "verbose"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         self.ui.args.verbose = not self.ui.args.verbose
         self.ui.pt_printer(
             f"✅ Verbose mode {'enabled' if self.ui.args.verbose else 'disabled'}."
@@ -228,7 +230,7 @@ class ToggleDebugCommand(Command):
     def name(self):
         return "debug"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         self.ui.client.display.debug_mode = not self.ui.client.display.debug_mode
         self.ui.pt_printer(
             f"✅ Debug mode {'enabled' if self.ui.client.display.debug_mode else 'disabled'}."
@@ -240,7 +242,7 @@ class ToggleToolsCommand(Command):
     def name(self):
         return "tools"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         # Prevent enabling tools if none were loaded at startup.
         if not self.ui.client.tools_enabled and not get_tool_schemas():
             self.ui.pt_printer(
@@ -259,7 +261,7 @@ class HistoryCommand(Command):
     def name(self):
         return "history"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         if self.ui.is_chat_mode:
             self.ui.pt_printer(json.dumps(self.ui.conversation.get_history(), indent=2))
         else:
@@ -271,7 +273,7 @@ class ClearCommand(Command):
     def name(self):
         return "clear"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         if self.ui.is_chat_mode:
             self.ui.conversation.clear()
             self.ui.pt_printer("🧹 History cleared.")
@@ -288,7 +290,7 @@ class SystemCommand(Command):
     def requires_param(self):
         return True
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         if self.ui.is_chat_mode:
             self.ui.native_agent_mode = False
             self.ui.legacy_agent_mode = False
@@ -303,7 +305,7 @@ class PromptsCommand(Command):
     def name(self):
         return "prompts"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         self.ui.pt_printer("Available prompts:")
         found = False
         for p in sorted(self.ui.prompts_dir.glob("*.md")):
@@ -327,7 +329,7 @@ class PromptCommand(Command):
     def requires_param(self):
         return True
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         if not self.ui.is_chat_mode:
             self.ui.pt_printer("❌ /prompt is only available in chat mode.")
             return
@@ -356,7 +358,7 @@ class AgentCommand(Command):
     def name(self):
         return "agent"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         """Loads the special 'code_editor' prompt to start an agent session."""
         if not self.ui.is_chat_mode:
             self.ui.pt_printer("❌ /agent is only available in chat mode.")
@@ -391,7 +393,7 @@ class LegacyAgentCommand(Command):
     def name(self):
         return "legacy_agent"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         """Loads a prompt that teaches a generic model to use tools via text."""
         if not self.ui.is_chat_mode:
             self.ui.pt_printer("❌ /legacy_agent is only available in chat mode.")
@@ -419,7 +421,7 @@ class LegacyAgentCommand(Command):
 
             self.ui.conversation.set_system_prompt(content)
             self.ui.pt_printer(
-                f"🤖 Legacy Agent mode enabled. Tools will be used via text prompt."
+                "🤖 Legacy Agent mode enabled. Tools will be used via text prompt."
             )
         else:
             self.ui.pt_printer(
@@ -436,7 +438,7 @@ class ArenaCommand(Command):
     def requires_param(self):
         return True
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         if not self.ui.is_chat_mode:
             self.ui.pt_printer("❌ /arena is only available in chat mode.")
             return
@@ -459,7 +461,9 @@ class ArenaCommand(Command):
 
         participant_configs = arena_config.get("participants", {})
         if len(participant_configs) != 2:
-            self.ui.pt_printer(f"❌ Arena '{arena_name}' must have exactly 2 participants.")
+            self.ui.pt_printer(
+                f"❌ Arena '{arena_name}' must have exactly 2 participants."
+            )
             return
 
         try:
@@ -471,7 +475,9 @@ class ArenaCommand(Command):
                     prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
 
                 if not prompt_path.is_file():
-                    raise FileNotFoundError(f"System prompt file for '{prompt_key}' not found.")
+                    raise FileNotFoundError(
+                        f"System prompt file for '{prompt_key}' not found."
+                    )
 
                 system_prompt = prompt_path.read_text(encoding="utf-8")
 
@@ -513,7 +519,9 @@ class ArenaCommand(Command):
             self.ui.arena_paused_event.clear()  # Start in a paused state
 
             initiator_name = arena_state.arena_config.get_initiator().name
-            self.ui.pt_printer(f"⚔️  Arena '{arena_name}' activated for {max_turns} turns.")
+            self.ui.pt_printer(
+                f"⚔️  Arena '{arena_name}' activated for {max_turns} turns."
+            )
             self.ui.pt_printer(
                 f"   Your next prompt will be given to '{initiator_name}' to start the conversation."
             )
@@ -530,7 +538,7 @@ class PauseCommand(Command):
     def name(self):
         return "pause"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         if not self.ui.arena_state:
             self.ui.pt_printer("❌ /pause is only available in arena mode.")
             return
@@ -539,7 +547,9 @@ class PauseCommand(Command):
             return
 
         self.ui.arena_paused_event.clear()
-        self.ui.pt_printer("⏸️  Arena will pause after the current participant finishes.")
+        self.ui.pt_printer(
+            "⏸️  Arena will pause after the current participant finishes."
+        )
 
 
 class ResumeCommand(Command):
@@ -547,7 +557,7 @@ class ResumeCommand(Command):
     def name(self):
         return "resume"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         if not self.ui.arena_state:
             self.ui.pt_printer("❌ /resume is only available in arena mode.")
             return
@@ -568,7 +578,7 @@ class SayCommand(Command):
     def requires_param(self):
         return True
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         if not self.ui.arena_state:
             self.ui.pt_printer("❌ /say is only available in arena mode.")
             return
@@ -579,7 +589,7 @@ class SayCommand(Command):
             return
 
         self.ui.arena_state.last_message = param
-        self.ui.pt_printer(f"💬 Interjecting with message. Resuming arena...")
+        self.ui.pt_printer("💬 Interjecting with message. Resuming arena...")
         self.ui.arena_paused_event.set()
 
 
@@ -588,7 +598,7 @@ class ToggleModeCommand(Command):
     def name(self):
         return "mode"
 
-    def execute(self, app: "Application", param: Optional[str] = None):
+    def execute(self, app: "Application", param: str | None = None):
         self.ui.is_chat_mode = not self.ui.is_chat_mode
         self.ui.native_agent_mode = False
         self.ui.legacy_agent_mode = False
@@ -603,7 +613,7 @@ class CommandHandler:
 
     def __init__(self, ui: "InteractiveUI"):
         self.ui = ui
-        self.commands: Dict[str, Command] = {}
+        self.commands: dict[str, Command] = {}
         self._register_commands()
 
     def _register_commands(self):

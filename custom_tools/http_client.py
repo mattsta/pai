@@ -1,6 +1,8 @@
 import enum
-import httpx
 import json
+
+import httpx
+
 from pai.tools import tool
 
 

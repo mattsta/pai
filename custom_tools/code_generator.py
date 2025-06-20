@@ -1,4 +1,3 @@
-import json
 from pai.tools import tool
 
 
@@ -36,7 +35,7 @@ def generate_python_class(
         return f"Error generating class: {e}"
 
     if include_init:
-        code = f"from dataclasses import dataclass\n\n@dataclass\n"
+        code = "from dataclasses import dataclass\n\n@dataclass\n"
     else:
         code = ""
 

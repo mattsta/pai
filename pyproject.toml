@@ -15,7 +15,16 @@ dependencies = [
     "pandas>=2.2.2",
 ]
 
+[tool.ruff]
+target-version = "py312"
 
+[tool.ruff.lint]
+extend-select = [
+  # convert legacy python syntax to modern syntax
+  "UP",
+  # isort imports
+  "I",
+]
 
 [project.scripts]
 pai = "pai.pai:main"

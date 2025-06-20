@@ -1,12 +1,13 @@
+import enum
+import importlib
 import inspect
 import json
-import enum
 import pathlib
 import sys
-import importlib
-from typing import Callable, List, Dict, Any
+from collections.abc import Callable
+from typing import Any
 
-TOOL_REGISTRY: Dict[str, Callable] = {}
+TOOL_REGISTRY: dict[str, Callable] = {}
 
 
 class TemperatureUnit(enum.Enum):
@@ -67,7 +68,7 @@ def tool(func: Callable) -> Callable:
     return func
 
 
-def get_tool_schemas() -> List[Dict[str, Any]]:
+def get_tool_schemas() -> list[dict[str, Any]]:
     return [t["schema"] for t in TOOL_REGISTRY.values()] if TOOL_REGISTRY else []
 
 
@@ -88,14 +89,16 @@ def get_tool_manifest() -> str:
                 enum_values = details.get("enum")
                 if enum_values:
                     arg_type = f"string (enum: {', '.join(enum_values)})"
-                manifest += f"    - {arg_name} ({arg_type}): {details.get('description', '')}\n"
+                manifest += (
+                    f"    - {arg_name} ({arg_type}): {details.get('description', '')}\n"
+                )
         else:
             manifest += "  Arguments: None\n"
         manifest += "\n"
     return manifest
 
 
-def execute_tool(name: str, args: Dict) -> Any:
+def execute_tool(name: str, args: dict) -> Any:
     if name not in TOOL_REGISTRY:
         return f"Error: Tool '{name}' not found."
 

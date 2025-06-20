@@ -196,9 +196,9 @@ class TestSession:
     total_response_time: float = 0.0
     errors: int = 0
     # Holds the stats for the most recently *completed* successful request.
-        last_request_stats: Optional[RequestStats] = None
+    last_request_stats: Optional[RequestStats] = None
 
-        def add_completed_request(self, stats: RequestStats):
+    def add_completed_request(self, stats: RequestStats):
         """
         Adds statistics from a completed request to the session totals.
         Token and time stats are always accumulated, even for failed/cancelled requests.

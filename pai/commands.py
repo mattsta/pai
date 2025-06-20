@@ -460,10 +460,10 @@ class ArenaCommand(Command):
             return
 
         participant_configs = arena_config.get("participants", {})
-        if len(participant_configs) != 2:
-            self.ui.pt_printer(
-                f"❌ Arena '{arena_name}' must have exactly 2 participants."
-            )
+        judge_config = arena_config.get("judge")
+
+        if len(participant_configs) < 2:
+            self.ui.pt_printer(f"❌ Arena '{arena_name}' must have at least 2 participants.")
             return
 
         try:

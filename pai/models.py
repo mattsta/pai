@@ -260,6 +260,7 @@ class Arena:
     name: str  # e.g., "debate"
     participants: dict[str, ArenaParticipant]
     initiator_id: str
+    judge: Optional[ArenaParticipant] = None
 
     def get_participant(self, participant_id: str) -> ArenaParticipant | None:
         return self.participants.get(participant_id)

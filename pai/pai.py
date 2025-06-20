@@ -904,6 +904,7 @@ class InteractiveUI:
                 )
 
             self.pt_printer("\n🏁 Arena finished: Maximum turns reached.")
+            await self._run_arena_judge()
 
         except asyncio.CancelledError:
             self.pt_printer(

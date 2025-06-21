@@ -94,6 +94,8 @@ class HelpCommand(Command):
   /system <text>         - Set a new system prompt (clears history)
   /history               - Show conversation history
   /clear                 - Clear conversation history
+  /save <name>           - Save the current chat session to a file
+  /load <name>           - Load a chat session from a file
   /prompts               - List available, loadable system prompts
   /prompt <name>         - Load a system prompt from file (clears history)
   /agent                 - Start agent mode for OpenAI-compatible tool-use
@@ -638,6 +640,78 @@ class SayCommand(Command):
         self.ui.arena_paused_event.set()
 
 
+class SaveCommand(Command):
+    @property
+    def name(self):
+        return "save"
+
+    @property
+    def requires_param(self):
+        return True
+
+    def execute(self, app: "Application", param: str | None = None):
+        import pickle
+
+        if not self.ui.is_chat_mode:
+            self.ui.pt_printer("❌ /save is only available in chat mode.")
+            return
+
+        session_path = self.ui.saved_sessions_dir / f"{param}.pkl"
+        try:
+            with open(session_path, "wb") as f:
+                pickle.dump(self.ui.conversation, f)
+            self.ui.pt_printer(f"💾 Session saved to '{session_path}'")
+        except Exception as e:
+            self.ui.pt_printer(f"❌ Error saving session: {e}")
+
+
+class LoadCommand(Command):
+    @property
+    def name(self):
+        return "load"
+
+    @property
+    def requires_param(self):
+        return True
+
+    def execute(self, app: "Application", param: str | None = None):
+        import pickle
+
+        session_path = self.ui.saved_sessions_dir / f"{param}.pkl"
+        if not session_path.exists():
+            self.ui.pt_printer(f"❌ Session file not found: '{session_path}'")
+            return
+
+        try:
+            with open(session_path, "rb") as f:
+                loaded_conversation = pickle.load(f)
+
+            if not isinstance(loaded_conversation, Conversation):
+                raise TypeError("File does not contain a valid Conversation object.")
+
+            # Reset state before loading
+            self.ui.native_agent_mode = False
+            self.ui.legacy_agent_mode = False
+            self.ui.arena_state = None
+            self.ui.arena_paused_event.clear()
+
+            self.ui.conversation = loaded_conversation
+            self.ui.is_chat_mode = True  # Loading a session forces chat mode
+            self.ui.pt_printer(f"🔄 Session loaded from '{session_path}'.")
+            # Print last few messages to give context
+            history = self.ui.conversation.get_history()
+            if history:
+                self.ui.pt_printer("\n--- Last message in loaded history ---")
+                last_msg = history[-1]
+                self.ui.pt_printer(
+                    f"[{last_msg['role']}]> {last_msg['content'][:200]}..."
+                )
+                self.ui.pt_printer("------------------------------------")
+
+        except (pickle.UnpicklingError, TypeError, Exception) as e:
+            self.ui.pt_printer(f"❌ Error loading session: {e}")
+
+
 class ToggleModeCommand(Command):
     @property
     def name(self):
@@ -689,6 +763,8 @@ class CommandHandler:
             PauseCommand,
             ResumeCommand,
             SayCommand,
+            SaveCommand,
+            LoadCommand,
             ToggleModeCommand,
         ]
         for cmd_class in command_classes:

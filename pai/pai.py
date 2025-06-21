@@ -52,6 +52,7 @@ from .models import (
 )
 
 # --- Protocol Adapter Imports ---
+from .protocols.anthropic_adapter import AnthropicAdapter
 from .protocols.base_adapter import ProtocolContext
 from .protocols.legacy_completion_adapter import LegacyCompletionAdapter
 from .protocols.openai_chat_adapter import OpenAIChatAdapter
@@ -63,6 +64,7 @@ session = PromptSession()
 ADAPTER_MAP = {
     "openai_chat": OpenAIChatAdapter(),
     "legacy_completion": LegacyCompletionAdapter(),
+    "anthropic": AnthropicAdapter(),
 }
 
 

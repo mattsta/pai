@@ -35,6 +35,14 @@ api_key_env = "MISTRAL_API_KEY"
 chat_adapter = "openai_chat"
 
 [[endpoints]]
+name = "anthropic"
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
+chat_adapter = "anthropic"
+# By default, we don't assume a model as Anthropic has many good ones.
+# The user can specify one with --model claude-3-haiku-20240307, etc.
+
+[[endpoints]]
 # An example for a local model server
 name = "local-lm-studio"
 base_url = "http://localhost:1234/v1"

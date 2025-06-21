@@ -1,0 +1,154 @@
+import json
+from typing import Any
+
+from ..models import ChatRequest, CompletionRequest
+from ..utils import estimate_tokens
+from .base_adapter import BaseProtocolAdapter, ProtocolContext
+
+
+class AnthropicAdapter(BaseProtocolAdapter):
+    """Handles the Anthropic Messages API format."""
+
+    async def generate(
+        self,
+        context: ProtocolContext,
+        request: ChatRequest | CompletionRequest,
+        verbose: bool,
+        actor_name: str | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(request, ChatRequest):
+            raise TypeError("AnthropicAdapter only supports ChatRequest.")
+
+        # 1. Translate the request to Anthropic's format
+        system_prompt = ""
+        messages = []
+        for msg in request.messages:
+            if msg["role"] == "system":
+                system_prompt = msg["content"]
+            else:
+                # A more robust implementation would merge consecutive messages
+                # of the same role, but for now we assume valid alternating history.
+                messages.append(msg)
+
+        url = f"{context.config.base_url}/messages"
+        headers = {
+            "x-api-key": context.config.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": context.config.model_name,
+            "system": system_prompt,
+            "messages": messages,
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
+            "stream": request.stream,
+        }
+        # Anthropic doesn't support tools via this adapter yet.
+
+        tokens_sent = estimate_tokens(system_prompt) + sum(
+            estimate_tokens(m.get("content", "")) for m in messages
+        )
+
+        try:
+            http_session = context.http_session
+            http_session.headers.update(headers)
+
+            context.display.start_response(
+                tokens_sent=tokens_sent, actor_name=actor_name
+            )
+
+            # 2. Handle non-streaming case
+            if not request.stream:
+                response = await http_session.post(
+                    url, json=payload, timeout=context.config.timeout
+                )
+                response.raise_for_status()
+                response_data = response.json()
+                text = "".join(
+                    c.get("text", "") for c in response_data.get("content", [])
+                )
+                context.display.show_parsed_chunk(response_data, text)
+
+                request_stats = context.display.finish_response(success=True)
+                if request_stats:
+                    request_stats.tokens_sent = response_data.get("usage", {}).get(
+                        "input_tokens", tokens_sent
+                    )
+                    request_stats.tokens_received = response_data.get("usage", {}).get(
+                        "output_tokens", request_stats.tokens_received
+                    )
+                    request_stats.finish_reason = response_data.get("stop_reason")
+                    context.stats.add_completed_request(request_stats)
+
+                return {
+                    "text": context.display.current_response,
+                    "request": payload,
+                    "response": response_data,
+                }
+
+            # 3. Handle streaming case
+            finish_reason = None
+            final_usage = {}
+            async with http_session.stream(
+                "POST", url, json=payload, timeout=context.config.timeout
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line:
+                        line_str = line.strip()
+                        context.display.show_raw_line(line_str)
+                        if line_str.startswith("data:"):
+                            chunk_str = line_str[6:]
+                            try:
+                                chunk = json.loads(chunk_str)
+                                event_type = chunk.get("type")
+
+                                if event_type == "message_start":
+                                    input_tokens = (
+                                        chunk.get("message", {})
+                                        .get("usage", {})
+                                        .get("input_tokens", tokens_sent)
+                                    )
+                                    if context.display.current_request_stats:
+                                        context.display.current_request_stats.tokens_sent = input_tokens
+                                elif event_type == "content_block_delta":
+                                    chunk_text = chunk.get("delta", {}).get("text", "")
+                                    context.display.show_parsed_chunk(chunk, chunk_text)
+                                elif event_type == "message_delta":
+                                    finish_reason = chunk.get("delta", {}).get(
+                                        "stop_reason"
+                                    )
+                                    final_usage = chunk.get("usage", {})
+
+                            except (json.JSONDecodeError, IndexError) as e:
+                                if context.display.debug_mode:
+                                    context.display._print(
+                                        f"⚠️  Stream parse error: {e} on line: {chunk_str!r}"
+                                    )
+
+            request_stats = context.display.finish_response(success=True)
+            if request_stats:
+                if "output_tokens" in final_usage:
+                    request_stats.tokens_received = final_usage["output_tokens"]
+                request_stats.finish_reason = finish_reason
+                context.stats.add_completed_request(request_stats)
+
+            return {
+                "text": context.display.current_response,
+                "request": payload,
+                "response": {"usage": final_usage},
+            }
+        except Exception as e:
+            request_stats = context.display.finish_response(success=False)
+            if request_stats:
+                request_stats.tokens_sent = tokens_sent
+                context.stats.add_completed_request(request_stats)
+            raise ConnectionError(f"Anthropic request failed: {e!r}") from e
+        finally:
+            # Restore original headers
+            context.http_session.headers = {
+                "Authorization": f"Bearer {context.config.api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "PolyglotAI/0.1.0",
+            }

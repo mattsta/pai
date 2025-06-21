@@ -116,8 +116,8 @@ class EndpointsCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         self.ui.pt_printer("Available Endpoints:")
-        for ep in self.ui.client.all_endpoints:
-            self.ui.pt_printer(f" - {ep['name']}")
+        for ep in self.ui.client.toml_config.endpoints:
+            self.ui.pt_printer(f" - {ep.name}")
 
 
 class SwitchCommand(Command):
@@ -471,15 +471,15 @@ class ArenaCommand(Command):
             self.ui.pt_printer("❌ Invalid value for turns. Must be an integer.")
             return
 
-        arenas_config = self.ui.client.raw_config.get("arenas", {})
+        arenas_config = self.ui.client.toml_config.arenas
         arena_config = arenas_config.get(arena_name)
 
         if not arena_config:
             self.ui.pt_printer(f"❌ Arena '{arena_name}' not found in polyglot.toml.")
             return
 
-        participant_configs = arena_config.get("participants", {})
-        judge_config = arena_config.get("judge")
+        participant_configs = arena_config.participants
+        judge_config = arena_config.judge
 
         if len(participant_configs) < 2:
             self.ui.pt_printer(
@@ -490,7 +490,7 @@ class ArenaCommand(Command):
         try:
             participants = {}
             for p_id, p_config in participant_configs.items():
-                prompt_key = p_config["system_prompt_key"]
+                prompt_key = p_config.system_prompt_key
                 prompt_path = self.ui.prompts_dir / f"{prompt_key}.md"
                 if not prompt_path.exists():
                     prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
@@ -507,16 +507,16 @@ class ArenaCommand(Command):
 
                 participants[p_id] = ArenaParticipant(
                     id=p_id,
-                    name=p_config["name"],
-                    endpoint=p_config["endpoint"],
-                    model=p_config["model"],
+                    name=p_config.name,
+                    endpoint=p_config.endpoint,
+                    model=p_config.model,
                     system_prompt=system_prompt,
                     conversation=conversation,
                 )
 
             judge_participant = None
             if judge_config:
-                prompt_key = judge_config["system_prompt_key"]
+                prompt_key = judge_config.system_prompt_key
                 prompt_path = self.ui.prompts_dir / f"{prompt_key}.md"
                 if not prompt_path.exists():
                     prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
@@ -529,9 +529,9 @@ class ArenaCommand(Command):
                 system_prompt = prompt_path.read_text(encoding="utf-8")
                 judge_participant = ArenaParticipant(
                     id="judge",
-                    name=judge_config["name"],
-                    endpoint=judge_config["endpoint"],
-                    model=judge_config["model"],
+                    name=judge_config.name,
+                    endpoint=judge_config.endpoint,
+                    model=judge_config.model,
                     system_prompt=system_prompt,
                     conversation=Conversation(
                         _messages=[{"role": "system", "content": system_prompt}]
@@ -542,7 +542,7 @@ class ArenaCommand(Command):
             arena_config_obj = Arena(
                 name=arena_name,
                 participants=participants,
-                initiator_id=arena_config["initiator"],
+                initiator_id=arena_config.initiator,
                 judge=judge_participant,
             )
 

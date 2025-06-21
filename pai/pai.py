@@ -374,6 +374,8 @@ class InteractiveUI:
         pai_user_dir.mkdir(exist_ok=True)
         self.prompts_dir = pathlib.Path("prompts")
         self.prompts_dir.mkdir(exist_ok=True)
+        self.saved_sessions_dir = pathlib.Path("saved_sessions")
+        self.saved_sessions_dir.mkdir(exist_ok=True)
 
         # Setup UI components
         self.pt_printer = print_formatted_text

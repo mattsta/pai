@@ -828,7 +828,8 @@ class InteractiveUI:
                 p_details_esc = escape(p_details)
                 line1 = f"<b><style bg='ansiblue' fg='white'> ⚔️ ARENA: {arena_name_esc}{judge_str} </style></b> | {p_details_esc}"
             else:
-                line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Total:</b> {total_tokens} | <b>Session:</b> {session_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
+                cost_str = f"<b>Cost:</b> ${session_stats.total_cost:.4f}"
+                line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | {cost_str} | <b>Total:</b> {total_tokens} | <b>Session:</b> {session_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
 
             # --- Line 2: Live and Last Request Stats ---
             last_req = session_stats.last_request_stats

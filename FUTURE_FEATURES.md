@@ -19,7 +19,7 @@ This document outlines potential features and improvements for the future develo
 ### Usability and User Experience
 
 *   **Rich Output Formatting:** <ins>Completed.</ins> Integrated the `rich` library to render final model output as Markdown in the terminal. HTML logs now also render Markdown and syntax-highlighted code blocks using `marked.js` and `highlight.js`.
-*   **Cost Estimation:** For providers that supply token usage data, provide a running estimate of the session's API cost.
+*   **Cost Estimation:** <ins>Completed.</ins> The framework now tracks and displays a running estimate of the session's API cost for supported providers (OpenAI, Anthropic) in the toolbar and `/stats` command.
 *   **Plugin System:** Formalize the provider system into a true plugin architecture where external packages can register new providers.
 
 ### Provider Expansion

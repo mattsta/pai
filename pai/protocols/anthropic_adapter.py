@@ -1,6 +1,14 @@
 import json
 from typing import Any
 
+# Pricing per million tokens
+ANTHROPIC_PRICING = {
+    "claude-3-5-sonnet-20240620": {"input": 3.00, "output": 15.00},
+    "claude-3-opus-20240229": {"input": 15.00, "output": 75.00},
+    "claude-3-sonnet-20240229": {"input": 3.00, "output": 15.00},
+    "claude-3-haiku-20240307": {"input": 0.25, "output": 1.25},
+}
+
 from ..models import ChatRequest, CompletionRequest
 from ..utils import estimate_tokens
 from .base_adapter import BaseProtocolAdapter, ProtocolContext
@@ -8,6 +16,18 @@ from .base_adapter import BaseProtocolAdapter, ProtocolContext
 
 class AnthropicAdapter(BaseProtocolAdapter):
     """Handles the Anthropic Messages API format."""
+
+    def _calculate_cost(
+        self, model_name: str, input_tokens: int, output_tokens: int
+    ) -> tuple[float, float]:
+        """Calculates the cost of a request based on the model and token counts."""
+        pricing = ANTHROPIC_PRICING.get(model_name)
+        if not pricing:
+            return 0.0, 0.0
+
+        input_cost = (input_tokens / 1_000_000) * pricing["input"]
+        output_cost = (output_tokens / 1_000_000) * pricing["output"]
+        return input_cost, output_cost
 
     async def generate(
         self,
@@ -72,11 +92,16 @@ class AnthropicAdapter(BaseProtocolAdapter):
 
                 request_stats = context.display.finish_response(success=True)
                 if request_stats:
-                    request_stats.tokens_sent = response_data.get("usage", {}).get(
-                        "input_tokens", tokens_sent
-                    )
-                    request_stats.tokens_received = response_data.get("usage", {}).get(
-                        "output_tokens", request_stats.tokens_received
+                    usage = response_data.get("usage", {})
+                    input_tokens = usage.get("input_tokens", tokens_sent)
+                    output_tokens = usage.get("output_tokens", 0)
+                    request_stats.tokens_sent = input_tokens
+                    request_stats.tokens_received = output_tokens
+                    (
+                        request_stats.input_cost,
+                        request_stats.output_cost,
+                    ) = self._calculate_cost(
+                        context.config.model_name, input_tokens, output_tokens
                     )
                     request_stats.finish_reason = response_data.get("stop_reason")
                     context.stats.add_completed_request(request_stats)
@@ -129,8 +154,18 @@ class AnthropicAdapter(BaseProtocolAdapter):
 
             request_stats = context.display.finish_response(success=True)
             if request_stats:
-                if "output_tokens" in final_usage:
-                    request_stats.tokens_received = final_usage["output_tokens"]
+                output_tokens = final_usage.get(
+                    "output_tokens", request_stats.tokens_received
+                )
+                request_stats.tokens_received = output_tokens
+                (
+                    request_stats.input_cost,
+                    request_stats.output_cost,
+                ) = self._calculate_cost(
+                    context.config.model_name,
+                    request_stats.tokens_sent,
+                    output_tokens,
+                )
                 request_stats.finish_reason = finish_reason
                 context.stats.add_completed_request(request_stats)
 

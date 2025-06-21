@@ -148,6 +148,9 @@ class RequestStats:
     tokens_received: int = 0
     success: bool = True
     finish_reason: str | None = None
+    # Cost tracking
+    input_cost: float = 0.0
+    output_cost: float = 0.0
 
     # Internal state for live calculations
     _first_token_time: float | None = None
@@ -202,6 +205,7 @@ class TestSession:
     total_tokens_sent: int = 0
     total_tokens_received: int = 0
     total_response_time: float = 0.0
+    total_cost: float = 0.0
     errors: int = 0
     # Holds the stats for the most recently *completed* successful request.
     last_request_stats: RequestStats | None = None
@@ -214,6 +218,7 @@ class TestSession:
         self.requests_sent += 1
         self.total_tokens_sent += stats.tokens_sent
         self.total_tokens_received += stats.tokens_received
+        self.total_cost += stats.input_cost + stats.output_cost
         if stats.response_time:
             self.total_response_time += stats.response_time
 
@@ -229,6 +234,7 @@ class TestSession:
 
         stats = {
             "session_duration": str(datetime.now() - self.start_time).split(".")[0],
+            "total_cost": f"${self.total_cost:.5f}",
             "requests_sent": self.requests_sent,
             "successful_requests": successful_requests,
             "errors": self.errors,
@@ -240,7 +246,10 @@ class TestSession:
 
         if self.last_request_stats:
             last = self.last_request_stats
+            last = self.last_request_stats
+            last_req_cost = last.input_cost + last.output_cost
             stats["last_request"] = {
+                "cost": f"${last_req_cost:.5f}",
                 "ttft": f"{last.ttft:.2f}s" if last.ttft else "N/A",
                 "response_time": f"{last.response_time:.2f}s"
                 if last.response_time

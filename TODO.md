@@ -32,11 +32,11 @@ This is a list of concrete, near-term tasks to improve the framework.
     - [x] Implemented a modal confirmation prompt using a separate `PromptSession` that presents the tool call and waits for `[y/N]` confirmation.
     - [x] This provides a critical safety layer for tools that modify the filesystem or have other side effects.
 
-- [ ] **Live Cost Estimation:**
-    - [ ] Add `input_cost` and `output_cost` fields (as floats) to the `RequestStats` model.
-    - [ ] Update provider adapters (`openai_adapter`, `anthropic_adapter`, etc.) to calculate these costs based on their specific pricing models (e.g., $ / 1M tokens). Look up and hardcode current pricing for major models.
-    - [ ] Update `TestSession` to accumulate total session cost.
-    - [ ] Add the running session cost to the toolbar (`_get_toolbar_text`) for immediate user feedback.
+- [x] **Live Cost Estimation:**
+    - [x] Added `input_cost` and `output_cost` fields to the `RequestStats` model.
+    - [x] Updated OpenAI and Anthropic adapters to calculate costs based on hardcoded pricing models.
+    - [x] Updated `TestSession` to accumulate total session cost.
+    - [x] Added the running session cost to the toolbar and `/stats` command output.
 
 - [ ] **Multi-line Input Mode (`/multiline`):**
     - [ ] Add a `/multiline` command to toggle multi-line input mode.

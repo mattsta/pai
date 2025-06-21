@@ -3,6 +3,18 @@ import json
 import time
 from typing import Any
 
+# Pricing per million tokens
+OPENAI_PRICING = {
+    # gpt-4o
+    "gpt-4o": {"input": 5.00, "output": 15.00},
+    "gpt-4o-2024-05-13": {"input": 5.00, "output": 15.00},
+    # gpt-4-turbo
+    "gpt-4-turbo": {"input": 10.00, "output": 30.00},
+    "gpt-4-turbo-2024-04-09": {"input": 10.00, "output": 30.00},
+    # gpt-3.5-turbo
+    "gpt-3.5-turbo-0125": {"input": 0.50, "output": 1.50},
+}
+
 from ..models import ChatRequest
 from ..tools import execute_tool
 from ..utils import estimate_tokens
@@ -35,6 +47,18 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     f"  - Executing: {name}({json.dumps(args, indent=2)})"
                 )
             return execute_tool(name, args)
+
+        def _calculate_cost(
+            model_name: str, input_tokens: int, output_tokens: int
+        ) -> tuple[float, float]:
+            """Calculates the cost of a request based on the model and token counts."""
+            pricing = OPENAI_PRICING.get(model_name)
+            if not pricing:
+                return 0.0, 0.0
+
+            input_cost = (input_tokens / 1_000_000) * pricing["input"]
+            output_cost = (output_tokens / 1_000_000) * pricing["output"]
+            return input_cost, output_cost
 
         for iteration in range(max_iterations):
             finish_reason = None
@@ -93,7 +117,17 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     context.display.show_parsed_chunk(response_data, final_text)
                     request_stats = context.display.finish_response(success=True)
                     if request_stats:
-                        request_stats.tokens_sent = tokens_sent
+                        usage = response_data.get("usage", {})
+                        input_tokens = usage.get("prompt_tokens", tokens_sent)
+                        output_tokens = usage.get("completion_tokens", 0)
+                        request_stats.tokens_sent = input_tokens
+                        request_stats.tokens_received = output_tokens
+                        (
+                            request_stats.input_cost,
+                            request_stats.output_cost,
+                        ) = _calculate_cost(
+                            context.config.model_name, input_tokens, output_tokens
+                        )
                         request_stats.finish_reason = finish_reason
                         context.stats.add_completed_request(request_stats)
 
@@ -185,8 +219,14 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 tokens_received = 0
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
-                    request_stats.finish_reason = finish_reason
                     tokens_received = request_stats.tokens_received
+                    (
+                        request_stats.input_cost,
+                        request_stats.output_cost,
+                    ) = _calculate_cost(
+                        context.config.model_name, tokens_sent, tokens_received
+                    )
+                    request_stats.finish_reason = finish_reason
                     context.stats.add_completed_request(request_stats)
 
                 # Construct a response object that mimics the non-streaming API

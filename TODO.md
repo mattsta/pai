@@ -24,6 +24,26 @@ This is a list of concrete, near-term tasks to improve the framework.
 - [ ] Design a system for managing multiple `system` prompts within a session.
 - [x] Add a `--log-file` option to write all debug output to a file for later analysis.
 
+### Advanced Features & Usability Enhancements
+
+- [ ] **Agent Confirmation Mode (`/confirm`):**
+    - [ ] Add a `/confirm on|off` command to toggle a mode where the user must explicitly approve tool calls before execution.
+    - [ ] Update agent loops (`_run_legacy_agent_loop` and `OpenAIChatAdapter`) to check for this mode.
+    - [ ] If enabled, the loop should present the proposed tool call to the user and wait for a `[y/n]` confirmation before calling `execute_tool`.
+    - [ ] This provides a critical safety layer for tools that modify the filesystem or have other side effects.
+
+- [ ] **Live Cost Estimation:**
+    - [ ] Add `input_cost` and `output_cost` fields (as floats) to the `RequestStats` model.
+    - [ ] Update provider adapters (`openai_adapter`, `anthropic_adapter`, etc.) to calculate these costs based on their specific pricing models (e.g., $ / 1M tokens). Look up and hardcode current pricing for major models.
+    - [ ] Update `TestSession` to accumulate total session cost.
+    - [ ] Add the running session cost to the toolbar (`_get_toolbar_text`) for immediate user feedback.
+
+- [ ] **Multi-line Input Mode (`/multiline`):**
+    - [ ] Add a `/multiline` command to toggle multi-line input mode.
+    - [ ] When enabled, modify the main `input_buffer` in `InteractiveUI` to have `multiline=True`.
+    - [ ] The `accept_handler` will need to be configured differently or the key bindings updated so `Enter` inserts a newline and `Meta+Enter` (or `Esc+Enter`) submits the prompt.
+    - [ ] This significantly improves the experience of writing long, complex prompts or pasting code snippets.
+
 ### Feature: Multi-Model Arena
 - [x] **Phase 1: Configuration and Data Models**
     - [x] **Config (`polyglot.toml`):**

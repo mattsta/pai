@@ -1,6 +1,6 @@
 # protocols/base_adapter.py
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, NamedTuple, Union
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, NamedTuple, Union
 
 import httpx
 
@@ -18,6 +18,7 @@ class ProtocolContext(NamedTuple):
     stats: "TestSession"
     config: "EndpointConfig"
     tools_enabled: bool
+    confirmer: Callable[[str, dict], Awaitable[bool]] | None
 
 
 # Request types are now imported from pai.models

@@ -2,8 +2,6 @@
 import json
 import time
 from typing import Any
-
-from ..models import ChatRequest
 from ..tools import execute_tool
 from ..utils import estimate_tokens
 
@@ -23,6 +21,18 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
     ) -> dict[str, Any]:
         messages = list(request.messages)
         max_iterations = 5
+
+        async def _execute_with_confirmation(name: str, args: dict) -> Any:
+            """Helper to wrap tool execution with an optional confirmation step."""
+            if context.confirmer:
+                should_run = await context.confirmer(name, args)
+                if not should_run:
+                    return "Tool execution cancelled by user."
+            else:
+                context.display._print(
+                    f"  - Executing: {name}({json.dumps(args, indent=2)})"
+                )
+            return execute_tool(name, args)
 
         for iteration in range(max_iterations):
             finish_reason = None
@@ -65,8 +75,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         for tool_call in tool_calls_data:
                             name = tool_call["function"]["name"]
                             args = json.loads(tool_call["function"]["arguments"])
-                            context.display._print(f"  - Executing: {name}({args})")
-                            result = execute_tool(name, args)
+                            result = await _execute_with_confirmation(name, args)
                             messages.append(
                                 {
                                     "role": "tool",
@@ -159,8 +168,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     for tool_call in tool_calls:
                         name = tool_call["function"]["name"]
                         args = json.loads(tool_call["function"]["arguments"])
-                        context.display._print(f"  - Executing: {name}({args})")
-                        result = execute_tool(name, args)
+                        result = await _execute_with_confirmation(name, args)
                         messages.append(
                             {
                                 "role": "tool",

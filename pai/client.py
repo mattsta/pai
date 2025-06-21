@@ -81,6 +81,7 @@ class PolyglotClient:
         request: CompletionRequest | ChatRequest,
         verbose: bool,
         actor_name: str | None = None,
+        confirmer: Callable[[str, dict], Awaitable[bool]] | None = None,
     ) -> dict[str, Any]:
         is_chat = isinstance(request, ChatRequest)
         adapter = (
@@ -107,5 +108,6 @@ class PolyglotClient:
             stats=self.stats,
             config=self.config,
             tools_enabled=self.tools_enabled,
+            confirmer=confirmer,
         )
         return await adapter.generate(context, request, verbose, actor_name=actor_name)

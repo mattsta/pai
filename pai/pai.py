@@ -121,6 +121,8 @@ class InteractiveUI:
         self.spinner_chars = ["|", "/", "-", "\\"]
         self.spinner_idx = 0
 
+        self.confirm_session = PromptSession()
+
         # Build the application
         self.app = self._create_application()
 
@@ -380,8 +382,13 @@ class InteractiveUI:
                         stream=self.runtime_config.stream,
                     )
 
+                confirmer = (
+                    self._confirm_tool_call
+                    if self.runtime_config.confirm_tool_use
+                    else None
+                )
                 result = await self.client.generate(
-                    request, self.runtime_config.verbose
+                    request, self.runtime_config.verbose, confirmer=confirmer
                 )
 
                 if self.is_chat_mode and result:
@@ -473,7 +480,30 @@ class InteractiveUI:
             self.generation_in_progress.clear()
             self.generation_task = None
 
-    async def _run_legacy_agent_loop(self, user_input_str: str):
+    async def _confirm_tool_call(self, tool_name: str, args: dict) -> bool:
+        """Asks the user for confirmation to run a tool."""
+        json_args = json.dumps(args, indent=2)
+        self.pt_printer(
+            HTML(
+                f"\n<style fg='ansimagenta' bg='ansiblack'>🔧 Agent wants to execute: <b>{escape(tool_name)}</b></style>"
+            )
+        )
+        self.pt_printer(HTML(f"<style fg='ansimagenta'>   with arguments:\n{escape(json_args)}</style>"))
+
+        try:
+            # This modal-like prompt will temporarily take over the input line
+            result = await self.confirm_session.prompt_async(
+                "Authorize this tool call? [y/N]: ",
+            )
+            return result.lower().strip() == "y"
+        except (EOFError, KeyboardInterrupt):
+            return False
+
+    async def _run_legacy_agent_loop(
+        self,
+        user_input_str: str,
+        confirmer: Callable[[str, dict], Awaitable[bool]] | None,
+    ):
         from .tools import execute_tool
 
         messages = self.conversation.get_messages_for_next_turn(user_input_str)
@@ -528,10 +558,14 @@ class InteractiveUI:
                     tool_args_str = args_match.group(1).strip()
                     try:
                         tool_args = json.loads(tool_args_str)
-                        self.pt_printer(
-                            f"  - Executing: {tool_name}({json.dumps(tool_args)})"
-                        )
-                        tool_result = execute_tool(tool_name, tool_args)
+                        should_execute = True
+                        if confirmer:
+                            should_execute = await confirmer(tool_name, tool_args)
+
+                        if should_execute:
+                            tool_result = execute_tool(tool_name, tool_args)
+                        else:
+                            tool_result = "Tool execution cancelled by user."
                     except json.JSONDecodeError:
                         tool_result = (
                             f"Error: Invalid JSON in <args> for tool {tool_name}."
@@ -841,8 +875,14 @@ class InteractiveUI:
                 if self.runtime_config.rich_text
                 else "OFF"
             )
+            confirm_status = (
+                "<style fg='ansiyellow'>ON</style>"
+                if self.runtime_config.confirm_tool_use
+                else "OFF"
+            )
             line3_parts = [
                 f"<b>Rich:</b> {rich_status}",
+                f"<b>Confirm:</b> {confirm_status}",
                 f"<b>Tools:</b> {tools_status}",
                 f"<b>Debug:</b> {debug_status}",
                 f"<b>Mode:</b> {mode_str}",
@@ -1010,6 +1050,11 @@ def run(
     rich_text: bool = typer.Option(
         True, "--rich/--no-rich", help="Enable/disable rich text formatting for output."
     ),
+    confirm_tool_use: bool = typer.Option(
+        False,
+        "--confirm",
+        help="Require user confirmation before executing a tool.",
+    ),
     log_file: Optional[str] = typer.Option(
         None,
         "--log-file",
@@ -1036,6 +1081,7 @@ def run(
         debug=debug,
         tools=tools,
         rich_text=rich_text,
+        confirm_tool_use=confirm_tool_use,
         log_file=log_file,
         config=config,
     )

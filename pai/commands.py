@@ -89,7 +89,7 @@ class HelpCommand(Command):
   /tokens <num>          - Change max_tokens (e.g., /tokens 100)
   /timeout <seconds>     - Change request timeout (e.g., /timeout 120)
   /mode                  - Toggle between chat and completion mode (clears history)
-  /stream, /verbose, /debug, /rich, /tools - Toggle flags on/off
+  /stream, /verbose, /debug, /rich, /tools, /confirm - Toggle flags on/off
   --- Chat Mode Only ---
   /system <text>         - Set a new system prompt (clears history)
   /history               - Show conversation history
@@ -253,6 +253,21 @@ class ToggleRichTextCommand(Command):
         self.ui.client.display.rich_text_mode = self.ui.runtime_config.rich_text
         self.ui.pt_printer(
             f"✅ Rich text output {'enabled' if self.ui.runtime_config.rich_text else 'disabled'}."
+        )
+
+
+class ToggleConfirmCommand(Command):
+    @property
+    def name(self):
+        return "confirm"
+
+    def execute(self, app: "Application", param: str | None = None):
+        if param not in ["on", "off"]:
+            self.ui.pt_printer("❌ Usage: /confirm on|off")
+            return
+        self.ui.runtime_config.confirm_tool_use = param == "on"
+        self.ui.pt_printer(
+            f"✅ Tool confirmation mode {'enabled' if self.ui.runtime_config.confirm_tool_use else 'disabled'}."
         )
 
 
@@ -751,6 +766,7 @@ class CommandHandler:
             ToggleVerboseCommand,
             ToggleDebugCommand,
             ToggleRichTextCommand,
+            ToggleConfirmCommand,
             ToggleToolsCommand,
             HistoryCommand,
             ClearCommand,

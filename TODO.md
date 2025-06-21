@@ -26,11 +26,11 @@ This is a list of concrete, near-term tasks to improve the framework.
 
 ### Advanced Features & Usability Enhancements
 
-- [ ] **Agent Confirmation Mode (`/confirm`):**
-    - [ ] Add a `/confirm on|off` command to toggle a mode where the user must explicitly approve tool calls before execution.
-    - [ ] Update agent loops (`_run_legacy_agent_loop` and `OpenAIChatAdapter`) to check for this mode.
-    - [ ] If enabled, the loop should present the proposed tool call to the user and wait for a `[y/n]` confirmation before calling `execute_tool`.
-    - [ ] This provides a critical safety layer for tools that modify the filesystem or have other side effects.
+- [x] **Agent Confirmation Mode (`/confirm`):**
+    - [x] Added a `/confirm on|off` command to toggle a mode where the user must explicitly approve tool calls before execution.
+    - [x] Updated agent loops (`_run_legacy_agent_loop` and `OpenAIChatAdapter`) to check for this mode.
+    - [x] Implemented a modal confirmation prompt using a separate `PromptSession` that presents the tool call and waits for `[y/N]` confirmation.
+    - [x] This provides a critical safety layer for tools that modify the filesystem or have other side effects.
 
 - [ ] **Live Cost Estimation:**
     - [ ] Add `input_cost` and `output_cost` fields (as floats) to the `RequestStats` model.

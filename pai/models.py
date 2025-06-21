@@ -421,6 +421,7 @@ class RuntimeConfig(BaseModel):
     tools: bool = False
     rich_text: bool = True
     log_file: str | None = None
+    confirm_tool_use: bool = False
 
     class Config:
         frozen = False  # Allows mutation by commands

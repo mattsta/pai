@@ -4,7 +4,6 @@ This version is a direct refactoring of the original code, preserving all featur
 and fixing the circular import error.
 """
 
-import argparse
 import asyncio
 import json
 import os
@@ -14,10 +13,11 @@ import sys
 import time
 from datetime import datetime
 from html import escape
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 import toml
+import typer
 from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
@@ -44,7 +44,9 @@ from .models import (
     CompletionRequest,
     Conversation,
     EndpointConfig,
+    PolyglotConfig,
     RequestStats,
+    RuntimeConfig,
     TestSession,
     Turn,
 )
@@ -242,44 +244,44 @@ class APIError(Exception):
 class PolyglotClient:
     def __init__(
         self,
-        args: argparse.Namespace,
-        loaded_config: dict,
+        runtime_config: RuntimeConfig,
+        toml_config: PolyglotConfig,
         http_session: httpx.AsyncClient,
     ):
-        self.all_endpoints = loaded_config.get("endpoints", [])
-        self.raw_config = loaded_config
+        self.toml_config = toml_config
         self.config = EndpointConfig()
         self.stats = TestSession()
-        self.display = StreamingDisplay(args.debug)
+        self.display = StreamingDisplay(runtime_config.debug)
         self.http_session = http_session
-        self.tools_enabled = args.tools
-        self.switch_endpoint(args.endpoint)
-        if self.config and args.model:
-            self.config.model_name = args.model
-        if self.config and args.timeout:
-            self.config.timeout = args.timeout
+        self.tools_enabled = runtime_config.tools
+        self.switch_endpoint(runtime_config.endpoint)
+        if self.config and runtime_config.model:
+            self.config.model_name = runtime_config.model
+        if self.config and runtime_config.timeout:
+            self.config.timeout = runtime_config.timeout
 
     def switch_endpoint(self, name: str):
         endpoint_data = next(
-            (e for e in self.all_endpoints if e["name"].lower() == name.lower()), None
+            (e for e in self.toml_config.endpoints if e.name.lower() == name.lower()),
+            None,
         )
         if not endpoint_data:
             self.display._print(
                 f"❌ Error: Endpoint '{name}' not found in configuration file."
             )
             return
-        api_key = os.getenv(endpoint_data["api_key_env"])
+        api_key = os.getenv(endpoint_data.api_key_env)
         if not api_key:
             self.display._print(
-                f"❌ Error: API key for '{name}' not found. Set {endpoint_data['api_key_env']}."
+                f"❌ Error: API key for '{name}' not found. Set {endpoint_data.api_key_env}."
             )
             return
-        self.config.name = endpoint_data["name"]
-        self.config.base_url = endpoint_data["base_url"]
+        self.config.name = endpoint_data.name
+        self.config.base_url = endpoint_data.base_url
         self.config.api_key = api_key
-        self.config.chat_adapter = ADAPTER_MAP.get(endpoint_data.get("chat_adapter"))
+        self.config.chat_adapter = ADAPTER_MAP.get(endpoint_data.chat_adapter)
         self.config.completion_adapter = ADAPTER_MAP.get(
-            endpoint_data.get("completion_adapter")
+            endpoint_data.completion_adapter
         )
         # Configure the httpx client for the selected endpoint
         self.http_session.base_url = self.config.base_url
@@ -333,13 +335,13 @@ def print_banner():
 class InteractiveUI:
     """Encapsulates all logic for the text user interface."""
 
-    def __init__(self, client: "PolyglotClient", args: argparse.Namespace):
+    def __init__(self, client: "PolyglotClient", runtime_config: RuntimeConfig):
         self.client = client
-        self.args = args
-        self.is_chat_mode = args.chat
+        self.runtime_config = runtime_config
+        self.is_chat_mode = runtime_config.chat
         self.conversation = Conversation()
-        if self.is_chat_mode and self.args.system:
-            self.conversation.set_system_prompt(self.args.system)
+        if self.is_chat_mode and self.runtime_config.system:
+            self.conversation.set_system_prompt(self.runtime_config.system)
 
         # Setup directories
         self.session_dir = pathlib.Path("sessions") / datetime.now().strftime(
@@ -623,21 +625,23 @@ class InteractiveUI:
                     request = ChatRequest(
                         messages=messages,
                         model=self.client.config.model_name,
-                        max_tokens=self.args.max_tokens,
-                        temperature=self.args.temperature,
-                        stream=self.args.stream,
+                        max_tokens=self.runtime_config.max_tokens,
+                        temperature=self.runtime_config.temperature,
+                        stream=self.runtime_config.stream,
                         tools=get_tool_schemas() if self.client.tools_enabled else [],
                     )
                 else:
                     request = CompletionRequest(
                         prompt=user_input_str,
                         model=self.client.config.model_name,
-                        max_tokens=self.args.max_tokens,
-                        temperature=self.args.temperature,
-                        stream=self.args.stream,
+                        max_tokens=self.runtime_config.max_tokens,
+                        temperature=self.runtime_config.temperature,
+                        stream=self.runtime_config.stream,
                     )
 
-                result = await self.client.generate(request, self.args.verbose)
+                result = await self.client.generate(
+                    request, self.runtime_config.verbose
+                )
 
                 if self.is_chat_mode and result:
                     turn = Turn(
@@ -739,16 +743,16 @@ class InteractiveUI:
             request = ChatRequest(
                 messages=messages,
                 model=self.client.config.model_name,
-                max_tokens=self.args.max_tokens,
-                temperature=self.args.temperature,
-                stream=self.args.stream,
+                max_tokens=self.runtime_config.max_tokens,
+                temperature=self.runtime_config.temperature,
+                stream=self.runtime_config.stream,
                 tools=[],  # Legacy mode does not use native tools
             )
 
             # In legacy agent mode, we stream the response to the user for a better
             # experience. The full response text is still returned from client.generate()
             # which we can then parse for tool calls after the stream is complete.
-            result = await self.client.generate(request, self.args.verbose)
+            result = await self.client.generate(request, self.runtime_config.verbose)
             assistant_response = result.get("text", "")
 
             # Add the assistant's raw response to the message history
@@ -866,15 +870,15 @@ class InteractiveUI:
                 request = ChatRequest(
                     messages=messages,
                     model=participant.model,
-                    max_tokens=self.args.max_tokens,
-                    temperature=self.args.temperature,
-                    stream=self.args.stream,
+                    max_tokens=self.runtime_config.max_tokens,
+                    temperature=self.runtime_config.temperature,
+                    stream=self.runtime_config.stream,
                     tools=get_tool_schemas() if self.client.tools_enabled else [],
                 )
 
                 actor_name = f"🤖 {participant.name}"
                 result = await self.client.generate(
-                    request, self.args.verbose, actor_name=actor_name
+                    request, self.runtime_config.verbose, actor_name=actor_name
                 )
                 assistant_message = result.get("text", "")
 
@@ -972,14 +976,14 @@ class InteractiveUI:
         request = ChatRequest(
             messages=messages,
             model=judge.model,
-            max_tokens=self.args.max_tokens,
-            temperature=self.args.temperature,
-            stream=self.args.stream,
+            max_tokens=self.runtime_config.max_tokens,
+            temperature=self.runtime_config.temperature,
+            stream=self.runtime_config.stream,
         )
 
         actor_name = f"🧑‍⚖️ {judge.name}"
         result = await self.client.generate(
-            request, self.args.verbose, actor_name=actor_name
+            request, self.runtime_config.verbose, actor_name=actor_name
         )
         assistant_message = result.get("text", "")
 
@@ -1000,7 +1004,7 @@ class InteractiveUI:
     def _get_toolbar_text(self) -> HTML:
         """Generates the HTML for the multi-line bottom toolbar."""
         try:
-            client, _args, session_dir = self.client, self.args, self.session_dir
+            client, session_dir = self.client, self.session_dir
             endpoint, model = client.config.name, client.config.model_name
             session_stats, display = client.stats, client.display
             live_stats = display.current_request_stats
@@ -1129,27 +1133,36 @@ class InteractiveUI:
             closing(self.client.stats, printer=self.pt_printer)
 
 
-async def interactive_mode(client: PolyglotClient, args: argparse.Namespace):
-    """The main interactive mode, which uses a prompt-toolkit Application for a stable UI."""
-    ui = InteractiveUI(client, args)
-    await ui.run()
+# NEW: typer application replaces main(), async_main(), and argparse
+app = typer.Typer(
+    name="pai",
+    help="🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶",
+    add_completion=False,
+    no_args_is_help=True,
+)
 
 
-async def async_main(args: argparse.Namespace):
-    """The async entrypoint for the application."""
+def load_toml_config(path: str) -> PolyglotConfig:
+    """Loads and validates the TOML configuration file."""
     try:
-        with open(args.config, encoding="utf-8") as f:
-            loaded_config = toml.load(f)
+        with open(path, encoding="utf-8") as f:
+            data = toml.load(f)
+            return PolyglotConfig.model_validate(data)
     except FileNotFoundError:
-        sys.exit(f"❌ FATAL: Config file not found at '{args.config}'")
+        sys.exit(f"❌ FATAL: Config file not found at '{path}'")
     except Exception as e:
-        sys.exit(f"❌ FATAL: Could not parse '{args.config}': {e}")
+        sys.exit(f"❌ FATAL: Could not parse '{path}': {e}")
+
+
+async def _run(runtime_config: RuntimeConfig):
+    """The core async logic of the application."""
+    toml_config = load_toml_config(runtime_config.config)
 
     # Conditionally load tools only if the --tools flag is active.
-    if args.tools:
+    if runtime_config.tools:
         print("🛠️  --tools flag detected. Loading tools...")
-        if tool_config := loaded_config.get("tool_config"):
-            if tool_dirs := tool_config.get("directories"):
+        if toml_config.tool_config:
+            if tool_dirs := toml_config.tool_config.directories:
                 from .tools import load_tools_from_directory
 
                 for tool_dir in tool_dirs:
@@ -1159,93 +1172,112 @@ async def async_main(args: argparse.Namespace):
 
     # Use a single httpx client session for the application's lifecycle
     transport = httpx.AsyncHTTPTransport(retries=3)
-    # Default timeout is 5 seconds. Set a longer one for model generation.
     async with httpx.AsyncClient(transport=transport, timeout=30.0) as http_session:
         try:
-            client = PolyglotClient(args, loaded_config, http_session)
-            if args.prompt:
+            client = PolyglotClient(runtime_config, toml_config, http_session)
+            if runtime_config.prompt:
                 # Non-interactive mode
-                if args.chat:
+                if runtime_config.chat:
                     messages = (
-                        [{"role": "system", "content": args.system}]
-                        if args.system
+                        [{"role": "system", "content": runtime_config.system}]
+                        if runtime_config.system
                         else []
                     )
-                    messages.append({"role": "user", "content": args.prompt})
+                    messages.append({"role": "user", "content": runtime_config.prompt})
                     request = ChatRequest(
                         messages=messages,
                         model=client.config.model_name,
-                        max_tokens=args.max_tokens,
-                        temperature=args.temperature,
-                        stream=args.stream,
+                        max_tokens=runtime_config.max_tokens,
+                        temperature=runtime_config.temperature,
+                        stream=runtime_config.stream,
                         tools=get_tool_schemas() if client.tools_enabled else [],
                     )
                 else:
                     request = CompletionRequest(
-                        prompt=args.prompt,
+                        prompt=runtime_config.prompt,
                         model=client.config.model_name,
-                        max_tokens=args.max_tokens,
-                        temperature=args.temperature,
-                        stream=args.stream,
+                        max_tokens=runtime_config.max_tokens,
+                        temperature=runtime_config.temperature,
+                        stream=runtime_config.stream,
                     )
-                await client.generate(request, args.verbose)
+                await client.generate(request, runtime_config.verbose)
                 print_stats(client.stats)
             else:
                 # Interactive mode
-                await interactive_mode(client, args)
+                ui = InteractiveUI(client, runtime_config)
+                await ui.run()
         except (APIError, ValueError, httpx.RequestError, ConnectionError) as e:
-            sys.exit(f"❌ Error: {e}")
+            # Typer/rich will print a nice error message, no need to print it ourselves.
+            raise typer.Exit(code=1) from e
+
+
+@app.command(
+    context_settings={"help_option_names": ["-h", "--help"]},
+    no_args_is_help=True,
+)
+def run(
+    ctx: typer.Context,
+    prompt: Optional[str] = typer.Option(
+        None, "-p", "--prompt", help="Send a single prompt and exit."
+    ),
+    chat: bool = typer.Option(False, help="Enable chat mode. Required for tool use."),
+    system: Optional[str] = typer.Option(
+        None, help="Set a system prompt for chat mode."
+    ),
+    model: Optional[str] = typer.Option(
+        None, help="Override the default model for the session."
+    ),
+    endpoint: str = typer.Option(
+        "openai", help="The name of the endpoint from the config file to use."
+    ),
+    max_tokens: int = typer.Option(2000, help="Set the max tokens for the response."),
+    temperature: float = typer.Option(
+        0.7, help="Set the temperature for the response."
+    ),
+    timeout: Optional[int] = typer.Option(
+        None, help="Set the request timeout in seconds for the session."
+    ),
+    stream: bool = typer.Option(
+        True, "--stream/--no-stream", help="Enable/disable streaming."
+    ),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Enable verbose logging of request parameters."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="Enable raw protocol debug mode for streaming."
+    ),
+    tools: bool = typer.Option(
+        False,
+        "--tools",
+        help="Enable tool-use capabilities by loading tools from directories in config.",
+    ),
+    config: str = typer.Option(
+        "polyglot.toml", help="Path to the TOML configuration file."
+    ),
+):
+    """Main application entrypoint."""
+    print("🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶")
+    runtime_config = RuntimeConfig(
+        prompt=prompt,
+        chat=chat,
+        system=system,
+        model=model,
+        endpoint=endpoint,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        timeout=timeout,
+        stream=stream,
+        verbose=verbose,
+        debug=debug,
+        tools=tools,
+        config=config,
+    )
+    asyncio.run(_run(runtime_config))
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Polyglot AI: A Universal CLI for the OpenAI API Format",
-        formatter_class=argparse.RawTextHelpFormatter,
-    )
-    parser.add_argument(
-        "--config", default="polyglot.toml", help="Path to the TOML configuration file."
-    )
-    parser.add_argument(
-        "--endpoint",
-        default="openai",
-        help="The name of the endpoint from the config file to use.",
-    )
-    parser.add_argument("--model", help="Override the default model for the session.")
-    parser.add_argument(
-        "--chat", action="store_true", help="Enable chat mode. Required for tool use."
-    )
-    parser.add_argument("-p", "--prompt", help="Send a single prompt and exit.")
-    parser.add_argument("--system", help="Set a system prompt for chat mode.")
-    parser.add_argument("--max-tokens", type=int, default=2000)
-    parser.add_argument("--temperature", type=float, default=0.7)
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        help="Set the request timeout in seconds for the session.",
-    )
-    parser.add_argument("--stream", action="store_true", default=True)
-    parser.add_argument("--no-stream", action="store_false", dest="stream")
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Enable verbose logging of request parameters.",
-    )
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable raw protocol debug mode for streaming.",
-    )
-    parser.add_argument(
-        "--tools",
-        action="store_true",
-        help="Enable tool-use capabilities by loading tools from the directories specified in polyglot.toml. (requires chat mode).",
-    )
-    args = parser.parse_args()
-
-    print_banner()
     try:
-        asyncio.run(async_main(args))
+        app()
     except (KeyboardInterrupt, EOFError):
         print("\n👋 Goodbye!")
     except Exception as e:

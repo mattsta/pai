@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
 import ulid
+from pydantic import BaseModel, Field
 
 from .utils import estimate_tokens
 
@@ -342,3 +343,68 @@ class ChatRequest:
             payload["tools"] = self.tools
             payload["tool_choice"] = "auto"
         return payload
+
+
+# --- Configuration Models ---
+
+
+class TomlParticipant(BaseModel):
+    name: str
+    endpoint: str
+    model: str
+    system_prompt_key: str
+
+
+class TomlJudge(BaseModel):
+    name: str
+    endpoint: str
+    model: str
+    system_prompt_key: str
+
+
+class TomlArena(BaseModel):
+    initiator: str
+    participants: dict[str, TomlParticipant]
+    judge: Optional[TomlJudge] = None
+
+
+class TomlToolConfig(BaseModel):
+    directories: list[str] = []
+
+
+class TomlEndpoint(BaseModel):
+    name: str
+    base_url: str
+    api_key_env: str
+    chat_adapter: Optional[str] = None
+    completion_adapter: Optional[str] = None
+    timeout: int = 180
+
+
+class PolyglotConfig(BaseModel):
+    """Represents the structure of the polyglot.toml file."""
+
+    endpoints: list[TomlEndpoint] = Field(default_factory=list)
+    tool_config: Optional[TomlToolConfig] = None
+    arenas: dict[str, TomlArena] = Field(default_factory=dict)
+
+
+class RuntimeConfig(BaseModel):
+    """Holds runtime configuration state, replacing argparse.Namespace."""
+
+    config: str = "polyglot.toml"
+    endpoint: str = "openai"
+    model: Optional[str] = None
+    chat: bool = False
+    prompt: Optional[str] = None
+    system: Optional[str] = None
+    max_tokens: int = 2000
+    temperature: float = 0.7
+    timeout: Optional[int] = None
+    stream: bool = True
+    verbose: bool = False
+    debug: bool = False
+    tools: bool = False
+
+    class Config:
+        frozen = False  # Allows mutation by commands

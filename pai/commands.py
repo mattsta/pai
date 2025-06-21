@@ -156,8 +156,10 @@ class TempCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         try:
-            self.ui.args.temperature = float(param)
-            self.ui.pt_printer(f"✅ Temp set to: {self.ui.args.temperature}")
+            self.ui.runtime_config.temperature = float(param)
+            self.ui.pt_printer(
+                f"✅ Temp set to: {self.ui.runtime_config.temperature}"
+            )
         except (ValueError, TypeError):
             self.ui.pt_printer("❌ Invalid value.")
 
@@ -173,8 +175,10 @@ class TokensCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         try:
-            self.ui.args.max_tokens = int(param)
-            self.ui.pt_printer(f"✅ Max tokens set to: {self.ui.args.max_tokens}")
+            self.ui.runtime_config.max_tokens = int(param)
+            self.ui.pt_printer(
+                f"✅ Max tokens set to: {self.ui.runtime_config.max_tokens}"
+            )
         except (ValueError, TypeError):
             self.ui.pt_printer("❌ Invalid value.")
 
@@ -207,9 +211,9 @@ class ToggleStreamCommand(Command):
         return "stream"
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.args.stream = not self.ui.args.stream
+        self.ui.runtime_config.stream = not self.ui.runtime_config.stream
         self.ui.pt_printer(
-            f"✅ Streaming {'enabled' if self.ui.args.stream else 'disabled'}."
+            f"✅ Streaming {'enabled' if self.ui.runtime_config.stream else 'disabled'}."
         )
 
 
@@ -219,9 +223,9 @@ class ToggleVerboseCommand(Command):
         return "verbose"
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.args.verbose = not self.ui.args.verbose
+        self.ui.runtime_config.verbose = not self.ui.runtime_config.verbose
         self.ui.pt_printer(
-            f"✅ Verbose mode {'enabled' if self.ui.args.verbose else 'disabled'}."
+            f"✅ Verbose mode {'enabled' if self.ui.runtime_config.verbose else 'disabled'}."
         )
 
 
@@ -364,7 +368,7 @@ class AgentCommand(Command):
             self.ui.pt_printer("❌ /agent is only available in chat mode.")
             return
 
-        if not self.ui.args.tools:
+        if not self.ui.runtime_config.tools:
             self.ui.pt_printer(
                 "⚠️  Warning: Native agent mode works best with the --tools flag enabled at startup."
             )

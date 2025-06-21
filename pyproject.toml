@@ -8,11 +8,12 @@ dependencies = [
     "httpx>=0.28.1",
     "prompt-toolkit>=3.0.51",
     "toml>=0.10.2",
-    "typer>=0.16.0",
+    "typer[all]>=0.16.0",
     "ulid-py>=1.1.0",
     "jinja2>=3.1.4",
     "pyyaml>=6.0.1",
     "pandas>=2.2.2",
+    "pydantic>=2.9.0",
 ]
 
 [tool.ruff]

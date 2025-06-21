@@ -19,12 +19,13 @@ import httpx
 import toml
 import typer
 from prompt_toolkit import PromptSession, print_formatted_text
+from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import Condition
-from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.formatted_text import ANSI, HTML
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
@@ -85,6 +86,7 @@ class StreamingDisplay:
         self._is_interactive = False
         self.output_buffer: Buffer | None = None
         self.actor_name = "🤖 Assistant"
+        self.rich_console = Console()
 
         # State for UI
         self.status = "Idle"
@@ -213,14 +215,16 @@ class StreamingDisplay:
         # of success to ensure partial/cancelled outputs are preserved.
         if self._is_interactive and self.current_response:
             # Render final output as Markdown inside a panel for clarity
-            self._printer(
-                Panel(
-                    Markdown(self.current_response.strip(), code_theme="monokai"),
-                    title=self.actor_name,
-                    title_align="left",
-                    border_style="dim",
-                )
+            panel_to_print = Panel(
+                Markdown(self.current_response.strip(), code_theme="monokai"),
+                title=self.actor_name,
+                title_align="left",
+                border_style="dim",
             )
+            # Capture the rich output and print it as ANSI text for prompt-toolkit
+            with self.rich_console.capture() as capture:
+                self.rich_console.print(panel_to_print)
+            self._printer(ANSI(capture.get()))
 
         # On success, print final stats.
         if success and self.current_request_stats:

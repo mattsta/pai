@@ -15,6 +15,7 @@ from datetime import datetime
 from html import escape
 from typing import Any, Optional
 
+import logging
 import httpx
 import toml
 import typer
@@ -136,7 +137,9 @@ class StreamingDisplay:
     def show_raw_line(self, line: str):
         if self.debug_mode:
             if not self.first_token_received:
-                self._print("🔍 DEBUG MODE: Showing raw protocol traffic\n" + "=" * 60)
+                header = "🔍 DEBUG MODE: Showing raw protocol traffic\n" + "=" * 60
+                self._print(header)
+                logging.info(header)
                 self.first_token_received = (
                     True  # Prevent header from printing multiple times
                 )
@@ -149,7 +152,9 @@ class StreamingDisplay:
             prefix = f"⚪ [{duration:6.2f}s] L{self.line_count:03d}: "
             if line.startswith("data: "):
                 prefix = f"🔵 [{duration:6.2f}s] L{self.line_count:03d}: "
-            self._print(f"{prefix}{repr(line)}")
+            log_line = f"{prefix}{repr(line)}"
+            self._print(log_line)
+            logging.info(log_line)
 
     def show_parsed_chunk(self, chunk_data: dict, chunk_text: str):
         """Handles printing a parsed chunk of text from the stream."""
@@ -194,9 +199,9 @@ class StreamingDisplay:
                 if self.current_request_stats
                 else 0
             )
-            self._print(
-                f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
-            )
+            log_line = f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
+            self._print(log_line)
+            logging.info(log_line)
 
     def finish_response(self, success: bool = True) -> RequestStats | None:
         """Finalizes the response, prints stats, and resets the display state."""
@@ -236,11 +241,13 @@ class StreamingDisplay:
         if success and self.current_request_stats:
             stats = self.current_request_stats
             if self.debug_mode:
-                self._print(
+                summary = (
                     "=" * 60
                     + f"\n🔍 DEBUG SUMMARY: {self.line_count} lines, {self.chunk_count} chunks, {stats.response_time:.2f}s\n"
                     + "=" * 60
                 )
+                self._print(summary)
+                logging.info(summary)
             elif not self._is_interactive and self.first_token_received:
                 # For non-interactive mode, print the final stats line.
                 tok_per_sec = stats.final_tok_per_sec
@@ -312,7 +319,9 @@ class PolyglotClient:
             "Content-Type": "application/json",
             "User-Agent": "PolyglotAI/0.1.0",
         }
-        self.display._print(f"✅ Switched to endpoint: {self.config.name}")
+        msg = f"✅ Switched to endpoint: {self.config.name}"
+        self.display._print(msg)
+        logging.info(msg)
 
     async def generate(
         self,
@@ -329,13 +338,15 @@ class PolyglotClient:
                 f"Endpoint '{self.config.name}' does not support {'chat' if is_chat else 'completion'} mode."
             )
         if verbose:
-            self.display._print(
-                f"\n🚀 Sending request via endpoint '{self.config.name}' using adapter '{type(adapter).__name__}'"
-            )
-            self.display._print(f"📝 Model: {self.config.model_name}")
-            self.display._print(
-                f"🎛️ Parameters: temp={request.temperature}, max_tokens={request.max_tokens}, stream={request.stream}"
-            )
+            msg1 = f"\n🚀 Sending request via endpoint '{self.config.name}' using adapter '{type(adapter).__name__}'"
+            msg2 = f"📝 Model: {self.config.model_name}"
+            msg3 = f"🎛️ Parameters: temp={request.temperature}, max_tokens={request.max_tokens}, stream={request.stream}"
+            self.display._print(msg1)
+            self.display._print(msg2)
+            self.display._print(msg3)
+            logging.info(msg1)
+            logging.info(msg2)
+            logging.info(msg3)
 
         context = ProtocolContext(
             http_session=self.http_session,
@@ -1186,6 +1197,15 @@ def load_toml_config(path: str) -> PolyglotConfig:
 
 async def _run(runtime_config: RuntimeConfig):
     """The core async logic of the application."""
+    if runtime_config.log_file:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(message)s",
+            filename=runtime_config.log_file,
+            filemode="w",
+        )
+        logging.info("--- Log file initialized ---")
+
     toml_config = load_toml_config(runtime_config.config)
 
     # Conditionally load tools only if the --tools flag is active.
@@ -1284,6 +1304,12 @@ def run(
     rich_text: bool = typer.Option(
         True, "--rich/--no-rich", help="Enable/disable rich text formatting for output."
     ),
+    log_file: Optional[str] = typer.Option(
+        None,
+        "--log-file",
+        help="Path to a file for writing debug and verbose logs.",
+        show_default=False,
+    ),
     config: str = typer.Option(
         "polyglot.toml", help="Path to the TOML configuration file."
     ),
@@ -1304,6 +1330,7 @@ def run(
         debug=debug,
         tools=tools,
         rich_text=rich_text,
+        log_file=log_file,
         config=config,
     )
     asyncio.run(_run(runtime_config))

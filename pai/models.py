@@ -420,6 +420,7 @@ class RuntimeConfig(BaseModel):
     debug: bool = False
     tools: bool = False
     rich_text: bool = True
+    log_file: str | None = None
 
     class Config:
         frozen = False  # Allows mutation by commands

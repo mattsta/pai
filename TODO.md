@@ -22,7 +22,7 @@ This is a list of concrete, near-term tasks to improve the framework.
 
 - [x] ~~Investigate `httpx` for a future migration to async I/O.~~ (Completed)
 - [ ] Design a system for managing multiple `system` prompts within a session.
-- [ ] Add a `--log-file` option to write all debug output to a file for later analysis.
+- [x] Add a `--log-file` option to write all debug output to a file for later analysis.
 
 ### Feature: Multi-Model Arena
 - [x] **Phase 1: Configuration and Data Models**

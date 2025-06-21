@@ -19,6 +19,8 @@ import httpx
 import toml
 import typer
 from prompt_toolkit import PromptSession, print_formatted_text
+from rich.markdown import Markdown
+from rich.panel import Panel
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import Condition
@@ -210,8 +212,14 @@ class StreamingDisplay:
         # buffer to the main conversation transcript. This happens regardless
         # of success to ensure partial/cancelled outputs are preserved.
         if self._is_interactive and self.current_response:
-            self._print(
-                HTML(f"{escape(self.actor_name)}: {escape(self.current_response)}")
+            # Render final output as Markdown inside a panel for clarity
+            self._printer(
+                Panel(
+                    Markdown(self.current_response.strip(), code_theme="monokai"),
+                    title=self.actor_name,
+                    title_align="left",
+                    border_style="dim",
+                )
             )
 
         # On success, print final stats.

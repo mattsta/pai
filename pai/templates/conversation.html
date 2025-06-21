@@ -20,6 +20,9 @@
         .assistant.participant-2 { border-left: 4px solid #ff9800; background-color: #fff8e1; } /* Judge */
         .participant-info { font-size: 0.8em; color: #555; margin-bottom: 5px; }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/monokai.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <h1>PAI Conversation ({{ conversation_id }})</h1>
@@ -28,7 +31,7 @@
     <div class="message {{ message.role }}{% if message.participant_index is not none %} participant-{{ message.participant_index }}{% endif %}">
         {% if message.role == 'tool' %}
             <strong>Tool: {{ message.name }}</strong>
-            <pre>{{ message.content }}</pre>
+            <pre><code>{{ message.content }}</code></pre>
         {% else %}
             {% if message.participant_name %}
                 <div class="participant-info">
@@ -39,14 +42,25 @@
             {% endif %}
 
             {% if message.content %}
-            <div>{{ message.content.strip() }}</div>
+            <div class="message-content">{{ message.content.strip() }}</div>
             {% endif %}
             {% if message.tool_calls %}
             <div>Tool Call Request:</div>
-            <pre>{{ message.tool_calls | prettyjson }}</pre>
+            <pre><code class="language-json">{{ message.tool_calls | prettyjson }}</code></pre>
             {% endif %}
         {% endif %}
     </div>
     {% endfor %}
+
+    <script>
+      document.addEventListener('DOMContentLoaded', (event) => {
+        document.querySelectorAll('.message-content').forEach((block) => {
+          block.innerHTML = marked.parse(block.innerHTML, { gfm: true, breaks: true });
+        });
+        document.querySelectorAll('pre code').forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
 </body>
 </html>

@@ -405,6 +405,7 @@ class RuntimeConfig(BaseModel):
     verbose: bool = False
     debug: bool = False
     tools: bool = False
+    rich_text: bool = True
 
     class Config:
         frozen = False  # Allows mutation by commands

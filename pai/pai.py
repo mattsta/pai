@@ -80,8 +80,9 @@ ADAPTER_MAP = {
 class StreamingDisplay:
     """Manages all console output, ensuring prompt-toolkit UI is not corrupted."""
 
-    def __init__(self, debug_mode: bool = False):
+    def __init__(self, debug_mode: bool = False, rich_text_mode: bool = True):
         self.debug_mode = debug_mode
+        self.rich_text_mode = rich_text_mode
         self._printer = print  # Default to standard print
         self._is_interactive = False
         self.output_buffer: Buffer | None = None
@@ -214,17 +215,22 @@ class StreamingDisplay:
         # buffer to the main conversation transcript. This happens regardless
         # of success to ensure partial/cancelled outputs are preserved.
         if self._is_interactive and self.current_response:
-            # Render final output as Markdown inside a panel for clarity
-            panel_to_print = Panel(
-                Markdown(self.current_response.strip(), code_theme="monokai"),
-                title=self.actor_name,
-                title_align="left",
-                border_style="dim",
-            )
-            # Capture the rich output and print it as ANSI text for prompt-toolkit
-            with self.rich_console.capture() as capture:
-                self.rich_console.print(panel_to_print)
-            self._printer(ANSI(capture.get()))
+            if self.rich_text_mode:
+                # Render final output as Markdown inside a panel for clarity
+                panel_to_print = Panel(
+                    Markdown(self.current_response.strip(), code_theme="monokai"),
+                    title=self.actor_name,
+                    title_align="left",
+                    border_style="dim",
+                )
+                # Capture the rich output and print it as ANSI text for prompt-toolkit
+                with self.rich_console.capture() as capture:
+                    self.rich_console.print(panel_to_print)
+                self._printer(ANSI(capture.get()))
+            else:
+                self._printer(
+                    HTML(f"{escape(self.actor_name)}: {escape(self.current_response)}")
+                )
 
         # On success, print final stats.
         if success and self.current_request_stats:
@@ -265,7 +271,9 @@ class PolyglotClient:
         self.toml_config = toml_config
         self.config = EndpointConfig()
         self.stats = TestSession()
-        self.display = StreamingDisplay(runtime_config.debug)
+        self.display = StreamingDisplay(
+            debug_mode=runtime_config.debug, rich_text_mode=runtime_config.rich_text
+        )
         self.http_session = http_session
         self.tools_enabled = runtime_config.tools
         self.switch_endpoint(runtime_config.endpoint)
@@ -1109,7 +1117,13 @@ class InteractiveUI:
             )
             mode_str = escape(self._get_mode_display_name())
 
+            rich_status = (
+                "<style fg='ansigreen'>ON</style>"
+                if self.runtime_config.rich_text
+                else "OFF"
+            )
             line3_parts = [
+                f"<b>Rich:</b> {rich_status}",
                 f"<b>Tools:</b> {tools_status}",
                 f"<b>Debug:</b> {debug_status}",
                 f"<b>Mode:</b> {mode_str}",
@@ -1265,6 +1279,9 @@ def run(
         "--tools",
         help="Enable tool-use capabilities by loading tools from directories in config.",
     ),
+    rich_text: bool = typer.Option(
+        True, "--rich/--no-rich", help="Enable/disable rich text formatting for output."
+    ),
     config: str = typer.Option(
         "polyglot.toml", help="Path to the TOML configuration file."
     ),
@@ -1284,6 +1301,7 @@ def run(
         verbose=verbose,
         debug=debug,
         tools=tools,
+        rich_text=rich_text,
         config=config,
     )
     asyncio.run(_run(runtime_config))

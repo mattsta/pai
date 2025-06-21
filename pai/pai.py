@@ -13,7 +13,7 @@ import sys
 import time
 from datetime import datetime
 from html import escape
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 import logging
 import httpx

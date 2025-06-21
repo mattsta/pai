@@ -26,5 +26,5 @@ This document outlines potential features and improvements for the future develo
 
 *   **Anthropic Provider:** <ins>Completed.</ins> Added a provider for the Claude family of models using the Messages API.
 *   **Google Gemini Provider:** Add a provider for Google's Gemini models.
-*   **Ollama Provider:** Add a provider to connect to locally-running models via the Ollama server, enabling fully local and private interaction.
+*   **Ollama Provider:** <ins>Completed.</ins> Added a provider to connect to locally-running models via the Ollama server, enabling fully local and private interaction.
 *   **Together AI Provider:** Add a provider for the Together AI platform to gain access to a wide variety of open-source models.

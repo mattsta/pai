@@ -50,6 +50,12 @@ api_key_env = "LM_STUDIO_API_KEY" # Often not needed, can be set to "local"
 chat_adapter = "openai_chat"
 completion_adapter = "legacy_completion"
 
+[[endpoints]]
+name = "ollama"
+base_url = "http://localhost:11434/api"
+api_key_env = "OLLAMA_API_KEY" # Not used by Ollama, but framework expects it. Can be set to "ollama".
+chat_adapter = "ollama"
+
 [tool_config]
 # Directories to scan for custom tool modules.
 # Paths can be absolute or relative to the project root.

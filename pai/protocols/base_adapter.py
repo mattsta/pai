@@ -6,8 +6,8 @@ import httpx
 
 # MODIFIED: Import from models and pai separately to avoid circular deps.
 if TYPE_CHECKING:
-    from ..models import ChatRequest, CompletionRequest, EndpointConfig, TestSession
-    from ..pai import StreamingDisplay
+    from ..models import ChatRequest, CompletionRequest, EndpointConfig, SessionStats
+    from ..display import StreamingDisplay
 
 
 # NEW: Define a simple data structure to pass context from the client to the adapters.
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class ProtocolContext(NamedTuple):
     http_session: httpx.AsyncClient
     display: "StreamingDisplay"
-    stats: "TestSession"
+    stats: "SessionStats"
     config: "EndpointConfig"
     tools_enabled: bool
     confirmer: Callable[[str, dict], Awaitable[bool]] | None

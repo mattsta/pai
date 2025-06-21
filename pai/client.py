@@ -11,7 +11,7 @@ from .models import (
     EndpointConfig,
     PolyglotConfig,
     RuntimeConfig,
-    TestSession,
+    SessionStats,
 )
 from .protocols import ADAPTER_MAP
 from .protocols.base_adapter import ProtocolContext
@@ -30,7 +30,7 @@ class PolyglotClient:
     ):
         self.toml_config = toml_config
         self.config = EndpointConfig()
-        self.stats = TestSession()
+        self.stats = SessionStats()
         self.display = StreamingDisplay(
             debug_mode=runtime_config.debug, rich_text_mode=runtime_config.rich_text
         )

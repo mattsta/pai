@@ -199,7 +199,7 @@ class RequestStats:
 
 
 @dataclass
-class TestSession:
+class SessionStats:
     start_time: datetime = field(default_factory=datetime.now)
     requests_sent: int = 0
     total_tokens_sent: int = 0

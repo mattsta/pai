@@ -6,7 +6,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 
 ```
 +---------------------------+       +---------------------------+
-|      User (CLI)           |       |      TestSession          |
+|      User (CLI)           |       |      SessionStats         |
 | (prompt_toolkit)          |       |      (Statistics)         |
 +-------------^-------------+       +-------------^-------------+
               | (Input)                           | (Metrics)
@@ -44,7 +44,7 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   **`CommandHandler` (`pai/commands.py`):** A dedicated class that parses and executes all `/` commands. Each command is its own class, making the system clean and easy to extend. The `CommandHandler` is instantiated by `InteractiveUI`.
 
 2.  **`pai/client.py` (The Client Controller)**
-    *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`TestSession`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It is passed to the `InteractiveUI` to orchestrate the flow from user input to protocol adapter execution.
+    *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`SessionStats`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It is passed to the `InteractiveUI` to orchestrate the flow from user input to protocol adapter execution.
 
 3.  **Protocol Adapter System (`pai/protocols/`)**
     *   **`__init__.py`:** This file acts as the central registry for all adapters, defining the `ADAPTER_MAP` that maps protocol names to their respective classes.

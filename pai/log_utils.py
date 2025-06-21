@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 if TYPE_CHECKING:
-    from .models import Conversation, TestSession
+    from .models import Conversation, SessionStats
 
 
-def print_stats(stats: "TestSession", printer: Callable = print):
+def print_stats(stats: "SessionStats", printer: Callable = print):
     """Prints a formatted summary of session statistics."""
     stat_dict = stats.get_stats()
     printer("\n📊 SESSION STATISTICS\n" + "=" * 50)
@@ -30,7 +30,7 @@ def print_stats(stats: "TestSession", printer: Callable = print):
     printer("=" * 50)
 
 
-def closing(stats: "TestSession", printer: Callable = print):
+def closing(stats: "SessionStats", printer: Callable = print):
     """Prints the final statistics at the end of a session."""
     printer("\n\n📊 Final Statistics:")
     print_stats(stats, printer=printer)

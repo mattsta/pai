@@ -2,6 +2,8 @@
 import json
 import time
 from typing import Any
+
+from ..models import ChatRequest
 from ..tools import execute_tool
 from ..utils import estimate_tokens
 

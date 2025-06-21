@@ -359,7 +359,12 @@ class InteractiveUI:
         request: ChatRequest | CompletionRequest | None = None
         try:
             if self.is_chat_mode and self.legacy_agent_mode:
-                await self._run_legacy_agent_loop(user_input_str)
+                confirmer = (
+                    self._confirm_tool_call
+                    if self.runtime_config.confirm_tool_use
+                    else None
+                )
+                await self._run_legacy_agent_loop(user_input_str, confirmer)
             else:
                 if self.is_chat_mode:
                     messages = self.conversation.get_messages_for_next_turn(

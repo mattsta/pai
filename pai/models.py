@@ -225,8 +225,9 @@ class TestSession:
     def get_stats(self) -> dict[str, Any]:
         successful_requests = self.requests_sent - self.errors
         success_rate = (successful_requests / max(self.requests_sent, 1)) * 100
-        avg_response_time = self.total_response_time / max(successful_requests, 1)
-        return {
+        avg_response_time = self.total_response_time / max(self.requests_sent, 1)
+
+        stats = {
             "session_duration": str(datetime.now() - self.start_time).split(".")[0],
             "requests_sent": self.requests_sent,
             "successful_requests": successful_requests,
@@ -236,6 +237,19 @@ class TestSession:
             "avg_response_time": f"{avg_response_time:.2f}s",
             "tokens_per_second": f"{self.total_tokens_received / max(self.total_response_time, 1):.1f}",
         }
+
+        if self.last_request_stats:
+            last = self.last_request_stats
+            stats["last_request"] = {
+                "ttft": f"{last.ttft:.2f}s" if last.ttft else "N/A",
+                "response_time": f"{last.response_time:.2f}s"
+                if last.response_time
+                else "N/A",
+                "tokens_received": last.tokens_received,
+                "tokens_per_second": f"{last.final_tok_per_sec:.1f}",
+                "finish_reason": last.finish_reason or "N/A",
+            }
+        return stats
 
 
 # --- Arena Data Models ---

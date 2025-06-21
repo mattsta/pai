@@ -18,7 +18,16 @@ def print_stats(stats: "TestSession", printer: Callable = print):
     stat_dict = stats.get_stats()
     printer("\n📊 SESSION STATISTICS\n" + "=" * 50)
     for key, value in stat_dict.items():
+        if key == "last_request":
+            continue  # We'll print this separately
         printer(f"{key.replace('_', ' ').title():<22}{value}")
+
+    if "last_request" in stat_dict:
+        printer("-" * 50)
+        printer("Last Request:")
+        for key, value in stat_dict["last_request"].items():
+            printer(f"  - {key.replace('_', ' ').title():<20}{value}")
+
     printer("=" * 50)
 
 

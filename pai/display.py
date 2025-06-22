@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import re
@@ -14,6 +16,54 @@ from rich.panel import Panel
 
 from .models import RequestStats
 from .utils import estimate_tokens
+
+
+class StreamSmoother:
+    """
+    Calculates adaptive delays for smooth stream rendering.
+    Its goal is to provide a consistent rendering speed by maintaining a small
+    buffer to hide network jitter.
+    """
+
+    def __init__(self):
+        # --- Configuration ---
+        self.target_buffer_s = 1.5
+        self.min_wps = 8.5  # Minimum readable words per second
+        self.max_wps = 100.0  # Cap to prevent runaway speeds
+        self._wps_smoothing_factor = 0.05  # How quickly we adapt to the live rate.
+        self._urgency_gain = 0.5  # How aggressively we correct buffer errors.
+
+        # --- State ---
+        self.smoothed_wps = self.min_wps
+        self.current_drain_time_s = 0.0
+
+    def get_render_delay(self, live_tps: float, queue_size: int) -> float:
+        """Calculates the next sleep delay to manage the buffer."""
+        # 1. Update our smoothed render speed towards the live token rate.
+        live_wps = max(live_tps * 1.7, self.min_wps)
+        self.smoothed_wps = (
+            self.smoothed_wps * (1 - self._wps_smoothing_factor)
+            + live_wps * self._wps_smoothing_factor
+        )
+        self.smoothed_wps = min(self.smoothed_wps, self.max_wps)
+
+        # 2. Calculate how long it would take to drain the queue at this speed.
+        # Heuristic: a queue item is a word or a space, so ~2 items per word.
+        items_per_second_base = self.smoothed_wps * 2
+        self.current_drain_time_s = (
+            queue_size / items_per_second_base if items_per_second_base > 0 else 0
+        )
+        buffer_error_s = self.current_drain_time_s - self.target_buffer_s
+
+        # 3. Use a P-controller to adjust the final speed to drain/fill the buffer.
+        urgency_factor = 1.0 - (buffer_error_s * self._urgency_gain)
+        final_wps = self.smoothed_wps * urgency_factor
+        # Don't render slower than half the minimum readable speed.
+        final_wps = max(self.min_wps / 2, final_wps)
+
+        # 4. Calculate delay per queue item based on the final adjusted speed.
+        final_items_per_second = final_wps * 2
+        return 1.0 / final_items_per_second if final_items_per_second > 0 else 0.1
 
 
 class StreamingDisplay:
@@ -36,6 +86,7 @@ class StreamingDisplay:
         self.rich_console = Console()
         self._word_queue = asyncio.Queue()
         self._smoother_task: asyncio.Task | None = None
+        self._smoother: StreamSmoother | None = None
         self._inter_chunk_deltas: list[float] = []
         self._stream_finished: bool = False
 
@@ -86,6 +137,7 @@ class StreamingDisplay:
 
         # Start the new renderer task *after* all state is reset.
         if self.smooth_stream_mode:
+            self._smoother = StreamSmoother()
             self._smoother_task = asyncio.create_task(self._smoother_task_loop())
 
     @property
@@ -104,18 +156,9 @@ class StreamingDisplay:
         }
         deltas = self._inter_chunk_deltas
 
-        # Calculate buffer drain time based on live token rate
-        target_tps = (
-            self.current_request_stats.live_tok_per_sec
-            if self.current_request_stats
-            else 0.0
-        )
-        MIN_WPS = 8.5
-        target_word_rate = max(target_tps * 1.7, MIN_WPS)
-        target_token_rate = target_word_rate * 2
-        if target_token_rate > 0:
-            drain_time = self._word_queue.qsize() / target_token_rate
-            stats["buffer_drain_time_s"] = drain_time
+        # Get drain time from the smoother's internal state
+        if self._smoother:
+            stats["buffer_drain_time_s"] = self._smoother.current_drain_time_s
 
         # Calculate network jitter stats
         if len(deltas) > 1:
@@ -187,44 +230,27 @@ class StreamingDisplay:
     async def _smoother_task_loop(self):
         """A background task that calls _render_text with tokens from a queue."""
         try:
-            # The maximum buffer we're willing to hold, in seconds of text.
-            TARGET_BUFFER_S = 1.5
-
             while True:
                 token = await self._word_queue.get()
                 if token is None:  # Sentinel to stop
                     self._word_queue.task_done()
                     break
 
-                # --- Adaptive Smoothing Logic ---
+                if not self._smoother:
+                    await asyncio.sleep(0.01)  # Should not happen
+                    continue
 
-                # 1. Calculate base rendering rate from live stream speed
-                target_tps = (
+                live_tps = (
                     self.current_request_stats.live_tok_per_sec
                     if self.current_request_stats
                     else 0.0
                 )
-                MIN_WPS = 8.5  # Min readable words per second
-                target_wps = max(target_tps * 1.7, MIN_WPS)
-                target_token_rate = target_wps * 2  # Heuristic for words + spaces
-                base_delay = 1.0 / target_token_rate if target_token_rate > 0 else 0.1
-
-                # 2. Adjust speed based on how far we are from the target buffer
-                current_drain_time_s = (
-                    self._word_queue.qsize() / target_token_rate
-                    if target_token_rate > 0
-                    else 0
-                )
-                buffer_error_s = current_drain_time_s - TARGET_BUFFER_S
-
-                # Use a more aggressive proportional controller to adjust speed.
-                # If we are over budget (error > 0), speed up (factor < 1).
-                urgency_factor = max(0.1, min(2.0, 1.0 - (buffer_error_s * 0.5)))
-                final_delay = base_delay * urgency_factor
+                queue_size = self._word_queue.qsize()
+                delay = self._smoother.get_render_delay(live_tps, queue_size)
 
                 self._render_text(token)
                 self._word_queue.task_done()
-                await asyncio.sleep(final_delay)
+                await asyncio.sleep(delay)
         except asyncio.CancelledError:
             # On cancellation, immediately render any remaining text.
             while not self._word_queue.empty():

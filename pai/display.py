@@ -123,10 +123,11 @@ class StreamingDisplay:
                 stdev = statistics.stdev(deltas) if len(deltas) > 2 else 0
 
                 stats["arrivals"] = len(deltas)
-                # Filter out near-zero deltas for a more meaningful min value
-                non_zero_deltas = [d for d in deltas if d > 1e-4]  # 0.1ms
+                # Filter out near-zero deltas (artifacts) for a more meaningful min value
+                non_zero_deltas = [d for d in deltas if d > 1e-3]  # 1ms
                 min_val = min(non_zero_deltas) if non_zero_deltas else 0.0
                 stats["min_delta"] = f"{min_val * 1000:.1f}"
+                stats["mean_delta"] = f"{mean * 1000:.1f}"
                 stats["median_delta"] = f"{statistics.median(deltas) * 1000:.1f}"
                 stats["max_delta"] = f"{max(deltas) * 1000:.1f}"
 

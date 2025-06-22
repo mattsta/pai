@@ -102,6 +102,22 @@ class StreamingDisplay:
             "stream_finished": self._stream_finished,
         }
         deltas = self._inter_chunk_deltas
+        gaps = []
+        avg_gap_s = 0.0
+        mean = 0.0
+
+        if len(deltas) > 5:
+            try:
+                mean = statistics.mean(deltas)
+                stdev = statistics.stdev(deltas) if len(deltas) > 2 else 0
+                if stdev > 0:
+                    gaps = [d for d in deltas if d > mean + 1.5 * stdev]
+                avg_gap_s = statistics.mean(gaps) if gaps else 0.0
+            except statistics.StatisticsError:
+                pass  # Not enough data
+
+        stats["avg_gap_s"] = avg_gap_s
+        stats["target_buffer_s"] = min(4.0, max(2.0, 2.0 * avg_gap_s))
 
         # Calculate buffer drain time
         target_tps = (
@@ -125,12 +141,14 @@ class StreamingDisplay:
                 stats["min_delta"] = f"{min_val * 1000:.1f}"
                 stats["median_delta"] = f"{statistics.median(deltas) * 1000:.1f}"
                 stats["max_delta"] = f"{max(deltas) * 1000:.1f}"
-                mean = statistics.mean(deltas)
-                # Only calculate stdev if there's enough data
-                stdev = statistics.stdev(deltas) if len(deltas) > 2 else 0
-                gaps = [d for d in deltas if d > mean + 1.5 * stdev]
-                bursts = sum(1 for d in deltas if d < mean - 0.75 * stdev)
                 stats["gaps"] = len(gaps)
+                # A burst is a delta significantly smaller than the mean
+                stdev = statistics.stdev(deltas) if len(deltas) > 2 else 0
+                bursts = (
+                    sum(1 for d in deltas if d < mean - 0.75 * stdev)
+                    if mean and stdev
+                    else 0
+                )
                 stats["bursts"] = bursts
             except statistics.StatisticsError:
                 pass
@@ -185,23 +203,53 @@ class StreamingDisplay:
                     self._word_queue.task_done()
                     break
 
+                # --- Adaptive Smoothing Logic ---
+
+                # 1. Calculate base rendering rate from live stream speed
                 target_tps = (
                     self.current_request_stats.live_tok_per_sec
                     if self.current_request_stats
                     else 0.0
                 )
-                # Use a readable minimum words-per-second to prevent huge delays.
-                # 1 token is ~1.7 words. Min 5 TPS -> ~8.5 WPS.
-                MIN_WPS = 8.5
-                # We render tokens (words and spaces), not just words, so the rate needs to be faster.
-                # Let's double the effective rate to account for spaces (a rough heuristic).
-                target_word_rate = max(target_tps * 1.7, MIN_WPS)
-                target_token_rate = target_word_rate * 2
-                delay = 1.0 / target_token_rate
+                MIN_WPS = 8.5  # Min readable words per second
+                target_wps = max(target_tps * 1.7, MIN_WPS)
+                target_token_rate = target_wps * 2  # Heuristic for words + spaces
+                base_delay = 1.0 / target_token_rate if target_token_rate > 0 else 0.1
+
+                # 2. Calculate target buffer size based on network gaps
+                avg_gap_s = 0.0
+                if len(self._inter_chunk_deltas) > 5:
+                    try:
+                        mean = statistics.mean(self._inter_chunk_deltas)
+                        stdev = (
+                            statistics.stdev(self._inter_chunk_deltas)
+                            if len(self._inter_chunk_deltas) > 1
+                            else 0
+                        )
+                        gaps = [
+                            d for d in self._inter_chunk_deltas if d > mean + 1.5 * stdev
+                        ]
+                        avg_gap_s = statistics.mean(gaps) if gaps else 0.0
+                    except statistics.StatisticsError:
+                        pass  # Not enough data
+                target_buffer_s = min(4.0, max(2.0, 2.0 * avg_gap_s))
+
+                # 3. Adjust speed based on how far we are from the target buffer
+                current_drain_time_s = (
+                    self._word_queue.qsize() / target_token_rate
+                    if target_token_rate > 0
+                    else 0
+                )
+                buffer_error_s = current_drain_time_s - target_buffer_s
+
+                # Use a proportional controller to adjust speed. If we are over
+                # budget (error > 0), speed up (factor < 1).
+                urgency_factor = max(0.1, min(1.5, 1.0 - (buffer_error_s * 0.2)))
+                final_delay = base_delay * urgency_factor
 
                 self._render_text(token)
                 self._word_queue.task_done()
-                await asyncio.sleep(delay)
+                await asyncio.sleep(final_delay)
         except asyncio.CancelledError:
             # On cancellation, immediately render any remaining text.
             while not self._word_queue.empty():

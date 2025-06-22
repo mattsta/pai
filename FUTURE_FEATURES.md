@@ -26,4 +26,3 @@ This document summarizes the core features and capabilities of the Polyglot AI f
 ### Future Enhancements
 
 *   **Provider Expansion:** Adding support for more API providers, such as Google Gemini and Together AI.
-*   **Advanced Prompt Management:** Designing a system to manage multiple, stackable `system` prompts.

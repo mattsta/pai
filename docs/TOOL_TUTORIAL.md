@@ -47,7 +47,7 @@ The `/agent` command is a shortcut that loads the `prompts/code_editor.md` syste
 > /agent
 
 **AI Response:**
-> 🤖 System prompt loaded from 'code_editor'. History cleared.
+> 🤖 Native Agent mode enabled (loaded 'code_editor' prompt).
 
 **User Prompt 2: Start the Task**
 Now that the AI has both the capability (`--tools`) and the behavior (`/agent`), you can give it a high-level goal. Assume there is a typo in `README.md` where `uv sync -U` is written as `uv cync -U`.

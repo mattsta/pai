@@ -11,7 +11,7 @@ Polyglot AI is an interactive, provider-agnostic CLI designed for developers, re
 *   **Provider Agnostic:** Seamlessly switch between different AI providers (`Featherless`, `OpenAI`, etc.) in a single session.
 *   **Interactive Chat:** A rich, terminal-based chat experience with persistent and searchable command history (up/down arrows for navigation, prefix search, and `Ctrl+R` for reverse search), streaming, helper commands, and a live status toolbar.
 *   **Powerful Debugging:** A first-class, verbose debug mode to inspect raw API traffic, essential for development and research.
-*   **Agentic Tool Use:** A powerful, extensible system allowing models to use local Python functions. Tools are **only loaded if you use the `--tools` flag**. You can then guide the AI with a system prompt (like the one loaded via `/agent`) to perform complex, multi-step tasks.
+*   **Agentic Tool Use:** A powerful, extensible system allowing models to use local Python functions. To enable this, you must start the application with the `--tools` flag. You can then guide the AI with a system prompt (e.g., by using the `/agent` command) to perform complex, multi-step tasks.
     *   **To create tools:** See the [Tool System Guide](./docs/TOOLS.md).
     *   **For a walkthrough:** Check out the [Tool Usage Tutorial](./docs/TOOL_TUTORIAL.md).
 *   **Agentic Looping:** The framework supports agentic loops where the model can use tools iteratively to solve complex problems.
@@ -101,10 +101,10 @@ Once in interactive mode, use `/` commands to control the session:
 *   `/stats`: Displays statistics for the current session.
 *   `/switch <name>`: Switch to a different endpoint (e.g., `/switch openai`).
 *   `/model <name>`: Change the model (e.g., `/model gpt-4o-mini`).
-*   `/system <prompt>`: Set a new system prompt for the chat.
-*   `/prompt <name>`: Load a system prompt from the `prompts/` directory.
-*   `/agent`: Start agent mode for OpenAI-compatible tool-use
-*   `/legacy_agent`: Start agent mode for models without native tool-use
+*   `/system ...`: Manage the system prompt stack (`add`, `pop`, `show`, `clear`, or replace).
+*   `/prompt <name>`: Load a prompt from the `prompts/` directory and add it to the system prompt stack.
+*   `/agent`: A shortcut to load the `code_editor` prompt and enable agent mode.
+*   `/legacy_agent`: A shortcut to load the `legacy_agent` prompt for models without native tool-use.
 *   `/tools`: Toggle tool-use on or off for the current session (Requires starting with `--tools`).
 *   `/debug`: Toggle raw protocol debugging on or off.
 *   `/clear`: Clear the current conversation history.

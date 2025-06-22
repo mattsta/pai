@@ -518,6 +518,71 @@ class InteractiveUI:
             self.conversation.clear()
             self.pt_printer("🧹 History cleared.")
 
+    def set_temperature(self, temp_str: str | None):
+        """Sets the temperature for generation."""
+        try:
+            self.runtime_config.temperature = float(temp_str)
+            self.pt_printer(f"✅ Temp set to: {self.runtime_config.temperature}")
+        except (ValueError, TypeError):
+            self.pt_printer("❌ Invalid value for temperature.")
+
+    def set_max_tokens(self, tokens_str: str | None):
+        """Sets the max tokens for generation."""
+        try:
+            self.runtime_config.max_tokens = int(tokens_str)
+            self.pt_printer(f"✅ Max tokens set to: {self.runtime_config.max_tokens}")
+        except (ValueError, TypeError):
+            self.pt_printer("❌ Invalid value for max tokens.")
+
+    def set_confirm_tool_use(self, confirm: bool):
+        """Toggles tool confirmation mode."""
+        self.runtime_config.confirm_tool_use = confirm
+        self.pt_printer(
+            f"✅ Tool confirmation mode {'enabled' if self.runtime_config.confirm_tool_use else 'disabled'}."
+        )
+
+    def toggle_stream(self):
+        """Toggles streaming mode."""
+        self.runtime_config.stream = not self.runtime_config.stream
+        self.pt_printer(
+            f"✅ Streaming {'enabled' if self.runtime_config.stream else 'disabled'}."
+        )
+
+    def toggle_verbose(self):
+        """Toggles verbose logging."""
+        self.runtime_config.verbose = not self.runtime_config.verbose
+        self.pt_printer(
+            f"✅ Verbose mode {'enabled' if self.runtime_config.verbose else 'disabled'}."
+        )
+
+    def toggle_debug(self):
+        """Toggles protocol debug mode."""
+        self.client.display.debug_mode = not self.client.display.debug_mode
+        self.pt_printer(
+            f"✅ Debug mode {'enabled' if self.client.display.debug_mode else 'disabled'}."
+        )
+
+    def toggle_rich_text(self):
+        """Toggles rich text rendering."""
+        self.runtime_config.rich_text = not self.runtime_config.rich_text
+        self.client.display.rich_text_mode = self.runtime_config.rich_text
+        self.pt_printer(
+            f"✅ Rich text output {'enabled' if self.runtime_config.rich_text else 'disabled'}."
+        )
+
+    def toggle_tools(self):
+        """Toggles tool usage for the session."""
+        if not self.runtime_config.tools:
+            self.pt_printer(
+                "❌ To use tools, please restart and add the `--tools` flag."
+            )
+            return
+
+        self.client.tools_enabled = not self.client.tools_enabled
+        self.pt_printer(
+            f"✅ Tool calling {'enabled' if self.client.tools_enabled else 'disabled'}."
+        )
+
     async def run(self):
         """Starts the interactive UI."""
         self.pt_printer(

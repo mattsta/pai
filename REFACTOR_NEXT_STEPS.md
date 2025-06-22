@@ -30,17 +30,12 @@ The `InteractiveUI` class is currently responsible for both UI management and th
     -   [x] The `_on_buffer_accepted` method will become a dispatcher. Based on the current `UIMode`, it will instantiate the appropriate orchestrator and run it.
     -   [x] The `InteractiveUI` will pass necessary context (like the `PolyglotClient` and `Conversation` objects) to the orchestrator upon creation.
 
-### Phase 3: Command and Client Decoupling
+### Phase 3: Command and Client Decoupling (Completed)
 
-The `Command` classes and the `PolyglotClient` are still somewhat tightly coupled to the UI and each other.
+The `Command` classes and the `PolyglotClient` are now more cleanly decoupled from direct state manipulation.
 
--   [ ] **Refine Command Dependencies:**
-    -   [ ] Review all `Command` classes in `pai/commands.py`.
-    -   [ ] Replace direct state modifications (e.g., `self.ui.runtime_config.temperature = ...`) with calls to setter methods on the `InteractiveUI` (e.g., `self.ui.set_temperature(...)`). This provides a cleaner interface and a single place to handle side effects of state changes.
-
--   [ ] **Clarify Client Responsibilities:**
-    -   [ ] The `PolyglotClient` currently handles endpoint switching and holds the active endpoint configuration (`EndpointConfig`). This is good.
-    -   [ ] However, commands like `/model` and `/timeout` modify this state through `self.ui.client.config`. This should be formalized through methods on the `PolyglotClient` itself (e.g., `client.set_model(...)`).
+-   [x] **Refined Command Dependencies:** All commands that modify `RuntimeConfig` (e.g., `/temp`, `/tokens`, `/stream`, `/debug`) now call dedicated setter/toggler methods on the `InteractiveUI` class. This centralizes state management logic within the UI controller.
+-   [x] **Clarified Client Responsibilities:** Commands that modify the active endpoint's configuration (`/model`, `/timeout`) now call dedicated methods on the `PolyglotClient` (`client.set_model`, `client.set_timeout`). This properly encapsulates client state within the client object itself.
 
 ### Phase 4: Tool System Refinement
 

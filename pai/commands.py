@@ -143,8 +143,7 @@ class ModelCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.client.config.model_name = param
-        self.ui.pt_printer(f"✅ Model set to: {param}")
+        self.ui.client.set_model(param)
 
 
 class TempCommand(Command):
@@ -157,13 +156,7 @@ class TempCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        try:
-            self.ui.runtime_config.temperature = float(param)
-            self.ui.pt_printer(
-                f"✅ Temp set to: {self.ui.runtime_config.temperature}"
-            )
-        except (ValueError, TypeError):
-            self.ui.pt_printer("❌ Invalid value.")
+        self.ui.set_temperature(param)
 
 
 class TokensCommand(Command):
@@ -176,13 +169,7 @@ class TokensCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        try:
-            self.ui.runtime_config.max_tokens = int(param)
-            self.ui.pt_printer(
-                f"✅ Max tokens set to: {self.ui.runtime_config.max_tokens}"
-            )
-        except (ValueError, TypeError):
-            self.ui.pt_printer("❌ Invalid value.")
+        self.ui.set_max_tokens(param)
 
 
 class TimeoutCommand(Command):
@@ -197,12 +184,7 @@ class TimeoutCommand(Command):
     def execute(self, app: "Application", param: str | None = None):
         try:
             timeout_val = int(param)
-            if timeout_val <= 0:
-                self.ui.pt_printer("❌ Timeout must be a positive integer.")
-                return
-            # This updates the timeout for the *current* endpoint config
-            self.ui.client.config.timeout = timeout_val
-            self.ui.pt_printer(f"✅ Request timeout set to: {timeout_val}s")
+            self.ui.client.set_timeout(timeout_val)
         except (ValueError, TypeError):
             self.ui.pt_printer("❌ Invalid value. Please provide an integer.")
 
@@ -213,10 +195,7 @@ class ToggleStreamCommand(Command):
         return "stream"
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.runtime_config.stream = not self.ui.runtime_config.stream
-        self.ui.pt_printer(
-            f"✅ Streaming {'enabled' if self.ui.runtime_config.stream else 'disabled'}."
-        )
+        self.ui.toggle_stream()
 
 
 class ToggleVerboseCommand(Command):
@@ -225,10 +204,7 @@ class ToggleVerboseCommand(Command):
         return "verbose"
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.runtime_config.verbose = not self.ui.runtime_config.verbose
-        self.ui.pt_printer(
-            f"✅ Verbose mode {'enabled' if self.ui.runtime_config.verbose else 'disabled'}."
-        )
+        self.ui.toggle_verbose()
 
 
 class ToggleDebugCommand(Command):
@@ -237,10 +213,7 @@ class ToggleDebugCommand(Command):
         return "debug"
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.client.display.debug_mode = not self.ui.client.display.debug_mode
-        self.ui.pt_printer(
-            f"✅ Debug mode {'enabled' if self.ui.client.display.debug_mode else 'disabled'}."
-        )
+        self.ui.toggle_debug()
 
 
 class ToggleRichTextCommand(Command):
@@ -249,11 +222,7 @@ class ToggleRichTextCommand(Command):
         return "rich"
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.runtime_config.rich_text = not self.ui.runtime_config.rich_text
-        self.ui.client.display.rich_text_mode = self.ui.runtime_config.rich_text
-        self.ui.pt_printer(
-            f"✅ Rich text output {'enabled' if self.ui.runtime_config.rich_text else 'disabled'}."
-        )
+        self.ui.toggle_rich_text()
 
 
 class ToggleConfirmCommand(Command):
@@ -265,10 +234,7 @@ class ToggleConfirmCommand(Command):
         if param not in ["on", "off"]:
             self.ui.pt_printer("❌ Usage: /confirm on|off")
             return
-        self.ui.runtime_config.confirm_tool_use = param == "on"
-        self.ui.pt_printer(
-            f"✅ Tool confirmation mode {'enabled' if self.ui.runtime_config.confirm_tool_use else 'disabled'}."
-        )
+        self.ui.set_confirm_tool_use(param == "on")
 
 
 class ToggleToolsCommand(Command):
@@ -277,17 +243,7 @@ class ToggleToolsCommand(Command):
         return "tools"
 
     def execute(self, app: "Application", param: str | None = None):
-        # Prevent enabling tools if none were loaded at startup.
-        if not self.ui.client.tools_enabled and not get_tool_schemas():
-            self.ui.pt_printer(
-                "❌ No tools loaded. To use tools, please restart and add the `--tools` flag."
-            )
-            return
-
-        self.ui.client.tools_enabled = not self.ui.client.tools_enabled
-        self.ui.pt_printer(
-            f"✅ Tool calling {'enabled' if self.ui.client.tools_enabled else 'disabled'}."
-        )
+        self.ui.toggle_tools()
 
 
 class HistoryCommand(Command):

@@ -76,6 +76,25 @@ class PolyglotClient:
         self.display._print(msg)
         logging.info(msg)
 
+    def set_model(self, model_name: str):
+        """Sets the model for the current endpoint."""
+        if self.config:
+            self.config.model_name = model_name
+            msg = f"✅ Model set to: {model_name}"
+            self.display._print(msg)
+            logging.info(msg)
+
+    def set_timeout(self, timeout: int):
+        """Sets the request timeout for the current endpoint."""
+        if self.config:
+            if timeout <= 0:
+                self.display._print("❌ Timeout must be a positive integer.")
+                return
+            self.config.timeout = timeout
+            msg = f"✅ Request timeout set to: {timeout}s"
+            self.display._print(msg)
+            logging.info(msg)
+
     async def generate(
         self,
         request: CompletionRequest | ChatRequest,

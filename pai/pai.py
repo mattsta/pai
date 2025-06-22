@@ -250,7 +250,9 @@ class InteractiveUI:
         search_toolbar = SearchToolbar()
         toolbar_window = Window(
             content=FormattedTextControl(self._get_toolbar_text),
-            height=3,
+            height=lambda: 4
+            if self.runtime_config.smooth_stream and self.client.display.status == "Streaming"
+            else 3,
             style="reverse",
         )
 
@@ -538,8 +540,27 @@ class InteractiveUI:
                 f"<style fg='grey'>Log: {session_dir_esc}</style>",
             ]
 
+            # --- Line 4: Smooth Streaming Stats ---
+            smooth_stats_line = ""
+            if (
+                self.runtime_config.smooth_stream
+                and display.status == "Streaming"
+                and display.smoothing_stats
+            ):
+                s_stats = display.smoothing_stats
+                parts = [f"Queue: {s_stats.get('queue_size', 0)}"]
+                if "avg_delta" in s_stats:
+                    parts.append(
+                        f"Δ: {s_stats['avg_delta']}/{s_stats['median_delta']}/{s_stats['stdev_delta']}"
+                    )
+                if "gaps" in s_stats:
+                    parts.append(f"Gaps/Bursts: {s_stats['gaps']}/{s_stats['bursts']}")
+                smooth_stats_line = (
+                    f"\n<style fg='ansicyan'>Smooth Stats | {' | '.join(parts)}</style>"
+                )
+
             return HTML(
-                f"{line1}\n{' | '.join(p for p in line2_parts if p)}\n{' | '.join(line3_parts)}"
+                f"{line1}\n{' | '.join(p for p in line2_parts if p)}\n{' | '.join(line3_parts)}{smooth_stats_line}"
             )
         except Exception as e:
             # If any rendering fails, return a safe, minimal toolbar to prevent crashing.

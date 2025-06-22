@@ -1,8 +1,10 @@
 import asyncio
 import logging
 import re
+import statistics
 import time
 from html import escape
+from typing import Any
 
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import ANSI, HTML
@@ -33,6 +35,7 @@ class StreamingDisplay:
         self.rich_console = Console()
         self._word_queue = asyncio.Queue()
         self._smoother_task: asyncio.Task | None = None
+        self._inter_chunk_deltas: list[float] = []
 
         # State for UI
         self.status = "Idle"
@@ -68,6 +71,7 @@ class StreamingDisplay:
 
         # Create a new queue, discarding the old one, to prevent processing stale data.
         self._word_queue = asyncio.Queue()
+        self._inter_chunk_deltas = []
 
         self.actor_name = actor_name or "🤖 Assistant"
         self.current_request_stats = RequestStats(tokens_sent=tokens_sent)
@@ -87,6 +91,31 @@ class StreamingDisplay:
         if self.status == "Streaming" and self._last_token_time:
             return time.time() - self._last_token_time
         return 0.0
+
+    @property
+    def smoothing_stats(self) -> dict[str, Any]:
+        """Calculates and returns statistics for smooth streaming mode."""
+        stats: dict[str, Any] = {"queue_size": self._word_queue.qsize()}
+        deltas = self._inter_chunk_deltas
+        if len(deltas) > 2:
+            try:
+                mean = statistics.mean(deltas)
+                stdev = statistics.stdev(deltas)
+                stats["arrivals"] = len(deltas)
+                stats["avg_delta"] = f"{mean * 1000:.1f}ms"
+                stats["median_delta"] = f"{statistics.median(deltas) * 1000:.1f}ms"
+                stats["stdev_delta"] = f"{stdev * 1000:.1f}ms"
+
+                # A gap is a delta significantly larger than the mean (> 1.5 stdev away)
+                gaps = [d for d in deltas if d > mean + 1.5 * stdev]
+                # A burst has deltas very close together (< mean - 0.75 stdev)
+                bursts = sum(1 for d in deltas if d < mean - 0.75 * stdev)
+                stats["gaps"] = len(gaps)
+                stats["bursts"] = bursts
+            except statistics.StatisticsError:
+                # Not enough data to calculate stdev, etc.
+                pass
+        return stats
 
     def _print(self, *args, **kwargs):
         """Internal print-router."""
@@ -171,7 +200,11 @@ class StreamingDisplay:
         if not chunk_text:
             return
 
-        self._last_token_time = time.time()
+        current_chunk_time = time.time()
+        if self._last_token_time:
+            self._inter_chunk_deltas.append(current_chunk_time - self._last_token_time)
+        self._last_token_time = current_chunk_time
+
         if not self.first_token_received:
             self.status = "Streaming"
             if self.current_request_stats:

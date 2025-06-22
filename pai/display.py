@@ -91,6 +91,7 @@ class StreamingDisplay:
         self._smoother: StreamSmoother | None = None
         self._inter_chunk_deltas: list[float] = []
         self._stream_finished: bool = False
+        self._smoothing_aborted: bool = False
 
         # State for UI
         self.status = "Idle"
@@ -135,6 +136,7 @@ class StreamingDisplay:
         self.chunk_count = 0
         self.first_token_received = False
         self._stream_finished = False
+        self._smoothing_aborted = False
         self.status = "Waiting..."
 
         # Start the new renderer task *after* all state is reset.
@@ -264,6 +266,37 @@ class StreamingDisplay:
                 except asyncio.QueueEmpty:
                     break
 
+    async def abort_smoothing(self):
+        """
+        Aborts the active smooth streaming task, dumps the queue, and reverts
+        to line-rate streaming for the rest of the response.
+        """
+        if self._smoothing_aborted:
+            return  # Avoid running twice
+        self._smoothing_aborted = True
+        self._printer(
+            HTML(
+                "\n<style fg='ansiyellow'>Smooth streaming disabled. Press Ctrl+C again to cancel generation.</style>"
+            )
+        )
+        if self._smoother_task and not self._smoother_task.done():
+            self._smoother_task.cancel()
+            try:
+                await self._smoother_task
+            except asyncio.CancelledError:
+                pass  # This is the expected outcome.
+            finally:
+                self._smoother_task = None
+
+        # Immediately render any text remaining in the queue.
+        while not self._word_queue.empty():
+            try:
+                token = self._word_queue.get_nowait()
+                if token is not None:
+                    self._render_text(token)
+            except asyncio.QueueEmpty:
+                break
+
     async def show_parsed_chunk(self, chunk_data: dict, chunk_text: str):
         """Handles a parsed chunk of text from the stream."""
         # Don't do anything for empty chunks from some providers.
@@ -291,7 +324,7 @@ class StreamingDisplay:
                 self._full_response_text
             )
 
-        if self.smooth_stream_mode:
+        if self.smooth_stream_mode and not self._smoothing_aborted:
             # Split the text while preserving whitespace as separate tokens.
             # This ensures that newlines and multiple spaces are handled correctly.
             tokens = re.split(r"(\s+)", chunk_text)

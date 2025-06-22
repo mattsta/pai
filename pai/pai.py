@@ -308,7 +308,18 @@ class InteractiveUI:
             - If the input buffer is empty, print a fake prompt to emulate a new line.
             """
             if self.generation_in_progress.is_set() and self.generation_task:
-                self.generation_task.cancel()
+                display = self.client.display
+                is_smooth_active = (
+                    display.smooth_stream_mode and not display._smoothing_aborted
+                )
+
+                # First Ctrl+C in an active smooth stream: abort smoothing, not generation.
+                if is_smooth_active:
+                    # This must be run as a task as the handler itself is not async.
+                    asyncio.create_task(display.abort_smoothing())
+                else:
+                    # Second Ctrl+C, or Ctrl+C in a non-smooth stream: cancel generation.
+                    self.generation_task.cancel()
             else:
                 if event.app.current_buffer.text:
                     event.app.current_buffer.reset()

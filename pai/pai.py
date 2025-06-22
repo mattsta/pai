@@ -251,7 +251,8 @@ class InteractiveUI:
         toolbar_window = Window(
             content=FormattedTextControl(self._get_toolbar_text),
             height=4,  # Use a fixed height for a stable layout
-            style="reverse",
+            # Use a dark background with light text for a consistent, readable toolbar.
+            style="bg:ansiblack fg:ansiwhite",
         )
 
         layout = Layout(
@@ -439,9 +440,9 @@ class InteractiveUI:
                 judge_str = " w/ Judge" if self.state.arena.arena_config.judge else ""
                 arena_name_esc = escape(self.state.arena.arena_config.name)
                 p_details_esc = escape(p_details)
-                line1 = f"<b><style bg='ansiblue' fg='white'> ⚔️ ARENA: {arena_name_esc}{judge_str} </style></b> | {p_details_esc}"
+                line1 = f"<b><style bg='#445588' fg='ansiwhite'> ⚔️ ARENA: {arena_name_esc}{judge_str} </style></b> | {p_details_esc}"
             else:
-                line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Mode:</b> {mode_str}"
+                line1 = f"<b><style bg='ansiwhite' fg='ansiblack'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Mode:</b> {mode_str}"
 
             # --- Line 2: Performance Stats ---
             line2_parts = []
@@ -473,26 +474,26 @@ class InteractiveUI:
             line2 = " | ".join(line2_parts)
 
             # --- Line 3: Toggles ---
-            on = "<style fg='ansigreen'>ON</style>"
-            off = "OFF"
+            on = "<style fg='ansibrightgreen'>ON</style>"
+            off = "<style fg='ansidarkgray'>OFF</style>"
             yellow_on = "<style fg='ansiyellow'>ON</style>"
 
             core_toggles = [
-                f"<b>Stream:</b> {on if self.runtime_config.stream else off}",
-                f"<b>Rich:</b> {on if self.runtime_config.rich_text else off}",
-                f"<b>Smooth:</b> {on if self.runtime_config.smooth_stream else off}",
-                f"<b>Multiline:</b> {on if self.state.multiline_input else off}",
+                f"Stream: {on if self.runtime_config.stream else off}",
+                f"Rich: {on if self.runtime_config.rich_text else off}",
+                f"Smooth: {on if self.runtime_config.smooth_stream else off}",
+                f"Multiline: {on if self.state.multiline_input else off}",
             ]
             agent_toggles = [
-                f"<b>Tools:</b> {on if client.tools_enabled else off}",
-                f"<b>Confirm:</b> {yellow_on if self.runtime_config.confirm_tool_use else off}",
-                f"<b>Debug:</b> {yellow_on if display.debug_mode else off}",
-                f"<b>Verbose:</b> {yellow_on if self.runtime_config.verbose else off}",
+                f"Tools: {on if client.tools_enabled else off}",
+                f"Confirm: {yellow_on if self.runtime_config.confirm_tool_use else off}",
+                f"Debug: {yellow_on if display.debug_mode else off}",
+                f"Verbose: {yellow_on if self.runtime_config.verbose else off}",
             ]
-            line3 = f"<style fg='ansiblue'><b>Core:</b> {' | '.join(core_toggles)}</style>    <style fg='ansiblue'><b>Agent:</b> {' | '.join(agent_toggles)}</style>"
+            line3 = f"<style fg='ansicyan'><b>Core</b> | {' | '.join(core_toggles)}</style>    <style fg='ansicyan'><b>Agent</b> | {' | '.join(agent_toggles)}</style>"
 
             # --- Line 4: Dynamic Content ---
-            line4 = f"<style fg='grey'>Log: {session_dir_esc}</style>"  # Default
+            line4 = f"<style fg='ansidarkgray'>Log: {session_dir_esc}</style>"  # Default
             if (
                 self.runtime_config.smooth_stream
                 and display.status == "Streaming"
@@ -528,7 +529,7 @@ class InteractiveUI:
                         bursts = s_stats["bursts"]
                         parts.append(f"Gaps/Bursts: {gaps:2d}/{bursts:3d}")
                 line4 = (
-                    f"<style fg='ansicyan'><b>Smooth Stats</b> | {' | '.join(parts)}</style>"
+                    f"<style fg='ansimagenta'><b>Smooth Stats</b> | {' | '.join(parts)}</style>"
                 )
 
             return HTML(f"{line1}\n{line2}\n{line3}\n{line4}")

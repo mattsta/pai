@@ -87,7 +87,26 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   **`SessionStats` & `RequestStats`:** These dataclasses track all metrics. `SessionStats` is the accumulator for the entire application lifetime (total tokens, errors etc.). `RequestStats` holds detailed metrics for a single request, including `ttft` and `finish_reason`, and is used to power the live stats in the UI toolbar.
     *   **`Arena` & `ArenaParticipant`:** To support multi-model conversations, these dataclasses model an "arena" session. The `Arena` holds the configuration for the overall session, including a dictionary of `ArenaParticipant` objects. Each participant has its own model configuration and a dedicated `Conversation` history object.
     *   **`StreamingDisplay` (`pai/display.py`):** This critical component now lives in its own file. It manages all console output and ensures that streaming responses do not corrupt the `prompt-toolkit` interface. It uses a swappable "printer" function to either print normally (for non-interactive use) or use `prompt-toolkit`'s thread-safe method (for interactive mode). It also tracks and exposes live state like `status` ("Waiting", "Streaming", etc.) and `live_tok_per_sec` (a smoothed average over the current stream's duration) to power the real-time UI toolbar.
-        *   **`StreamSmoother`:** For smooth streaming mode, the `StreamingDisplay` uses a `StreamSmoother` instance. This class contains the adaptive rendering logic. It maintains a smoothed words-per-second (`wps`) printing rate that adapts slowly to the live token rate from the provider. It then uses a proportional controller to compare the current render buffer size (in seconds) to a target size. If the buffer is too large, it speeds up printing (reduces delay); if it's too small, it slows down to rebuild the buffer. This decouples the print speed from network jitter, providing a predictable, continuous output.
+        *   **`StreamSmoother`:** For smooth streaming mode, the `StreamingDisplay` uses a `StreamSmoother` instance. This class contains the adaptive rendering logic designed to convert a jittery, bursty stream from a provider into a smooth, consistently paced output for the user. It works as a classic proportional controller.
+
+            ```
+            +---------+     +----------------+     +--------------+
+            | Live    | --> | Base Render    | --> | Render Delay |
+            | TPS     |     | Speed (WPS)    |     | Controller   | ----> Final Delay
+            +---------+     +----------------+     +--------------+
+                ^                                        | (Feedback)
+                |                                        |
+                +----------------------------------------+
+                | Buffer Error (Current Drain - Target Drain) |
+                +---------------------------------------------+
+            ```
+
+            1.  **Calculate Base Speed:** It takes the live tokens-per-second (TPS) from the provider and converts it to a base words-per-second (WPS) rendering speed.
+            2.  **Calculate Buffer Error:** It calculates the `current_drain_time` of its render queue (in seconds) and compares it to a fixed `target_buffer_s` (e.g., 1.5 seconds). The difference is the `buffer_error`.
+            3.  **Adjust Delay with P-Controller:** It feeds this error into a proportional controller.
+                -   If the buffer is **too large** (error > 0), the controller decreases the rendering delay, speeding up printing to drain the buffer.
+                -   If the buffer is **too small** (error < 0), the controller increases the delay, slowing down printing to build up the buffer.
+            4.  **Result:** This system acts as a shock absorber. It uses the buffer to smooth over network gaps and then intelligently speeds up rendering to catch up, ensuring the user sees a continuous, predictable stream of text.
 
 ### Architectural Evolution: A History of Refactoring
 

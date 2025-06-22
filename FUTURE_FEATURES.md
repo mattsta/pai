@@ -19,6 +19,7 @@ This document summarizes the core features and capabilities of the Polyglot AI f
 
 ### Usability and User Experience
 
+*   **Adaptive Smooth Streaming:** An optional `--smooth-stream` mode that converts jittery, bursty network streams into a predictable, consistently paced output. It uses a proportional controller to maintain a small render buffer, providing a "shock absorber" that smooths over network gaps and minimizes perceived latency.
 *   **Rich Output Formatting:** Final model output is rendered as Markdown in the terminal using the `rich` library. HTML session logs also render Markdown and feature syntax-highlighted code blocks.
 *   **Cost Estimation:** The framework tracks and displays a running estimate of the session's API cost (for supported providers) in the toolbar and `/stats` command.
 *   **Command Autocompletion:** A fuzzy completer is integrated for slash commands. Typing part of a command (e.g., `/swi`) and pressing `Tab` shows a list of possible completions.

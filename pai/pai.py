@@ -521,33 +521,36 @@ class InteractiveUI:
                 self.runtime_config.smooth_stream and display.status == "Streaming"
             )
 
-            if is_smoothing_active and display.smoothing_stats:
-                s_stats = display.smoothing_stats
+            if is_smoothing_active and (s_stats := display.smoothing_stats):
                 parts = []
-                is_rendering = s_stats.get("stream_finished", False) and s_stats.get(
-                    "queue_size", 0
-                ) > 0
+                is_rendering = s_stats.stream_finished and s_stats.queue_size > 0
 
                 if is_rendering:
                     parts.append(
                         "<style fg='ansimagenta'><b>[Rendering Queue...]</b></style>"
                     )
-                q_size = s_stats.get("queue_size", 0)
+                q_size = s_stats.queue_size
                 parts.append(f"Queue: {q_size:4d}")
-                drain_time = s_stats.get("buffer_drain_time_s", 0.0)
+                drain_time = s_stats.buffer_drain_time_s
                 parts.append(f"Drain: {drain_time:4.1f}s")
-                if not s_stats.get("stream_finished"):
-                    min_d = float(s_stats.get("min_delta", 0.0))
-                    mean_d = float(s_stats.get("mean_delta", 0.0))
-                    med_d = float(s_stats.get("median_delta", 0.0))
-                    max_d = float(s_stats.get("max_delta", 0.0))
-                    parts.append(
-                        f"Δ (min/mean/med/max ms): {min_d:4.1f}/{mean_d:4.1f}/{med_d:4.1f}/{max_d:4.1f}"
-                    )
-                    gaps = s_stats.get("gaps", 0)
-                    bursts = s_stats.get("bursts", 0)
+                if not s_stats.stream_finished:
+                    try:
+                        min_d = float(s_stats.min_delta)
+                        mean_d = float(s_stats.mean_delta)
+                        med_d = float(s_stats.median_delta)
+                        max_d = float(s_stats.max_delta)
+                        parts.append(
+                            f"Δ (min/mean/med/max ms): {min_d:4.1f}/{mean_d:4.1f}/{med_d:4.1f}/{max_d:4.1f}"
+                        )
+                    except ValueError:
+                        # Handle the "N/A" case if stats aren't ready
+                        parts.append("Δ (min/mean/med/max ms): --.-/--.-/--.-/--.-")
+
+                    gaps = s_stats.gaps
+                    bursts = s_stats.bursts
                     parts.append(f"G/B: {gaps:2d}/{bursts:3d}")
                 else:
+                    # Keep layout stable by showing placeholders
                     parts.append("Δ (min/mean/med/max ms): --.-/--.-/--.-/--.-")
                     parts.append("G/B: --/---")
                 line4 = f"<b>Smooth Stats</b> | {' | '.join(parts)}"

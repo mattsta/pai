@@ -1,31 +1,29 @@
-# Polyglot AI: Future Features Roadmap
+# Polyglot AI: Feature Summary
 
-This document outlines potential features and improvements for the future development of Polyglot AI.
+This document summarizes the core features and capabilities of the Polyglot AI framework.
 
-### Core Framework Enhancements
+### Core Framework
 
-*   **Async Support:** <ins>Completed.</ins> The entire application pipeline, from the command-line interface to the network requests, has been refactored to be fully asynchronous using `httpx` and `asyncio`. This has resolved UI blocking issues and improved responsiveness.
-*   **Pydantic Configuration:** <ins>Completed.</ins> Replaced `argparse` with `typer` for CLI argument parsing and `Pydantic` for config file validation. This provides robust type safety, better error messages, and cleaner code for managing all application settings.
-*   **Profile Management:** <ins>Completed.</ins> Added support for a `--profile <name>` flag that loads presets (endpoint, model, temperature, etc.) from a `[profiles]` section in `polyglot.toml`. CLI flags will override profile settings.
-*   **Manual Session Management:** <ins>Completed.</ins> Added `/save <name>` and `/load <name>` commands to manually save and restore interactive chat sessions.
+*   **Asynchronous Core:** The entire application pipeline, from the command-line interface to the network requests, is fully asynchronous using `httpx` and `asyncio`, ensuring a responsive, non-blocking user interface.
+*   **Robust Configuration:** The framework uses `typer` for CLI argument parsing and `Pydantic` for config file validation, providing strong type safety, clear error messages, and a clean system for managing all application settings.
+*   **Profile Management:** A `--profile <name>` flag allows loading preset configurations (endpoint, model, temperature, etc.) from a `[profiles]` section in `polyglot.toml`. CLI flags will always override profile settings for maximum flexibility.
+*   **Manual Session Management:** Interactive chat sessions can be manually saved to and loaded from disk using the `/save <name>` and `/load <name>` commands.
+*   **Plugin System:** The provider system is a formal plugin architecture. New providers can be added by creating and installing separate Python packages that register a `ProtocolAdapter` using Python's `entry_points` mechanism, making the framework truly extensible without modifying the core code.
 
 ### Advanced Agent & Tool Features
 
-*   **Advanced Agentic Control:** <ins>Completed.</ins> Introduced a command (`/confirm on|off`) and a flag (`--confirm`) to require user confirmation before executing any tool. This provides a critical safety layer for agentic workflows.
-*   **Multi-Tool Calls:** <ins>Completed.</ins> Implemented parallel execution for multiple tool calls in a single turn. When a model requests several tools at once, they are now run concurrently using `asyncio.gather`, improving performance.
-*   **Arena Interjection:** <ins>Completed.</ins> The multi-model arena can now be paused and resumed using `/pause` and `/resume`. The user can interject with their own messages using the `/say` command while the arena is paused, allowing them to steer the conversation.
-*   **Arena Judge:** <ins>Completed.</ins> Arenas can now include an optional third `judge` participant. The judge is given the full conversation history at the end of the dialogue and provides a summary and verdict, which is also logged.
+*   **Agentic Control:** A `--confirm` flag and `/confirm on|off` command require user confirmation before executing any tool, providing a critical safety layer for agentic workflows.
+*   **Parallel Multi-Tool Calls:** The framework supports models that can request multiple tool calls in a single turn, running them concurrently with `asyncio.gather` to improve performance.
+*   **Multi-Model Arena:** The application supports an "arena" mode where two or more models can converse with each other and an optional "judge" model can provide a verdict.
+*   **Arena Interjection:** The multi-model arena can be paused and resumed. Users can interject with their own messages using the `/say` command while the arena is paused, allowing them to steer the conversation.
 
 ### Usability and User Experience
 
-*   **Rich Output Formatting:** <ins>Completed.</ins> Integrated the `rich` library to render final model output as Markdown in the terminal. HTML logs now also render Markdown and syntax-highlighted code blocks using `marked.js` and `highlight.js`.
-*   **Cost Estimation:** <ins>Completed.</ins> The framework now tracks and displays a running estimate of the session's API cost for supported providers (OpenAI, Anthropic) in the toolbar and `/stats` command.
-*   **Command Autocompletion:** <ins>Completed.</ins> Integrated a fuzzy completer for slash commands. Typing part of a command (e.g., `/swi`) and pressing `Tab` will now show a list of possible completions.
-*   **Plugin System:** <ins>Completed.</ins> Replaced the static, hardcoded adapter map with a dynamic plugin system using `importlib.metadata` and `entry_points`. New providers can be added by creating and installing separate Python packages, making the framework truly extensible without modifying the core code.
+*   **Rich Output Formatting:** Final model output is rendered as Markdown in the terminal using the `rich` library. HTML session logs also render Markdown and feature syntax-highlighted code blocks.
+*   **Cost Estimation:** The framework tracks and displays a running estimate of the session's API cost (for supported providers) in the toolbar and `/stats` command.
+*   **Command Autocompletion:** A fuzzy completer is integrated for slash commands. Typing part of a command (e.g., `/swi`) and pressing `Tab` shows a list of possible completions.
 
-### Provider Expansion
+### Future Enhancements
 
-*   **Anthropic Provider:** <ins>Completed.</ins> Added a provider for the Claude family of models using the Messages API.
-*   **Google Gemini Provider:** Add a provider for Google's Gemini models.
-*   **Ollama Provider:** <ins>Completed.</ins> Added a provider to connect to locally-running models via the Ollama server, enabling fully local and private interaction.
-*   **Together AI Provider:** Add a provider for the Together AI platform to gain access to a wide variety of open-source models.
+*   **Provider Expansion:** Adding support for more API providers, such as Google Gemini and Together AI.
+*   **Advanced Prompt Management:** Designing a system to manage multiple, stackable `system` prompts.

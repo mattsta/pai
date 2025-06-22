@@ -88,6 +88,15 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   **`Arena` & `ArenaParticipant`:** To support multi-model conversations, these dataclasses model an "arena" session. The `Arena` holds the configuration for the overall session, including a dictionary of `ArenaParticipant` objects. Each participant has its own model configuration and a dedicated `Conversation` history object.
     *   **`StreamingDisplay` (`pai/display.py`):** This critical component now lives in its own file. It manages all console output and ensures that streaming responses do not corrupt the `prompt-toolkit` interface. It uses a swappable "printer" function to either print normally (for non-interactive use) or use `prompt-toolkit`'s thread-safe method (for interactive mode). It also tracks and exposes live state like `status` ("Waiting", "Streaming", etc.) and `live_tok_per_sec` (a smoothed average over the current stream's duration) to power the real-time UI toolbar.
 
+### Architectural Evolution: A History of Refactoring
+
+The framework underwent a series of planned refactoring phases to arrive at its current clean and modular state. This effort focused on:
+
+*   **State Management (`Phase 1`):** The initial implementation used several boolean flags in `InteractiveUI` to manage state. This was refactored into a more robust `UIMode` enum and a central `UIState` dataclass, simplifying state management and making it easier to extend.
+*   **Orchestrator Extraction (`Phase 2`):** Business logic for different modes (e.g., arena loops, agent loops) was extracted from `InteractiveUI` into a dedicated `pai/orchestration` layer. This decoupled the UI from the application's core logic, improving testability and clarity.
+*   **Decoupling (`Phase 3`):** Direct state manipulation from `Command` classes was removed. Instead, commands now call dedicated setter/toggler methods on `InteractiveUI` and `PolyglotClient`, enforcing clear API boundaries and encapsulating state.
+*   **Tool System Refinement (`Phase 4`):** The `tools.py` module was improved by separating schema-generation logic from the `@tool` decorator and by transitioning from error-string-based returns to a typed exception model (`ToolNotFound`, `ToolArgumentError`), making error handling more robust.
+
 ### Multi-Model Arena
 
 The framework supports a "Multi-Model Arena" mode where two AI models can converse with each other. This is handled by the `ArenaOrchestrator`.

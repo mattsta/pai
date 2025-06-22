@@ -92,7 +92,11 @@ class HelpCommand(Command):
   /multiline             - Toggle multi-line input mode (use Esc+Enter to submit)
   /stream, /verbose, /debug, /rich, /tools, /confirm - Toggle flags on/off
   --- Chat Mode Only ---
-  /system <text>         - Set a new system prompt (clears history)
+  /system <text>         - Replace system prompt stack with this text
+  /system show           - Show the current system prompt stack
+  /system add <text>     - Add a new prompt to the stack
+  /system pop            - Remove the last prompt from the stack
+  /system clear          - Clear all system prompts from the stack
   /history               - Show conversation history
   /clear                 - Clear conversation history
   /save <name>           - Save the current chat session to a file
@@ -282,12 +286,46 @@ class SystemCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        if self.ui.state.mode != UIMode.COMPLETION:
-            self.ui.enter_mode(UIMode.CHAT)
-            self.ui.conversation.set_system_prompt(param)
-            self.ui.pt_printer("🤖 System prompt set.")
-        else:
+        if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /system is only available in chat mode.")
+            return
+
+        parts = param.strip().split(" ", 1)
+        subcommand = parts[0].lower()
+        text = parts[1] if len(parts) > 1 else None
+
+        if subcommand == "add":
+            if not text:
+                self.ui.pt_printer("❌ Usage: /system add <prompt text>")
+                return
+            self.ui.conversation.add_system_prompt(text)
+            self.ui.pt_printer("🤖 System prompt added to stack.")
+        elif subcommand == "pop":
+            popped = self.ui.conversation.pop_system_prompt()
+            if popped:
+                self.ui.pt_printer(f"🤖 Popped system prompt: '{popped[:60].strip()}...'")
+            else:
+                self.ui.pt_printer("🤖 System prompt stack is empty.")
+        elif subcommand == "show":
+            prompts = self.ui.conversation.get_system_prompts()
+            if not prompts:
+                self.ui.pt_printer("🤖 System prompt stack is empty.")
+            else:
+                self.ui.pt_printer("--- System Prompt Stack ---")
+                for i, p in enumerate(prompts):
+                    self.ui.pt_printer(f"[{i+1}]> {p}")
+                self.ui.pt_printer("---------------------------")
+        elif subcommand == "clear":
+            self.ui.conversation.clear_system_prompts()
+            self.ui.pt_printer("🤖 All system prompts have been cleared.")
+        else:
+            # If no subcommand matches, the entire param is the prompt.
+            # This replaces the entire stack.
+            self.ui.enter_mode(UIMode.CHAT, clear_history=True)
+            self.ui.conversation.set_system_prompt(param)
+            self.ui.pt_printer(
+                "🤖 System prompt stack replaced. Conversation history cleared."
+            )
 
 
 class PromptsCommand(Command):
@@ -324,17 +362,15 @@ class PromptCommand(Command):
             self.ui.pt_printer("❌ /prompt is only available in chat mode.")
             return
 
-        self.ui.enter_mode(UIMode.CHAT)
         prompt_path = self.ui.prompts_dir / f"{param}.md"
         if not prompt_path.exists():
             prompt_path = self.ui.prompts_dir / f"{param}.txt"
 
         if prompt_path.exists() and prompt_path.is_file():
             content = prompt_path.read_text(encoding="utf-8")
-            self.ui.conversation.set_system_prompt(content)
-            self.ui.pt_printer(
-                f"🤖 System prompt loaded from '{param}'. History cleared."
-            )
+            # Loading a prompt now *adds* it to the stack instead of replacing.
+            self.ui.conversation.add_system_prompt(content)
+            self.ui.pt_printer(f"🤖 Added system prompt from '{param}' to stack.")
         else:
             self.ui.pt_printer(
                 f"❌ Prompt '{param}' not found in '{self.ui.prompts_dir}'."

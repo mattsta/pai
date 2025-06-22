@@ -504,6 +504,10 @@ class InteractiveUI:
             )
             mode_str = escape(self._get_mode_display_name())
 
+            prompt_count = len(self.conversation.get_system_prompts())
+            if prompt_count > 1:
+                mode_str += f" <style fg='ansicyan'>Sys[{prompt_count}]</style>"
+
             rich_status = (
                 "<style fg='ansigreen'>ON</style>"
                 if self.runtime_config.rich_text

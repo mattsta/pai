@@ -70,54 +70,104 @@ class Conversation:
 
     conversation_id: ulid.ULID = field(default_factory=ulid.new)
     turns: list[Turn] = field(default_factory=list)
-    # The messages list represents the state of the conversation *before* the next user input
-    _messages: list[dict[str, str]] = field(default_factory=list)
+    # NEW: System prompts are managed in a dedicated stack.
+    _system_prompts: list[str] = field(default_factory=list)
+    # The _messages list now ONLY represents the user/assistant/tool turn history.
+    _messages: list[dict[str, Any]] = field(default_factory=list)
     session_token_count: int = 0
+
+    def _recalculate_token_count(self):
+        """Recalculates the session token count from the current state."""
+        token_count = 0
+        if system_content := self._get_combined_system_prompt():
+            token_count += estimate_tokens(system_content)
+        for msg in self._messages:
+            # Handle different message structures (text content, tool calls)
+            if isinstance(content := msg.get("content"), str):
+                token_count += estimate_tokens(content)
+        self.session_token_count = token_count
+
+    def _get_combined_system_prompt(self) -> str | None:
+        """Joins all system prompts into a single string for the API."""
+        if not self._system_prompts:
+            return None
+        # Join with a clear separator for the model.
+        return "\n\n---\n\n".join(self._system_prompts)
+
+    def get_system_prompts(self) -> list[str]:
+        """Returns a copy of the current system prompt stack."""
+        return list(self._system_prompts)
+
+    def add_system_prompt(self, system_prompt: str):
+        """Adds a new system prompt to the stack."""
+        self._system_prompts.append(system_prompt)
+        self._recalculate_token_count()
+
+    def pop_system_prompt(self) -> str | None:
+        """Removes the most recently added system prompt from the stack."""
+        if self._system_prompts:
+            popped = self._system_prompts.pop()
+            self._recalculate_token_count()
+            return popped
+        return None
+
+    def clear_system_prompts(self):
+        """Removes all system prompts."""
+        self._system_prompts.clear()
+        self._recalculate_token_count()
 
     def add_turn(self, turn: Turn, request_stats: Optional["RequestStats"] = None):
         """Adds a completed turn and updates the message history."""
         self.turns.append(turn)
-        # The new message history is the request's messages + the assistant's reply
-        self._messages = turn.request_data.get("messages", [])
-        if turn.assistant_message:
-            self._messages.append(
-                {"role": "assistant", "content": turn.assistant_message}
-            )
-        if request_stats:
-            self.session_token_count += (
-                request_stats.tokens_sent + request_stats.tokens_received
-            )
+        # Set the message history from the request, excluding the system prompt.
+        self._messages = [
+            m for m in turn.request_data.get("messages", []) if m["role"] != "system"
+        ]
+        # Append the final assistant message object from the response data. This
+        # is more robust as it includes tool calls, not just text content.
+        if choices := turn.response_data.get("choices"):
+            if message := choices[0].get("message"):
+                # Ensure we don't add an empty assistant message if one already exists
+                if message.get("content") or message.get("tool_calls"):
+                    self._messages.append(message)
 
-    def get_messages_for_next_turn(self, user_input: str) -> list[dict[str, str]]:
-        """Returns the list of messages for the next API call, including the new user input."""
-        next_messages = list(self._messages)
-        next_messages.append({"role": "user", "content": user_input})
-        return next_messages
+        # The old token counting is replaced by a full recalculation.
+        self._recalculate_token_count()
+
+    def get_messages_for_next_turn(self, user_input: str) -> list[dict[str, Any]]:
+        """
+        Constructs the list of messages for the next API call, combining the
+        system prompt stack and the turn history.
+        """
+        messages = []
+        if system_prompt := self._get_combined_system_prompt():
+            messages.append({"role": "system", "content": system_prompt})
+
+        # The turn history is now clean of system prompts.
+        messages.extend(self._messages)
+        messages.append({"role": "user", "content": user_input})
+        return messages
 
     def get_history(self) -> list[dict[str, str]]:
         """Returns the current message history."""
         return self._messages
 
     def clear(self):
-        """Clears the conversation, keeping any system prompt."""
+        """Clears the turn history, but preserves the system prompt stack."""
         self.turns = []
-        self._messages = [m for m in self._messages if m["role"] == "system"]
-        self.session_token_count = sum(
-            estimate_tokens(m.get("content", ""))
-            for m in self._messages
-            if m.get("content")
-        )
+        self._messages = []
+        # System prompts are preserved, so we just recalculate token count from them.
+        self._recalculate_token_count()
 
     def get_rich_history_for_template(self) -> list[dict[str, Any]]:
         """
         Generates a enriched history list suitable for detailed HTML logging.
         It reconstructs the message flow from turns, adding participant info.
         """
-        # Start with the system prompt if one exists.
-        history = [m for m in self._messages if m["role"] == "system"]
-        if history:
-            # We only show the initial system prompt, not history from previous turns.
-            history = history[:1]
+        # Start with all system prompts from the stack.
+        history = [
+            {"role": "system", "content": prompt} for prompt in self._system_prompts
+        ]
 
         # Create a stable mapping of participant names to a unique index for color-coding.
         participant_names = sorted(
@@ -152,10 +202,11 @@ class Conversation:
         return history
 
     def set_system_prompt(self, system_prompt: str):
-        """Sets a new system prompt, clearing all subsequent history."""
+        """Replaces the entire system prompt stack with a single new prompt."""
         self.turns = []
-        self._messages = [{"role": "system", "content": system_prompt}]
-        self.session_token_count = estimate_tokens(system_prompt)
+        self._messages = []
+        self._system_prompts = [system_prompt]
+        self._recalculate_token_count()
 
 
 @dataclass

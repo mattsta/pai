@@ -141,7 +141,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     # No tool calls, regular response
                     final_text = message.get("content", "")
                     await context.display.show_parsed_chunk(response_data, final_text)
-                    request_stats = context.display.finish_response(success=True)
+                    request_stats = await context.display.finish_response(success=True)
                     if request_stats:
                         usage = response_data.get("usage", {})
                         input_tokens = usage.get("prompt_tokens", tokens_sent)
@@ -232,7 +232,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     messages.extend(tool_results)
                     continue
 
-                request_stats = context.display.finish_response(success=True)
+                request_stats = await context.display.finish_response(success=True)
                 tokens_received = 0
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
@@ -277,7 +277,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
             except Exception as e:
                 # On failure, finalize stats as unsuccessful and re-raise
-                request_stats = context.display.finish_response(success=False)
+                request_stats = await context.display.finish_response(success=False)
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
                     context.stats.add_completed_request(request_stats)

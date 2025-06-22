@@ -92,7 +92,7 @@ class ArenaOrchestrator(BaseOrchestrator):
             )
         except Exception as e:
             if self.client.display.current_request_stats:
-                self.client.display.finish_response(success=False)
+                await self.client.display.finish_response(success=False)
             self.pt_printer(HTML(f"<style fg='ansired'>❌ ARENA ERROR: {e}</style>"))
         finally:
             if self.state.arena:

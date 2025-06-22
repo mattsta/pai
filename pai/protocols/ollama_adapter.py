@@ -46,7 +46,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                 final_text = message.get("content", "")
                 await context.display.show_parsed_chunk(response_data, final_text)
 
-                request_stats = context.display.finish_response(success=True)
+                request_stats = await context.display.finish_response(success=True)
                 if request_stats:
                     request_stats.tokens_sent = response_data.get(
                         "prompt_eval_count", tokens_sent
@@ -91,7 +91,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                             )
                         continue
 
-            request_stats = context.display.finish_response(success=True)
+            request_stats = await context.display.finish_response(success=True)
             if request_stats:
                 request_stats.tokens_sent = final_response_object.get(
                     "prompt_eval_count", tokens_sent
@@ -111,7 +111,7 @@ class OllamaAdapter(BaseProtocolAdapter):
             }
 
         except Exception as e:
-            request_stats = context.display.finish_response(success=False)
+            request_stats = await context.display.finish_response(success=False)
             if request_stats:
                 request_stats.tokens_sent = tokens_sent
                 context.stats.add_completed_request(request_stats)

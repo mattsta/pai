@@ -42,7 +42,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                 text = response_data.get("choices", [{}])[0].get("text", "")
                 await context.display.show_parsed_chunk(response_data, text)
 
-                request_stats = context.display.finish_response(success=True)
+                request_stats = await context.display.finish_response(success=True)
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
                     context.stats.add_completed_request(request_stats)
@@ -80,7 +80,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                                     )
                                 continue
 
-            request_stats = context.display.finish_response(success=True)
+            request_stats = await context.display.finish_response(success=True)
             if request_stats:
                 request_stats.tokens_sent = tokens_sent
                 context.stats.add_completed_request(request_stats)
@@ -92,7 +92,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                 "response": {"usage": {"prompt_tokens": tokens_sent}},
             }
         except Exception as e:
-            request_stats = context.display.finish_response(success=False)
+            request_stats = await context.display.finish_response(success=False)
             if request_stats:
                 request_stats.tokens_sent = tokens_sent
                 context.stats.add_completed_request(request_stats)

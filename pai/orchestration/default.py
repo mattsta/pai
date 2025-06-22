@@ -76,7 +76,7 @@ class DefaultOrchestrator(BaseOrchestrator):
                             f"\n⚠️  Warning: Could not save session turn: {e}"
                         )
         except asyncio.CancelledError:
-            request_stats = self.client.display.finish_response(success=False)
+            request_stats = await self.client.display.finish_response(success=False)
             partial_text = self.client.display.current_response
             if request_stats and request and partial_text:
                 request_stats.finish_reason = "cancelled"
@@ -93,7 +93,7 @@ class DefaultOrchestrator(BaseOrchestrator):
                 HTML("\n<style fg='ansiyellow'>🚫 Generation cancelled.</style>")
             )
         except Exception as e:
-            self.client.display.finish_response(success=False)
+            await self.client.display.finish_response(success=False)
             self.pt_printer(HTML(f"<style fg='ansired'>❌ ERROR: {e}</style>"))
         finally:
             self.ui.generation_in_progress.clear()

@@ -98,7 +98,7 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
             else:
                 self.pt_printer("⚠️ Agent reached maximum loops.")
         except Exception as e:
-            self.client.display.finish_response(success=False)
+            await self.client.display.finish_response(success=False)
             self.pt_printer(HTML(f"❌ LEGACY AGENT ERROR: {e}"))
         finally:
             self.ui.generation_in_progress.clear()

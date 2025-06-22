@@ -90,7 +90,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 )
                 await context.display.show_parsed_chunk(response_data, text)
 
-                request_stats = context.display.finish_response(success=True)
+                request_stats = await context.display.finish_response(success=True)
                 if request_stats:
                     usage = response_data.get("usage", {})
                     input_tokens = usage.get("input_tokens", tokens_sent)
@@ -154,7 +154,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
                                         f"⚠️  Stream parse error: {e} on line: {chunk_str!r}"
                                     )
 
-            request_stats = context.display.finish_response(success=True)
+            request_stats = await context.display.finish_response(success=True)
             if request_stats:
                 output_tokens = final_usage.get(
                     "output_tokens", request_stats.tokens_received
@@ -177,7 +177,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 "response": {"usage": final_usage},
             }
         except Exception as e:
-            request_stats = context.display.finish_response(success=False)
+            request_stats = await context.display.finish_response(success=False)
             if request_stats:
                 request_stats.tokens_sent = tokens_sent
                 context.stats.add_completed_request(request_stats)

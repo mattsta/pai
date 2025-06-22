@@ -527,23 +527,23 @@ class InteractiveUI:
                 parts.append(f"Queue: {q_size:4d}")
 
                 drain_time = s_stats.get("buffer_drain_time_s", 0.0)
-                target_drain = s_stats.get("target_buffer_s", 0.0)
-                parts.append(f"Drain: {drain_time:4.1f}s / {target_drain:3.1f}s")
+                parts.append(f"Drain: {drain_time:4.1f}s")
 
                 # Only show network stats when the stream is actively arriving
                 if not s_stats.get("stream_finished"):
-                    avg_gap = s_stats.get("avg_gap_s", 0.0) * 1000
-                    parts.append(f"Avg Gap: {avg_gap:4.0f}ms")
                     min_d = float(s_stats.get("min_delta", 0.0))
                     med_d = float(s_stats.get("median_delta", 0.0))
                     max_d = float(s_stats.get("max_delta", 0.0))
                     parts.append(
-                        f"Δ: {min_d:4.1f}/{med_d:4.1f}/{max_d:4.1f}ms"
+                        f"Δ (min/med/max ms): {min_d:4.1f}/{med_d:4.1f}/{max_d:4.1f}"
                     )
+                    gaps = s_stats.get("gaps", 0)
+                    bursts = s_stats.get("bursts", 0)
+                    parts.append(f"G/B: {gaps:2d}/{bursts:3d}")
                 else:
                     # Keep layout stable by showing placeholders
-                    parts.append("Avg Gap: ----ms")
-                    parts.append("Δ: --.-/--.-/--.-ms")
+                    parts.append("Δ (min/med/max ms): --.-/--.-/--.-")
+                    parts.append("G/B: --/---")
 
                 line4 = f"<b>Smooth Stats</b> | {' | '.join(parts)}"
 

@@ -102,24 +102,8 @@ class StreamingDisplay:
             "stream_finished": self._stream_finished,
         }
         deltas = self._inter_chunk_deltas
-        gaps = []
-        avg_gap_s = 0.0
-        mean = 0.0
 
-        if len(deltas) > 5:
-            try:
-                mean = statistics.mean(deltas)
-                stdev = statistics.stdev(deltas) if len(deltas) > 2 else 0
-                if stdev > 0:
-                    gaps = [d for d in deltas if d > mean + 1.5 * stdev]
-                avg_gap_s = statistics.mean(gaps) if gaps else 0.0
-            except statistics.StatisticsError:
-                pass  # Not enough data
-
-        stats["avg_gap_s"] = avg_gap_s
-        stats["target_buffer_s"] = min(4.0, max(2.0, 2.0 * avg_gap_s))
-
-        # Calculate buffer drain time
+        # Calculate buffer drain time based on live token rate
         target_tps = (
             self.current_request_stats.live_tok_per_sec
             if self.current_request_stats
@@ -132,8 +116,12 @@ class StreamingDisplay:
             drain_time = self._word_queue.qsize() / target_token_rate
             stats["buffer_drain_time_s"] = drain_time
 
+        # Calculate network jitter stats
         if len(deltas) > 1:
             try:
+                mean = statistics.mean(deltas)
+                stdev = statistics.stdev(deltas) if len(deltas) > 2 else 0
+
                 stats["arrivals"] = len(deltas)
                 # Filter out near-zero deltas for a more meaningful min value
                 non_zero_deltas = [d for d in deltas if d > 1e-4]  # 0.1ms
@@ -141,17 +129,17 @@ class StreamingDisplay:
                 stats["min_delta"] = f"{min_val * 1000:.1f}"
                 stats["median_delta"] = f"{statistics.median(deltas) * 1000:.1f}"
                 stats["max_delta"] = f"{max(deltas) * 1000:.1f}"
-                stats["gaps"] = len(gaps)
-                # A burst is a delta significantly smaller than the mean
-                stdev = statistics.stdev(deltas) if len(deltas) > 2 else 0
+
+                gaps = [d for d in deltas if d > mean + 1.5 * stdev] if stdev > 0 else []
                 bursts = (
                     sum(1 for d in deltas if d < mean - 0.75 * stdev)
                     if mean and stdev
                     else 0
                 )
+                stats["gaps"] = len(gaps)
                 stats["bursts"] = bursts
             except statistics.StatisticsError:
-                pass
+                pass  # Not enough data for stats
         return stats
 
     def _print(self, *args, **kwargs):
@@ -197,6 +185,9 @@ class StreamingDisplay:
     async def _smoother_task_loop(self):
         """A background task that calls _render_text with tokens from a queue."""
         try:
+            # The maximum buffer we're willing to hold, in seconds of text.
+            TARGET_BUFFER_S = 1.5
+
             while True:
                 token = await self._word_queue.get()
                 if token is None:  # Sentinel to stop
@@ -216,35 +207,17 @@ class StreamingDisplay:
                 target_token_rate = target_wps * 2  # Heuristic for words + spaces
                 base_delay = 1.0 / target_token_rate if target_token_rate > 0 else 0.1
 
-                # 2. Calculate target buffer size based on network gaps
-                avg_gap_s = 0.0
-                if len(self._inter_chunk_deltas) > 5:
-                    try:
-                        mean = statistics.mean(self._inter_chunk_deltas)
-                        stdev = (
-                            statistics.stdev(self._inter_chunk_deltas)
-                            if len(self._inter_chunk_deltas) > 1
-                            else 0
-                        )
-                        gaps = [
-                            d for d in self._inter_chunk_deltas if d > mean + 1.5 * stdev
-                        ]
-                        avg_gap_s = statistics.mean(gaps) if gaps else 0.0
-                    except statistics.StatisticsError:
-                        pass  # Not enough data
-                target_buffer_s = min(4.0, max(2.0, 2.0 * avg_gap_s))
-
-                # 3. Adjust speed based on how far we are from the target buffer
+                # 2. Adjust speed based on how far we are from the target buffer
                 current_drain_time_s = (
                     self._word_queue.qsize() / target_token_rate
                     if target_token_rate > 0
                     else 0
                 )
-                buffer_error_s = current_drain_time_s - target_buffer_s
+                buffer_error_s = current_drain_time_s - TARGET_BUFFER_S
 
-                # Use a proportional controller to adjust speed. If we are over
-                # budget (error > 0), speed up (factor < 1).
-                urgency_factor = max(0.1, min(1.5, 1.0 - (buffer_error_s * 0.2)))
+                # Use a more aggressive proportional controller to adjust speed.
+                # If we are over budget (error > 0), speed up (factor < 1).
+                urgency_factor = max(0.1, min(2.0, 1.0 - (buffer_error_s * 0.5)))
                 final_delay = base_delay * urgency_factor
 
                 self._render_text(token)

@@ -38,8 +38,10 @@ def _generate_schema_for_function(func: Callable) -> dict:
         args_section = docstring.split("Args:")[1].split("Returns:")[0]
         for line in args_section.strip().split("\n"):
             if ":" in line:
-                name, desc = line.split(":", 1)
-                param_docs[name.strip()] = desc.strip()
+                param_part, desc = line.split(":", 1)
+                # The name is the first word in the 'name (type)' part.
+                param_name = param_part.strip().split(" ")[0]
+                param_docs[param_name] = desc.strip()
 
     type_mapping = {str: "string", int: "integer", float: "number", bool: "boolean"}
     properties = {}

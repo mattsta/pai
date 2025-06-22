@@ -40,7 +40,10 @@ def sample_tool(name: str, value: int = 10, option: SampleEnum = SampleEnum.A) -
 def test_tool_decorator_registers_and_creates_schema():
     """Verify that the @tool decorator correctly registers the tool and builds its schema."""
     assert "sample_tool" in tools.TOOL_REGISTRY
-    schema = tools.get_tool_schemas()[0]
+    # To make the test robust against dict ordering, find the specific schema.
+    schemas = tools.get_tool_schemas()
+    schema = next((s for s in schemas if s["function"]["name"] == "sample_tool"), None)
+    assert schema is not None
 
     expected_schema = {
         "type": "function",

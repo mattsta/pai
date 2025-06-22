@@ -303,7 +303,9 @@ class SystemCommand(Command):
         elif subcommand == "pop":
             popped = self.ui.conversation.pop_system_prompt()
             if popped:
-                self.ui.pt_printer(f"🤖 Popped system prompt: '{popped[:60].strip()}...'")
+                self.ui.pt_printer(
+                    f"🤖 Popped system prompt: '{popped[:60].strip()}...'"
+                )
             else:
                 self.ui.pt_printer("🤖 System prompt stack is empty.")
         elif subcommand == "show":
@@ -313,7 +315,7 @@ class SystemCommand(Command):
             else:
                 self.ui.pt_printer("--- System Prompt Stack ---")
                 for i, p in enumerate(prompts):
-                    self.ui.pt_printer(f"[{i+1}]> {p}")
+                    self.ui.pt_printer(f"[{i + 1}]> {p}")
                 self.ui.pt_printer("---------------------------")
         elif subcommand == "clear":
             self.ui.conversation.clear_system_prompts()
@@ -715,7 +717,9 @@ class ToggleModeCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         new_mode = (
-            UIMode.COMPLETION if self.ui.state.mode != UIMode.COMPLETION else UIMode.CHAT
+            UIMode.COMPLETION
+            if self.ui.state.mode != UIMode.COMPLETION
+            else UIMode.CHAT
         )
         self.ui.enter_mode(new_mode, clear_history=True)
         mode_name = new_mode.name.replace("_", " ").title()

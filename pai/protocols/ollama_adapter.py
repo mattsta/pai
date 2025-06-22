@@ -26,7 +26,9 @@ class OllamaAdapter(BaseProtocolAdapter):
         if "stream" not in payload:
             payload["stream"] = False
 
-        tokens_sent = sum(estimate_tokens(m.get("content", "")) for m in request.messages)
+        tokens_sent = sum(
+            estimate_tokens(m.get("content", "")) for m in request.messages
+        )
 
         try:
             context.display.start_response(

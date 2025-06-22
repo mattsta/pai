@@ -1,4 +1,5 @@
 """Orchestrator for legacy agent mode (text-based tool use)."""
+
 import json
 import re
 from html import escape

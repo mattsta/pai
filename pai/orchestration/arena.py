@@ -1,4 +1,5 @@
 """Orchestrator for multi-model arena mode."""
+
 import asyncio
 from typing import Any
 

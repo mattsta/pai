@@ -44,7 +44,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 args = json.loads(tool_call["function"]["arguments"])
             except json.JSONDecodeError:
                 # Handle malformed JSON arguments from the model.
-                error_msg = f"Error: Model provided invalid JSON arguments for tool '{name}'."
+                error_msg = (
+                    f"Error: Model provided invalid JSON arguments for tool '{name}'."
+                )
                 context.display._print(f"  - ❌ Tool Error: {error_msg}")
                 return {
                     "role": "tool",
@@ -130,8 +132,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         )
                         messages.append(message)
                         tasks = [
-                            _execute_and_format_tool_call(tc)
-                            for tc in tool_calls_data
+                            _execute_and_format_tool_call(tc) for tc in tool_calls_data
                         ]
                         tool_results = await asyncio.gather(*tasks)
                         messages.extend(tool_results)

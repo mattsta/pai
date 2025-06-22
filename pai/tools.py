@@ -143,7 +143,9 @@ def execute_tool(name: str, args: dict) -> Any:
         raise ToolArgumentError(f"Invalid argument value for tool '{name}': {e}") from e
     except TypeError as e:
         # Catches missing required arguments.
-        raise ToolArgumentError(f"Missing or invalid arguments for tool '{name}': {e}") from e
+        raise ToolArgumentError(
+            f"Missing or invalid arguments for tool '{name}': {e}"
+        ) from e
     except Exception as e:
         raise ToolError(f"Error executing tool '{name}' with args {args}: {e}") from e
 

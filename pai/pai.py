@@ -74,7 +74,9 @@ class CommandCompleter(Completer):
 
     def __init__(self, command_list: list[str]):
         # Use a FuzzyCompleter for a better user experience.
-        self.fuzzy_completer = FuzzyCompleter(WordCompleter(command_list, ignore_case=True))
+        self.fuzzy_completer = FuzzyCompleter(
+            WordCompleter(command_list, ignore_case=True)
+        )
 
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor
@@ -173,7 +175,11 @@ class InteractiveUI:
         def get_prompt_text() -> HTML:
             # If we are in arena mode, but there is no active generation task,
             # it means we are waiting for the very first prompt from the user.
-            if self.state.mode == UIMode.ARENA and self.state.arena and not self.generation_in_progress.is_set():
+            if (
+                self.state.mode == UIMode.ARENA
+                and self.state.arena
+                and not self.generation_in_progress.is_set()
+            ):
                 initiator = self.state.arena.arena_config.get_initiator()
                 # Use a specific prompt for the arena's first turn
                 return HTML(
@@ -388,7 +394,9 @@ class InteractiveUI:
             )
         )
         self.pt_printer(
-            HTML(f"<style fg='ansimagenta'>   with arguments:\n{escape(json_args)}</style>")
+            HTML(
+                f"<style fg='ansimagenta'>   with arguments:\n{escape(json_args)}</style>"
+            )
         )
 
         try:
@@ -510,7 +518,9 @@ class InteractiveUI:
                 else "OFF"
             )
             multiline_status = (
-                "<style fg='ansigreen'>ON</style>" if self.state.multiline_input else "OFF"
+                "<style fg='ansigreen'>ON</style>"
+                if self.state.multiline_input
+                else "OFF"
             )
             line3_parts = [
                 f"<b>Multiline:</b> {multiline_status}",
@@ -733,9 +743,7 @@ def run(
         None, "-p", "--prompt", help="Send a single prompt and exit."
     ),
     chat: bool = typer.Option(False, help="Enable chat mode. Required for tool use."),
-    system: str | None = typer.Option(
-        None, help="Set a system prompt for chat mode."
-    ),
+    system: str | None = typer.Option(None, help="Set a system prompt for chat mode."),
     model: str | None = typer.Option(
         None, help="Override the default model for the session."
     ),

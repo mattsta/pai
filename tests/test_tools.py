@@ -9,10 +9,13 @@ from pai import tools
 def managed_tool_registry():
     """
     Fixture to ensure the tool registry is clean for each test and restored afterwards.
+    It runs after the module is loaded (and sample_tool is registered), and resets
+    the registry state after each test to ensure isolation.
     """
     original_registry = tools.TOOL_REGISTRY.copy()
-    tools.TOOL_REGISTRY.clear()
     yield
+    # Reset registry to its post-import state after each test.
+    # This removes any tools that might have been registered *during* a test.
     tools.TOOL_REGISTRY.clear()
     tools.TOOL_REGISTRY.update(original_registry)
 

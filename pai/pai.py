@@ -6,16 +6,13 @@ and fixing the circular import error.
 
 import asyncio
 import json
-import os
+import logging
 import pathlib
 import re
 import sys
-import time
 from datetime import datetime
 from html import escape
-from typing import Any, Awaitable, Callable, Optional
 
-import logging
 import httpx
 import toml
 import typer
@@ -24,7 +21,7 @@ from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.completion import Completer, FuzzyCompleter, WordCompleter
 from prompt_toolkit.filters import Condition
-from prompt_toolkit.formatted_text import ANSI, HTML
+from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
@@ -40,18 +37,13 @@ from prompt_toolkit.widgets import SearchToolbar
 
 from .client import APIError, PolyglotClient
 from .commands import CommandHandler
-from .display import StreamingDisplay
-from .log_utils import closing, print_stats, save_conversation_formats
+from .log_utils import closing, print_stats
 from .models import (
-    ArenaState,
     ChatRequest,
     CompletionRequest,
     Conversation,
-    EndpointConfig,
     PolyglotConfig,
-    RequestStats,
     RuntimeConfig,
-    Turn,
     UIMode,
     UIState,
 )
@@ -65,7 +57,6 @@ from .orchestration import (
 # --- Protocol Adapter Imports ---
 from .protocols import load_protocol_adapters
 from .tools import get_tool_schemas
-from .utils import estimate_tokens
 
 # --- Global Definitions ---
 session = PromptSession()
@@ -735,17 +726,17 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
 )
 def run(
     ctx: typer.Context,
-    profile: Optional[str] = typer.Option(
+    profile: str | None = typer.Option(
         None, "--profile", help="Use a named profile from the config file."
     ),
-    prompt: Optional[str] = typer.Option(
+    prompt: str | None = typer.Option(
         None, "-p", "--prompt", help="Send a single prompt and exit."
     ),
     chat: bool = typer.Option(False, help="Enable chat mode. Required for tool use."),
-    system: Optional[str] = typer.Option(
+    system: str | None = typer.Option(
         None, help="Set a system prompt for chat mode."
     ),
-    model: Optional[str] = typer.Option(
+    model: str | None = typer.Option(
         None, help="Override the default model for the session."
     ),
     endpoint: str = typer.Option(
@@ -755,7 +746,7 @@ def run(
     temperature: float = typer.Option(
         0.7, help="Set the temperature for the response."
     ),
-    timeout: Optional[int] = typer.Option(
+    timeout: int | None = typer.Option(
         None, help="Set the request timeout in seconds for the session."
     ),
     stream: bool = typer.Option(
@@ -780,7 +771,7 @@ def run(
         "--confirm",
         help="Require user confirmation before executing a tool.",
     ),
-    log_file: Optional[str] = typer.Option(
+    log_file: str | None = typer.Option(
         None,
         "--log-file",
         help="Path to a file for writing debug and verbose logs.",

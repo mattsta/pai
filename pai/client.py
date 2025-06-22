@@ -1,6 +1,7 @@
 import logging
 import os
-from typing import Any, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import httpx
 

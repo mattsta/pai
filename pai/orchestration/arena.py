@@ -114,7 +114,7 @@ class ArenaOrchestrator(BaseOrchestrator):
         judge = self.state.arena.arena_config.judge
         self.pt_printer(
             HTML(
-                f"\n<style bg='ansiyellow' fg='black'> 🧑‍⚖️ The Judge is now deliberating... </style>"
+                "\n<style bg='ansiyellow' fg='black'> 🧑‍⚖️ The Judge is now deliberating... </style>"
             )
         )
         messages = judge.conversation.get_history()

@@ -356,7 +356,7 @@ class Arena:
     name: str  # e.g., "debate"
     participants: dict[str, ArenaParticipant]
     initiator_id: str
-    judge: Optional[ArenaParticipant] = None
+    judge: ArenaParticipant | None = None
 
     def get_participant(self, participant_id: str) -> ArenaParticipant | None:
         return self.participants.get(participant_id)
@@ -460,21 +460,21 @@ class TomlJudge(BaseModel):
 class TomlArena(BaseModel):
     initiator: str
     participants: dict[str, TomlParticipant]
-    judge: Optional[TomlJudge] = None
+    judge: TomlJudge | None = None
 
 
 class TomlProfile(BaseModel):
     """Configuration for a reusable profile."""
 
-    endpoint: Optional[str] = None
-    model: Optional[str] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    timeout: Optional[int] = None
-    chat: Optional[bool] = None
-    system: Optional[str] = None
-    rich_text: Optional[bool] = None
-    confirm_tool_use: Optional[bool] = None
+    endpoint: str | None = None
+    model: str | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    timeout: int | None = None
+    chat: bool | None = None
+    system: str | None = None
+    rich_text: bool | None = None
+    confirm_tool_use: bool | None = None
 
 
 class TomlToolConfig(BaseModel):
@@ -485,8 +485,8 @@ class TomlEndpoint(BaseModel):
     name: str
     base_url: str
     api_key_env: str
-    chat_adapter: Optional[str] = None
-    completion_adapter: Optional[str] = None
+    chat_adapter: str | None = None
+    completion_adapter: str | None = None
     timeout: int = 180
 
 
@@ -494,7 +494,7 @@ class PolyglotConfig(BaseModel):
     """Represents the structure of the polyglot.toml file."""
 
     endpoints: list[TomlEndpoint] = Field(default_factory=list)
-    tool_config: Optional[TomlToolConfig] = None
+    tool_config: TomlToolConfig | None = None
     arenas: dict[str, TomlArena] = Field(default_factory=dict)
     profiles: dict[str, TomlProfile] = Field(default_factory=dict)
 
@@ -503,15 +503,15 @@ class RuntimeConfig(BaseModel):
     """Holds runtime configuration state, replacing argparse.Namespace."""
 
     config: str = "polyglot.toml"
-    profile: Optional[str] = None
+    profile: str | None = None
     endpoint: str = "openai"
-    model: Optional[str] = None
+    model: str | None = None
     chat: bool = False
-    prompt: Optional[str] = None
-    system: Optional[str] = None
+    prompt: str | None = None
+    system: str | None = None
     max_tokens: int = 2000
     temperature: float = 0.7
-    timeout: Optional[int] = None
+    timeout: int | None = None
     stream: bool = True
     verbose: bool = False
     debug: bool = False

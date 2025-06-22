@@ -1,13 +1,14 @@
 # protocols/base_adapter.py
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, NamedTuple, Union
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, NamedTuple, Union
 
 import httpx
 
 # MODIFIED: Import from models and pai separately to avoid circular deps.
 if TYPE_CHECKING:
-    from ..models import ChatRequest, CompletionRequest, EndpointConfig, SessionStats
     from ..display import StreamingDisplay
+    from ..models import ChatRequest, CompletionRequest, EndpointConfig, SessionStats
 
 
 # NEW: Define a simple data structure to pass context from the client to the adapters.

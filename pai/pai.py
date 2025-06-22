@@ -251,8 +251,7 @@ class InteractiveUI:
         toolbar_window = Window(
             content=FormattedTextControl(self._get_toolbar_text),
             height=4,  # Use a fixed height for a stable layout
-            # Use a dark background with light text for a consistent, readable toolbar.
-            style="bg:ansiblack fg:ansiwhite",
+            style="reverse",
         )
 
         layout = Layout(
@@ -440,9 +439,9 @@ class InteractiveUI:
                 judge_str = " w/ Judge" if self.state.arena.arena_config.judge else ""
                 arena_name_esc = escape(self.state.arena.arena_config.name)
                 p_details_esc = escape(p_details)
-                line1 = f"<b><style bg='#445588' fg='ansiwhite'> ⚔️ ARENA: {arena_name_esc}{judge_str} </style></b> | {p_details_esc}"
+                line1 = f"<style fg='ansiyellow'><b>⚔️ ARENA: {arena_name_esc}{judge_str}</b></style> | {p_details_esc}"
             else:
-                line1 = f"<b><style bg='ansiwhite' fg='ansiblack'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Mode:</b> {mode_str}"
+                line1 = f"<b>{endpoint_esc.upper()}:{model_esc}</b> | <b>Mode:</b> {mode_str}"
 
             # --- Line 2: Performance Stats ---
             line2_parts = []
@@ -474,8 +473,8 @@ class InteractiveUI:
             line2 = " | ".join(line2_parts)
 
             # --- Line 3: Toggles ---
-            on = "<style fg='ansibrightgreen'>ON</style>"
-            off = "<style fg='ansidarkgray'>OFF</style>"
+            on = "<style fg='ansigreen'>ON</style>"
+            off = "<style fg='default'>OFF</style>"
             yellow_on = "<style fg='ansiyellow'>ON</style>"
 
             core_toggles = [
@@ -490,10 +489,10 @@ class InteractiveUI:
                 f"Debug: {yellow_on if display.debug_mode else off}",
                 f"Verbose: {yellow_on if self.runtime_config.verbose else off}",
             ]
-            line3 = f"<style fg='ansicyan'><b>Core</b> | {' | '.join(core_toggles)}</style>    <style fg='ansicyan'><b>Agent</b> | {' | '.join(agent_toggles)}</style>"
+            line3 = f"<b>Core</b> | {' | '.join(core_toggles)}    <b>Agent</b> | {' | '.join(agent_toggles)}"
 
             # --- Line 4: Dynamic Content ---
-            line4 = f"<style fg='ansidarkgray'>Log: {session_dir_esc}</style>"  # Default
+            line4 = f"Log: {session_dir_esc}"  # Default
             if (
                 self.runtime_config.smooth_stream
                 and display.status == "Streaming"
@@ -528,9 +527,7 @@ class InteractiveUI:
                         gaps = s_stats["gaps"]
                         bursts = s_stats["bursts"]
                         parts.append(f"Gaps/Bursts: {gaps:2d}/{bursts:3d}")
-                line4 = (
-                    f"<style fg='ansimagenta'><b>Smooth Stats</b> | {' | '.join(parts)}</style>"
-                )
+                line4 = f"<b>Smooth Stats</b> | {' | '.join(parts)}"
 
             return HTML(f"{line1}\n{line2}\n{line3}\n{line4}")
         except Exception as e:

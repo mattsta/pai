@@ -1,164 +1,111 @@
-# How to Add a New Provider: An Anthropic Example
+# How to Add a New Provider: The Plugin System
 
-This guide walks through the process of adding support for a new AI provider to the Polyglot AI framework. We will use Anthropic's Claude models as a concrete example.
+The Polyglot AI framework features a dynamic plugin system for adding new AI providers. This guide explains how to create your own installable Python package that `pai` can automatically discover and use. We will use a hypothetical "MyAI" provider as an example.
 
-The core principle is creating a new **Protocol Adapter**. This is a Python class responsible for translating Polyglot AI's internal request format into the specific API format required by the new provider.
+The core principle is to create a **Protocol Adapter** and register it as a **plugin** using Python's standard `entry_points` mechanism.
 
-## Step 1: Create the Adapter File
+## Step 1: Create a New Python Project
 
-Create a new file in the `pai/protocols/` directory. For our example, we'll call it `anthropic_adapter.py`.
+First, set up a new Python package for your adapter. The structure might look like this:
 
 ```
-pai/
-└── protocols/
-    ├── base_adapter.py
-    ├── legacy_completion_adapter.py
-    ├── openai_chat_adapter.py
-    └── anthropic_adapter.py  <-- NEW FILE
+myai-pai-adapter/
+├── pyproject.toml
+└── myai_adapter/
+    ├── __init__.py
+    └── adapter.py
 ```
+
+-   `pyproject.toml`: The standard file for defining your package, its dependencies, and the crucial entry point.
+-   `myai_adapter/`: The Python package containing your adapter code.
 
 ## Step 2: Define the Adapter Class
 
-Inside your new `anthropic_adapter.py` file, define a class that inherits from `BaseProtocolAdapter`. You must implement the `async def generate()` method.
+Inside `myai_adapter/adapter.py`, define a class that inherits from `pai.protocols.base_adapter.BaseProtocolAdapter`. You can depend on `pai` in your `pyproject.toml` to get access to the base classes. You must implement the `async def generate()` method.
 
 ```python
-# pai/protocols/anthropic_adapter.py
-import json
-from .base_adapter import BaseProtocolAdapter, ProtocolContext, ChatRequest
-from ..utils import estimate_tokens
+# In myai_adapter/adapter.py
+from pai.models import ChatRequest
+from pai.protocols.base_adapter import BaseProtocolAdapter, ProtocolContext
 
-class AnthropicAdapter(BaseProtocolAdapter):
-    """Handles the Anthropic Messages API format."""
-
-    async def generate(self, context: ProtocolContext, request: ChatRequest, verbose: bool):
-        # Your implementation will go here
-        # For this guide, we'll just pass. A real implementation is more complex.
-        pass
+class MyAIAdapter(BaseProtocolAdapter):
+    """Handles the MyAI API format."""
+    
+    async def generate(self, context: ProtocolContext, request: ChatRequest, ...):
+        # Your adapter logic goes here.
+        # 1. Translate the pai `ChatRequest` to your provider's format.
+        # 2. Use `context.http_session` to make the API call.
+        # 3. Parse the response (both streaming and non-streaming).
+        # 4. Use `context.display` to show output.
+        # 5. Use `context.stats.add_completed_request` to record metrics.
+        # 6. Return the final result dictionary.
+        
+        # Refer to the built-in adapters in the main PAI repository
+        # (e.g., anthropic_adapter.py) for detailed implementation examples.
+        
+        print("Hello from MyAI Adapter!")
+        return {"text": "MyAI response"}
 ```
 
-## Step 3: Implement the `generate` Method
+## Step 3: Register the Adapter as a Plugin
 
-This is the core of the adapter. You need to handle both streaming and non-streaming requests.
+This is the most important step. In your `pyproject.toml`, you need to define an `entry_point` that tells `pai` where to find your adapter class.
 
-### 3a. Translate the Request
+```toml
+# In myai-pai-adapter/pyproject.toml
 
-Anthropic's API has its own request schema. You need to convert `pai`'s `ChatRequest` into this format. For example, Anthropic doesn't use a `system` role in the main message list; it's a top-level parameter.
+[project]
+name = "myai-pai-adapter"
+version = "0.1.0"
+dependencies = [
+    "pai >= 0.1.0"  # Depend on the core pai package
+]
 
-```python
-# Inside generate()
-# Anthropic uses a top-level `system` parameter.
-system_prompt = ""
-messages = []
-for msg in request.messages:
-    if msg["role"] == "system":
-        system_prompt = msg["content"]
-    else:
-        # Anthropic only allows alternating user/assistant roles.
-        # A full implementation would need to handle merging consecutive messages.
-        messages.append(msg)
-
-url = f"{context.config.base_url}/messages"
-payload = {
-    "model": context.config.model_name,
-    "system": system_prompt,
-    "messages": messages,
-    "max_tokens": request.max_tokens,
-    "temperature": request.temperature,
-    "stream": request.stream,
-}
+# This section makes your adapter discoverable
+[project.entry-points."polyglot_ai.protocols"]
+myai = "myai_adapter.adapter:MyAIAdapter"
 ```
 
-### 3b. Handle the API Call and Response Parsing
+-   **`[project.entry-points."polyglot_ai.protocols"]`**: This declares that your package provides plugins for the `polyglot_ai.protocols` group. This exact group name is what `pai` scans for.
+-   **`myai = ...`**: The key (`myai`) is the **name of your adapter**. This is the string you will use in `polyglot.toml` to refer to your adapter.
+-   **`... = "myai_adapter.adapter:MyAIAdapter"`**: The value is the importable path to your adapter class (`package.module:ClassName`).
 
-You'll use the `context.http_session` to make the call. For streaming, you must parse Server-Sent Events (SSE). Anthropic's format is slightly different from OpenAI's.
+## Step 4: Install Your Plugin
 
-```python
-# Inside generate(), after creating the payload
-try:
-    context.display.start_response()
+To make your adapter available to `pai`, you must install your package into the same Python environment where `pai` is installed.
 
-    # Non-streaming implementation (simplified)
-    if not request.stream:
-        # Make a POST request, get the JSON response, parse it.
-        # ... your non-streaming logic here ...
-        pass
-
-    # Streaming implementation
-    async with context.http_session.stream("POST", url, json=payload) as response:
-        response.raise_for_status()
-        async for line in response.aiter_lines():
-            if line.startswith("data:"):
-                data = json.loads(line[6:])
-                event_type = data.get("type")
-                if event_type == "content_block_delta":
-                    chunk_text = data.get("delta", {}).get("text", "")
-                    context.display.show_parsed_chunk(data, chunk_text)
-                # ... handle other event types like message_start, message_stop ...
-
-    # Finalize stats, add to history, and return the result dict
-    request_stats = context.display.finish_response(success=True)
-    # ... add tokens_sent etc. to request_stats ...
-    context.stats.add_completed_request(request_stats)
-
-    return { "text": context.display.current_response }
-
-except Exception as e:
-    # Handle errors gracefully
-    context.display.finish_response(success=False)
-    raise ConnectionError(f"Anthropic request failed: {e!r}")
+```bash
+# From the root of your myai-pai-adapter/ directory
+uv pip install -e .
 ```
-*Note: This is a simplified example. A real implementation needs to handle all `event` types from the Anthropic stream (`message_start`, `content_block_start`, `ping`, etc.) for robust parsing.*
+Using `-e` (editable mode) is recommended during development, as it allows you to make changes to your adapter code without having to reinstall it every time.
 
-## Step 4: Register the New Adapter
+## Step 5: Configure an Endpoint
 
-Now that the adapter class is defined, you need to make `pai` aware of it.
-
-Open `pai/pai.py` and import your new class. Then, add it to the `ADAPTER_MAP`. The key (`"anthropic"`) is what you will use in your configuration file.
-
-```python
-# In pai/pai.py
-
-# --- Protocol Adapter Imports ---
-from .protocols.base_adapter import BaseProtocolAdapter, ProtocolContext
-from .protocols.openai_chat_adapter import OpenAIChatAdapter
-from .protocols.legacy_completion_adapter import LegacyCompletionAdapter
-from .protocols.anthropic_adapter import AnthropicAdapter # <-- IMPORT IT
-
-# --- Global Definitions ---
-session = PromptSession()
-ADAPTER_MAP = {
-    "openai_chat": OpenAIChatAdapter(),
-    "legacy_completion": LegacyCompletionAdapter(),
-    "anthropic": AnthropicAdapter(), # <-- REGISTER IT
-}
-```
-
-## Step 5: Add an Endpoint to the Configuration
-
-Finally, open your `polyglot.toml` file and add a new endpoint that uses your adapter.
+Finally, open your `polyglot.toml` and add a new endpoint that uses the `name` you defined in your `entry_point`.
 
 ```toml
 # In polyglot.toml
 
 [[endpoints]]
-name = "anthropic"
-base_url = "https://api.anthropic.com/v1"
-api_key_env = "ANTHROPIC_API_KEY"
-# Use the key you registered in ADAPTER_MAP
-chat_adapter = "anthropic"
-# Anthropic doesn't have a legacy /completions endpoint, so we omit it.
+name = "my_new_ai"
+base_url = "https://api.myai.com/v1"
+api_key_env = "MYAI_API_KEY"
+# Use the key you registered in pyproject.toml
+chat_adapter = "myai"
 ```
 
 ## You're Done!
 
-That's it. You can now run `pai` with your new provider:
+Now, when you run `pai`, it will automatically discover and load your installed adapter.
 
 ```bash
-# Set your API key
-export ANTHROPIC_API_KEY="sk-ant-..."
+# Check if the adapter was loaded (you should see a "✅ Loaded adapter 'myai'..." message)
+pai --help
 
-# Run the interactive chat
-pai --chat --endpoint anthropic --model claude-3-5-sonnet-20240620
+# Run pai with your new provider
+export MYAI_API_KEY="key-..."
+pai --chat --endpoint my_new_ai --model some-model
 ```
 
-By following this pattern, you can integrate virtually any AI provider into the Polyglot AI framework.
+By following this pattern, you can integrate any AI provider into the Polyglot AI framework without ever needing to modify the core `pai` codebase.

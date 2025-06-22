@@ -67,14 +67,14 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`SessionStats`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It is passed to the `InteractiveUI` to orchestrate the flow from user input to protocol adapter execution.
 
 3.  **Protocol Adapter System (`pai/protocols/`)**
-    *   **`__init__.py`:** This file acts as the central registry for all adapters, defining the `ADAPTER_MAP` that maps protocol names to their respective classes.
+    *   **`__init__.py`:** This file implements a dynamic plugin system for protocol adapters. The `load_protocol_adapters()` function uses Python's `importlib.metadata` to discover and load any installed packages that provide an entry point for `polyglot_ai.protocols`. This populates a global `ADAPTER_MAP` at runtime, making the system highly extensible.
     *   **`base_adapter.py`:** Defines the `BaseProtocolAdapter` abstract class and the `ProtocolContext` data structure. This is the contract that all protocol adapters must adhere to. It requires a `generate()` method, ensuring a consistent interface for the `PolyglotClient`.
-    *   **Concrete Adapters (`openai_chat_adapter.py`, `anthropic_adapter.py`, etc.):** Each file implements a specific protocol handler. They are responsible for:
-        *   Formatting the request payload for a specific API schema (e.g., OpenAI-compatible `/chat/completions`).
-        *   Parsing the response stream, with robust error handling to ignore malformed data chunks without crashing. In `debug` mode, these errors are printed for diagnostics.
-        *   Handling protocol-specific features, like OpenAI's `tool_calls`.
+    *   **Concrete Adapters (`openai_chat_adapter.py`, etc.):** Each built-in adapter is registered via an entry point in `pyproject.toml`, serving as the reference implementation for the plugin system. They are responsible for:
+        *   Formatting the request payload for a specific API schema.
+        *   Parsing the response stream, with robust error handling.
+        *   Handling protocol-specific features like tool-calling.
         *   Calling back to the `ProtocolContext` to update stats and display output.
-    *   **Adding New Providers:** The system is designed for easy extension. For a detailed walkthrough on creating a new adapter, see the [`How to Add a New Provider`](docs/providers/ANTHROPIC.md) guide.
+    *   **Adding New Providers:** The system is now a formal plugin architecture. To add a new provider, you create a new installable Python package that exposes its adapter class via the `polyglot_ai.protocols` entry point. For a detailed guide, see [`How to Add a New Provider`](docs/providers/ANTHROPIC.md).
 
 4.  **Tool System (`pai/tools.py`)**
     *   A highly extensible system for defining and executing local functions that the AI can call.

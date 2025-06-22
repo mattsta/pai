@@ -63,8 +63,7 @@ from .orchestration import (
 )
 
 # --- Protocol Adapter Imports ---
-from .protocols import ADAPTER_MAP
-from .protocols.base_adapter import ProtocolContext
+from .protocols import load_protocol_adapters
 from .tools import get_tool_schemas
 from .utils import estimate_tokens
 
@@ -671,17 +670,19 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
         )
         logging.info("--- Log file initialized ---")
 
+    # Load protocol adapters and custom tools from config
+    load_protocol_adapters(printer=typer.echo)
     # Conditionally load tools only if the --tools flag is active.
     if runtime_config.tools:
-        print("🛠️  --tools flag detected. Loading tools...")
+        typer.echo("🛠️  --tools flag detected. Loading tools...")
         if toml_config.tool_config:
             if tool_dirs := toml_config.tool_config.directories:
                 from .tools import load_tools_from_directory
 
                 for tool_dir in tool_dirs:
-                    load_tools_from_directory(tool_dir, printer=print)
+                    load_tools_from_directory(tool_dir, printer=typer.echo)
         else:
-            print("  (No 'tool_config' section in polyglot.toml)")
+            typer.echo("  (No 'tool_config' section in polyglot.toml)")
 
     # Use a single httpx client session for the application's lifecycle
     transport = httpx.AsyncHTTPTransport(retries=3)

@@ -31,6 +31,12 @@ extend-select = [
 [project.scripts]
 pai = "pai.pai:main"
 
+[project.entry-points."polyglot_ai.protocols"]
+openai_chat = "pai.protocols.openai_chat_adapter:OpenAIChatAdapter"
+legacy_completion = "pai.protocols.legacy_completion_adapter:LegacyCompletionAdapter"
+anthropic = "pai.protocols.anthropic_adapter:AnthropicAdapter"
+ollama = "pai.protocols.ollama_adapter:OllamaAdapter"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.4.0",

@@ -243,7 +243,7 @@ class RequestStats:
     input_cost: float = 0.0
     output_cost: float = 0.0
     # Statistics from the stream smoother, if active
-    smoothing_stats: "SmoothingStats" | None = None
+    smoothing_stats: Optional["SmoothingStats"] = None
 
     # Internal state for live calculations
     _first_token_time: float | None = None

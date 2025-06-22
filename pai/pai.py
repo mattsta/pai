@@ -250,9 +250,7 @@ class InteractiveUI:
         search_toolbar = SearchToolbar()
         toolbar_window = Window(
             content=FormattedTextControl(self._get_toolbar_text),
-            height=lambda: 4
-            if self.runtime_config.smooth_stream and self.client.display.status == "Streaming"
-            else 3,
+            height=4,  # Use a fixed height for a stable layout
             style="reverse",
         )
 
@@ -421,27 +419,13 @@ class InteractiveUI:
             # Escape any potentially problematic strings before embedding in HTML
             endpoint_esc = escape(endpoint)
             model_esc = escape(model)
-            status_esc = escape(display.status)
             session_dir_esc = escape(str(session_dir))
 
-            # --- Line 1: Overall Session Stats ---
-            total_tokens = (
-                session_stats.total_tokens_sent + session_stats.total_tokens_received
-            )
-            total_time = session_stats.total_response_time
-            total_received = session_stats.total_tokens_received
-
-            # Add live data during streaming for a real-time view
-            if live_stats and display.status == "Streaming":
-                total_tokens += live_stats.tokens_sent + live_stats.tokens_received
-                total_time += live_stats.current_duration
-                total_received += live_stats.tokens_received
-
-            avg_tok_per_sec = total_received / max(total_time, 1)
-
-            session_tokens = self.conversation.session_token_count
-            if live_stats and display.status in ["Waiting...", "Streaming"]:
-                session_tokens += live_stats.tokens_sent + live_stats.tokens_received
+            # --- Line 1: Main Context (Endpoint, Model, Mode) ---
+            mode_str = escape(self._get_mode_display_name())
+            prompt_count = len(self.conversation.get_system_prompts())
+            if prompt_count > 1:
+                mode_str += f" <style fg='ansicyan'>Sys[{prompt_count}]</style>"
 
             if self.state.mode == UIMode.ARENA and self.state.arena:
                 p_configs = self.state.arena.arena_config.participants
@@ -457,91 +441,56 @@ class InteractiveUI:
                 p_details_esc = escape(p_details)
                 line1 = f"<b><style bg='ansiblue' fg='white'> ⚔️ ARENA: {arena_name_esc}{judge_str} </style></b> | {p_details_esc}"
             else:
-                cost_str = f"<b>Cost:</b> ${session_stats.total_cost:.4f}"
-                line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | {cost_str} | <b>Total:</b> {total_tokens} | <b>Session:</b> {session_tokens} | <b>Avg Tok/s:</b> {avg_tok_per_sec:.1f}"
+                line1 = f"<b><style bg='ansiblack' fg='white'> {endpoint_esc.upper()}:{model_esc} </style></b> | <b>Mode:</b> {mode_str}"
 
-            # --- Line 2: Live and Last Request Stats ---
-            last_req = session_stats.last_request_stats
+            # --- Line 2: Performance Stats ---
+            line2_parts = []
+            status_esc = escape(display.status)
+            line2_parts.append(f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>")
 
             if live_stats and display.status in ["Waiting...", "Streaming"]:
-                # Display live stats for the in-progress request
                 live_tps = live_stats.live_tok_per_sec
                 live_tokens = live_stats.tokens_received
                 status_color = (
                     "ansigreen" if display.status == "Streaming" else "ansiyellow"
                 )
-                live_tps_str = f"<b><style fg='{status_color}'>Live Tokens: {live_tokens}, Live Tok/s: {live_tps:.1f}</style></b>"
-                line2_parts = [
-                    f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>",
-                    live_tps_str,
-                ]
+                live_stats_str = f"<b>Live:</b> {live_tokens} tk @ {live_tps:.1f} tk/s"
+                line2_parts.append(f"<style fg='{status_color}'>{live_stats_str}</style>")
             else:
-                # Display stats for the last completed request
-                last_tokens_str = f"{last_req.tokens_received}" if last_req else "N/A"
-                last_ttft_str = (
-                    f"{last_req.ttft:.2f}s" if last_req and last_req.ttft else "N/A"
-                )
-                last_tps_str = (
-                    f"{last_req.final_tok_per_sec:.1f}" if last_req else "N/A"
-                )
-                last_finish_reason_str = (
-                    escape(last_req.finish_reason or "N/A") if last_req else "N/A"
-                )
-                line2_parts = [
-                    f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>",
-                    f"<b>Prev Tokens:</b> {last_tokens_str}",
-                    f"<b>Prev TTFT:</b> {last_ttft_str}",
-                    f"<b>Prev Tok/s:</b> {last_tps_str}",
-                    f"<b>Finish:</b> {last_finish_reason_str}",
-                ]
+                last_req = session_stats.last_request_stats
+                if last_req:
+                    last_tps_str = f"{last_req.final_tok_per_sec:.1f} tk/s"
+                    last_tokens_str = f"{last_req.tokens_received} tk"
+                    last_stats_str = f"<b>Last:</b> {last_tokens_str}, {last_tps_str}"
+                    line2_parts.append(last_stats_str)
 
-            tools_status = (
-                "<style fg='ansigreen'>ON</style>"
-                if client.tools_enabled
-                else "<style fg='ansired'>OFF</style>"
-            )
-            debug_status = (
-                "<style fg='ansiyellow'>ON</style>" if display.debug_mode else "OFF"
-            )
-            mode_str = escape(self._get_mode_display_name())
+            session_tokens = self.conversation.session_token_count
+            cost_str = f"<b>Cost:</b> ${session_stats.total_cost:.4f}"
+            session_tokens_str = f"<b>Session:</b> {session_tokens} tk"
+            line2_parts.extend([cost_str, session_tokens_str])
+            line2 = " | ".join(line2_parts)
 
-            prompt_count = len(self.conversation.get_system_prompts())
-            if prompt_count > 1:
-                mode_str += f" <style fg='ansicyan'>Sys[{prompt_count}]</style>"
+            # --- Line 3: Toggles ---
+            on = "<style fg='ansigreen'>ON</style>"
+            off = "OFF"
+            yellow_on = "<style fg='ansiyellow'>ON</style>"
 
-            rich_status = (
-                "<style fg='ansigreen'>ON</style>"
-                if self.runtime_config.rich_text
-                else "OFF"
-            )
-            confirm_status = (
-                "<style fg='ansiyellow'>ON</style>"
-                if self.runtime_config.confirm_tool_use
-                else "OFF"
-            )
-            multiline_status = (
-                "<style fg='ansigreen'>ON</style>"
-                if self.state.multiline_input
-                else "OFF"
-            )
-            smooth_status = (
-                "<style fg='ansigreen'>ON</style>"
-                if self.runtime_config.smooth_stream
-                else "OFF"
-            )
-            line3_parts = [
-                f"<b>Multiline:</b> {multiline_status}",
-                f"<b>Rich:</b> {rich_status}",
-                f"<b>Smooth:</b> {smooth_status}",
-                f"<b>Confirm:</b> {confirm_status}",
-                f"<b>Tools:</b> {tools_status}",
-                f"<b>Debug:</b> {debug_status}",
-                f"<b>Mode:</b> {mode_str}",
-                f"<style fg='grey'>Log: {session_dir_esc}</style>",
+            core_toggles = [
+                f"<b>Stream:</b> {on if self.runtime_config.stream else off}",
+                f"<b>Rich:</b> {on if self.runtime_config.rich_text else off}",
+                f"<b>Smooth:</b> {on if self.runtime_config.smooth_stream else off}",
+                f"<b>Multiline:</b> {on if self.state.multiline_input else off}",
             ]
+            agent_toggles = [
+                f"<b>Tools:</b> {on if client.tools_enabled else off}",
+                f"<b>Confirm:</b> {yellow_on if self.runtime_config.confirm_tool_use else off}",
+                f"<b>Debug:</b> {yellow_on if display.debug_mode else off}",
+                f"<b>Verbose:</b> {yellow_on if self.runtime_config.verbose else off}",
+            ]
+            line3 = f"<style fg='grey'>Core: {' | '.join(core_toggles)}</style>    <style fg='grey'>Agent: {' | '.join(agent_toggles)}</style>"
 
-            # --- Line 4: Smooth Streaming Stats ---
-            smooth_stats_line = ""
+            # --- Line 4: Dynamic Content ---
+            line4 = f"<style fg='grey'>Log: {session_dir_esc}</style>"  # Default
             if (
                 self.runtime_config.smooth_stream
                 and display.status == "Streaming"
@@ -550,18 +499,15 @@ class InteractiveUI:
                 s_stats = display.smoothing_stats
                 parts = [f"Queue: {s_stats.get('queue_size', 0)}"]
                 if "avg_delta" in s_stats:
-                    parts.append(
-                        f"Δ: {s_stats['avg_delta']}/{s_stats['median_delta']}/{s_stats['stdev_delta']}"
-                    )
+                    avg = s_stats["avg_delta"].replace("ms", "")
+                    med = s_stats["median_delta"].replace("ms", "")
+                    std = s_stats["stdev_delta"].replace("ms", "")
+                    parts.append(f"Δ(avg/med/std ms): {avg}/{med}/{std}")
                 if "gaps" in s_stats:
                     parts.append(f"Gaps/Bursts: {s_stats['gaps']}/{s_stats['bursts']}")
-                smooth_stats_line = (
-                    f"\n<style fg='ansicyan'>Smooth Stats | {' | '.join(parts)}</style>"
-                )
+                line4 = f"<style fg='ansicyan'><b>Smooth Stats</b> | {' | '.join(parts)}</style>"
 
-            return HTML(
-                f"{line1}\n{' | '.join(p for p in line2_parts if p)}\n{' | '.join(line3_parts)}{smooth_stats_line}"
-            )
+            return HTML(f"{line1}\n{line2}\n{line3}\n{line4}")
         except Exception as e:
             # If any rendering fails, return a safe, minimal toolbar to prevent crashing.
             return HTML(

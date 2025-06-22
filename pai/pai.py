@@ -477,21 +477,23 @@ class InteractiveUI:
                     last_tps = f"{last_req.final_tok_per_sec:5.1f} tk/s"
                     last_tokens = f"{last_req.tokens_received:4d} tk"
                     line2_parts.append(f"<b>Last:</b> {last_tokens}, {last_tps}")
-                    if last_req.finish_reason:
-                        reason = escape(last_req.finish_reason)
-                        line2_parts.append(
-                            f"<style fg='ansiyellow'><b>Stop:</b> {reason}</style>"
-                        )
+                    reason = escape(last_req.finish_reason or "N/A")
+                    line2_parts.append(
+                        f"<style fg='ansiyellow'><b>Stop:</b> {reason}</style>"
+                    )
+
+                    mean_d_str = "--.-ms"
                     if s_stats := last_req.smoothing_stats:
-                        # Only show if stats were actually collected
                         if s_stats.mean_delta != "N/A":
                             try:
                                 mean_d = float(s_stats.mean_delta)
-                                line2_parts.append(
-                                    f"<style fg='grey'><b>Avg Δ:</b> {mean_d:4.1f}ms</style>"
-                                )
+                                mean_d_str = f"{mean_d:4.1f}ms"
                             except ValueError:
-                                pass  # Don't display if value is invalid
+                                pass  # Keep placeholder on error
+
+                    line2_parts.append(
+                        f"<style fg='grey'><b>Avg Δ:</b> {mean_d_str}</style>"
+                    )
 
             session_tokens = self.conversation.session_token_count
             total_time = session_stats.total_response_time

@@ -2,6 +2,7 @@
 Data models for Polyglot AI state, history, and requests.
 """
 
+import enum
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -15,6 +16,25 @@ from .utils import estimate_tokens
 if TYPE_CHECKING:
     from .models import RequestStats
     from .protocols.base_adapter import BaseProtocolAdapter
+
+
+class UIMode(enum.Enum):
+    """Enumerates the possible interaction modes for the UI."""
+
+    COMPLETION = "completion"
+    CHAT = "chat"
+    NATIVE_AGENT = "native_agent"
+    LEGACY_AGENT = "legacy_agent"
+    ARENA = "arena"
+
+
+@dataclass
+class UIState:
+    """Holds the dynamic state of the user interface."""
+
+    mode: UIMode = UIMode.CHAT
+    # Holds the state for the *active* arena session, if any.
+    arena: ArenaState | None = None
 
 
 @dataclass

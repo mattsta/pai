@@ -50,8 +50,9 @@ from .models import (
     PolyglotConfig,
     RequestStats,
     RuntimeConfig,
-    TestSession,
     Turn,
+    UIMode,
+    UIState,
 )
 
 # --- Protocol Adapter Imports ---
@@ -77,9 +78,13 @@ class InteractiveUI:
     def __init__(self, client: "PolyglotClient", runtime_config: RuntimeConfig):
         self.client = client
         self.runtime_config = runtime_config
-        self.is_chat_mode = runtime_config.chat
+
+        # State management (replaces is_chat_mode, native_agent_mode, etc.)
+        initial_mode = UIMode.CHAT if runtime_config.chat else UIMode.COMPLETION
+        self.state = UIState(mode=initial_mode)
+
         self.conversation = Conversation()
-        if self.is_chat_mode and self.runtime_config.system:
+        if self.state.mode != UIMode.COMPLETION and self.runtime_config.system:
             self.conversation.set_system_prompt(self.runtime_config.system)
 
         # Setup directories
@@ -110,12 +115,7 @@ class InteractiveUI:
         )
 
         # State management
-        self.native_agent_mode = False
-        self.legacy_agent_mode = False
-        # Arena state
-        self.arena_state: ArenaState | None = None
         self.arena_paused_event = asyncio.Event()
-
         self.generation_in_progress = asyncio.Event()
         self.generation_task: asyncio.Task | None = None
         self.spinner_chars = ["|", "/", "-", "\\"]
@@ -131,20 +131,20 @@ class InteractiveUI:
 
     def _get_mode_display_name(self) -> str:
         """Returns the string name of the current interaction mode."""
-        if self.arena_state:
+        if self.state.mode == UIMode.ARENA and self.state.arena:
             status = (
                 "Paused"
                 if not self.arena_paused_event.is_set()
                 and self.generation_in_progress.is_set()
                 else "Running"
             )
-            judge_str = " w/ Judge" if self.arena_state.arena_config.judge else ""
-            return f"Arena: {self.arena_state.arena_config.name}{judge_str} ({status})"
-        if self.native_agent_mode:
+            judge_str = " w/ Judge" if self.state.arena.arena_config.judge else ""
+            return f"Arena: {self.state.arena.arena_config.name}{judge_str} ({status})"
+        elif self.state.mode == UIMode.NATIVE_AGENT:
             return "Agent"
-        if self.legacy_agent_mode:
+        elif self.state.mode == UIMode.LEGACY_AGENT:
             return "Legacy Agent"
-        if self.is_chat_mode:
+        elif self.state.mode == UIMode.CHAT:
             return "Chat"
         return "Completion"
 
@@ -155,8 +155,8 @@ class InteractiveUI:
         def get_prompt_text() -> HTML:
             # If we are in arena mode, but there is no active generation task,
             # it means we are waiting for the very first prompt from the user.
-            if self.arena_state and not self.generation_in_progress.is_set():
-                initiator = self.arena_state.arena_config.get_initiator()
+            if self.state.mode == UIMode.ARENA and self.state.arena and not self.generation_in_progress.is_set():
+                initiator = self.state.arena.arena_config.get_initiator()
                 # Use a specific prompt for the arena's first turn
                 return HTML(
                     f"<style fg='ansigreen'>⚔️  Prompt for {initiator.name}:</style> "
@@ -178,7 +178,7 @@ class InteractiveUI:
         )
 
         def get_status_text():
-            if self.arena_state and not self.arena_paused_event.is_set():
+            if self.state.mode == UIMode.ARENA and not self.arena_paused_event.is_set():
                 return HTML(
                     "<style fg='ansiyellow'>[--- Arena Paused --- Use /resume or /say &lt;...&gt; ---]</style>"
                 )
@@ -239,7 +239,7 @@ class InteractiveUI:
                         filter=Condition(
                             lambda: not self.generation_in_progress.is_set()
                             or (
-                                self.arena_state
+                                self.state.mode == UIMode.ARENA
                                 and not self.arena_paused_event.is_set()
                             )
                         ),
@@ -300,7 +300,9 @@ class InteractiveUI:
     def _on_buffer_accepted(self, buffer: Buffer):
         """Callback for when the user presses Enter on the input buffer."""
         # An active task can only be interrupted if it's a paused arena.
-        is_paused_arena = self.arena_state and not self.arena_paused_event.is_set()
+        is_paused_arena = (
+            self.state.mode == UIMode.ARENA and not self.arena_paused_event.is_set()
+        )
         if self.generation_in_progress.is_set() and not is_paused_arena:
             return
 
@@ -330,10 +332,10 @@ class InteractiveUI:
             self.command_handler.handle(stripped_input, self.app)
         else:
             # Handle plain text input.
-            if self.arena_state:
+            if self.state.mode == UIMode.ARENA and self.state.arena:
                 if not self.generation_task:
                     # This is the initial prompt that kicks off the arena.
-                    self.arena_state.last_message = stripped_input
+                    self.state.arena.last_message = stripped_input
                     self.generation_task = asyncio.create_task(
                         self._run_arena_orchestrator()
                     )
@@ -358,35 +360,36 @@ class InteractiveUI:
         self.generation_in_progress.set()
         request: ChatRequest | CompletionRequest | None = None
         try:
-            if self.is_chat_mode and self.legacy_agent_mode:
+            if self.state.mode == UIMode.LEGACY_AGENT:
                 confirmer = (
                     self._confirm_tool_call
                     if self.runtime_config.confirm_tool_use
                     else None
                 )
                 await self._run_legacy_agent_loop(user_input_str, confirmer)
-            else:
-                if self.is_chat_mode:
-                    messages = self.conversation.get_messages_for_next_turn(
-                        user_input_str
-                    )
-                    request = ChatRequest(
-                        messages=messages,
-                        model=self.client.config.model_name,
-                        max_tokens=self.runtime_config.max_tokens,
-                        temperature=self.runtime_config.temperature,
-                        stream=self.runtime_config.stream,
-                        tools=get_tool_schemas() if self.client.tools_enabled else [],
-                    )
-                else:
-                    request = CompletionRequest(
-                        prompt=user_input_str,
-                        model=self.client.config.model_name,
-                        max_tokens=self.runtime_config.max_tokens,
-                        temperature=self.runtime_config.temperature,
-                        stream=self.runtime_config.stream,
-                    )
+            elif self.state.mode == UIMode.COMPLETION:
+                request = CompletionRequest(
+                    prompt=user_input_str,
+                    model=self.client.config.model_name,
+                    max_tokens=self.runtime_config.max_tokens,
+                    temperature=self.runtime_config.temperature,
+                    stream=self.runtime_config.stream,
+                )
+            else:  # CHAT or NATIVE_AGENT
+                messages = self.conversation.get_messages_for_next_turn(
+                    user_input_str
+                )
+                request = ChatRequest(
+                    messages=messages,
+                    model=self.client.config.model_name,
+                    max_tokens=self.runtime_config.max_tokens,
+                    temperature=self.runtime_config.temperature,
+                    stream=self.runtime_config.stream,
+                    tools=get_tool_schemas() if self.client.tools_enabled else [],
+                )
 
+            # This block runs for COMPLETION, CHAT, and NATIVE_AGENT modes
+            if request:
                 confirmer = (
                     self._confirm_tool_call
                     if self.runtime_config.confirm_tool_use
@@ -396,7 +399,7 @@ class InteractiveUI:
                     request, self.runtime_config.verbose, confirmer=confirmer
                 )
 
-                if self.is_chat_mode and result:
+                if self.state.mode != UIMode.COMPLETION and result:
                     turn = Turn(
                         request_data=result.get("request", {}),
                         response_data=result.get("response", {}),
@@ -439,7 +442,7 @@ class InteractiveUI:
                         request_stats.tokens_sent = estimate_tokens(request.prompt)
                     self.client.stats.add_completed_request(request_stats)
 
-                    if self.is_chat_mode and partial_text:
+                    if self.state.mode != UIMode.COMPLETION and partial_text:
                         # Create a turn with the partial data for logging.
                         request_data = request.to_dict(self.client.config.model_name)
                         # Fabricate a partial response object for logging
@@ -622,7 +625,11 @@ class InteractiveUI:
         self.generation_in_progress.set()
         original_endpoint_name = self.client.config.name  # Save original state
         try:
-            state = self.arena_state
+            if not (state := self.state.arena):
+                # This should not happen if called correctly.
+                self.pt_printer("❌ Arena state not found.")
+                return
+
             while state.current_speech < state.max_speeches:
                 # This is the core of the pause/resume mechanic.
                 # The loop will not proceed until the event is set.
@@ -699,11 +706,11 @@ class InteractiveUI:
                 self.client.display.finish_response(success=False)
             self.pt_printer(HTML(f"<style fg='ansired'>❌ ARENA ERROR: {e}</style>"))
         finally:
-            if self.arena_state:
+            if self.state.arena:
                 # If cancelled, still try to run the judge for a summary
                 await self._run_arena_judge()
                 self.pt_printer(
-                    f"\n🏁 Arena '{self.arena_state.arena_config.name}' session ended."
+                    f"\n🏁 Arena '{self.state.arena.arena_config.name}' session ended."
                 )
 
             # Restore client to the original endpoint state
@@ -713,17 +720,16 @@ class InteractiveUI:
                 )
                 self.client.switch_endpoint(original_endpoint_name)
 
-            # Reset all arena-related state
-            self.arena_state = None
+            self.enter_mode(UIMode.CHAT, clear_history=False)
             self.generation_in_progress.clear()
             self.generation_task = None
 
     async def _run_arena_judge(self):
         """If a judge is configured, run it to get a final verdict."""
-        if not self.arena_state or not self.arena_state.arena_config.judge:
+        if not self.state.arena or not self.state.arena.arena_config.judge:
             return
 
-        judge = self.arena_state.arena_config.judge
+        judge = self.state.arena.arena_config.judge
         self.pt_printer(
             HTML(
                 f"\n<style bg='ansiyellow' fg='black'> 🧑‍⚖️ The Judge is now deliberating... </style>"
@@ -814,8 +820,8 @@ class InteractiveUI:
             if live_stats and display.status in ["Waiting...", "Streaming"]:
                 session_tokens += live_stats.tokens_sent + live_stats.tokens_received
 
-            if self.arena_state:
-                p_configs = self.arena_state.arena_config.participants
+            if self.state.mode == UIMode.ARENA and self.state.arena:
+                p_configs = self.state.arena.arena_config.participants
                 p_details = " vs ".join(
                     [
                         f"{p.name} ({p.model})"
@@ -823,8 +829,8 @@ class InteractiveUI:
                         if p_id != "judge"
                     ]
                 )
-                judge_str = " w/ Judge" if self.arena_state.arena_config.judge else ""
-                arena_name_esc = escape(self.arena_state.arena_config.name)
+                judge_str = " w/ Judge" if self.state.arena.arena_config.judge else ""
+                arena_name_esc = escape(self.state.arena.arena_config.name)
                 p_details_esc = escape(p_details)
                 line1 = f"<b><style bg='ansiblue' fg='white'> ⚔️ ARENA: {arena_name_esc}{judge_str} </style></b> | {p_details_esc}"
             else:
@@ -904,10 +910,25 @@ class InteractiveUI:
                 f"<style bg='ansired' fg='white'>[Toolbar Error: {escape(str(e))}]</style>"
             )
 
+    def enter_mode(self, mode: UIMode, clear_history: bool = True):
+        """Handles the logic of switching UI modes."""
+        self.state.mode = mode
+        self.state.arena = None if mode != UIMode.ARENA else self.state.arena
+
+        # Reset agent-related flags when switching to a non-agent mode
+        if mode not in [UIMode.NATIVE_AGENT, UIMode.LEGACY_AGENT]:
+            # These flags are still used by commands, will be removed later.
+            self.native_agent_mode = False
+            self.legacy_agent_mode = False
+
+        if clear_history:
+            self.conversation.clear()
+            self.pt_printer("🧹 History cleared.")
+
     async def run(self):
         """Starts the interactive UI."""
         self.pt_printer(
-            f"🎯 {'Chat' if self.is_chat_mode else 'Completion'} Mode | Endpoint: {self.client.config.name} | Model: {self.client.config.model_name}"
+            f"🎯 {self._get_mode_display_name()} Mode | Endpoint: {self.client.config.name} | Model: {self.client.config.model_name}"
         )
         self.pt_printer(f"💾 Session logs will be saved to: {self.session_dir}")
         self.pt_printer("Type '/help' for commands, '/quit' to exit.")

@@ -6,14 +6,14 @@ This document outlines a series of proposed refactoring phases to further improv
 
 The `InteractiveUI` class currently manages its mode (Chat, Agent, Arena, etc.) using several independent boolean flags (`is_chat_mode`, `native_agent_mode`, `arena_state`). This can be made more robust and easier to extend.
 
--   [ ] **Introduce a State Machine:**
-    -   [ ] In `pai/models.py`, create a `UIMode` enum (e.g., `IDLE`, `CHAT`, `NATIVE_AGENT`, `LEGACY_AGENT`, `ARENA`).
-    -   [ ] In `pai/pai.py`, refactor `InteractiveUI` to use a single `self.mode: UIMode` attribute instead of multiple flags.
-    -   [ ] Create a `UIState` context class or similar structure to hold mode-specific data (e.g., the `ArenaState` object when in `ARENA` mode). This will replace `self.arena_state`.
+-   [x] **Introduce a State Machine:**
+    -   [x] In `pai/models.py`, create a `UIMode` enum (e.g., `IDLE`, `CHAT`, `NATIVE_AGENT`, `LEGACY_AGENT`, `ARENA`).
+    -   [x] In `pai/pai.py`, refactor `InteractiveUI` to use a single `self.mode: UIMode` attribute instead of multiple flags.
+    -   [x] Create a `UIState` context class or similar structure to hold mode-specific data (e.g., the `ArenaState` object when in `ARENA` mode). This will replace `self.arena_state`.
 
--   [ ] **Centralize State Transitions:**
-    -   [ ] Create methods on `InteractiveUI` for handling state transitions (e.g., `enter_arena_mode(config)`, `enter_agent_mode()`).
-    -   [ ] `Command` classes will call these methods instead of setting boolean flags directly, decoupling them from the UI's internal implementation.
+-   [x] **Centralize State Transitions:**
+    -   [x] Create methods on `InteractiveUI` for handling state transitions (e.g., `enter_arena_mode(config)`, `enter_agent_mode()`).
+    -   [x] `Command` classes will call these methods instead of setting boolean flags directly, decoupling them from the UI's internal implementation.
 
 ### Phase 2: Orchestrator Extraction (Decouple Business Logic from UI)
 

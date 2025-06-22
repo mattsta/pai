@@ -7,7 +7,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from .models import Arena, ArenaParticipant, ArenaState, Conversation
+from .models import Arena, ArenaParticipant, ArenaState, Conversation, UIMode
 from .tools import get_tool_schemas
 
 if TYPE_CHECKING:
@@ -296,7 +296,7 @@ class HistoryCommand(Command):
         return "history"
 
     def execute(self, app: "Application", param: str | None = None):
-        if self.ui.is_chat_mode:
+        if self.ui.state.mode != UIMode.COMPLETION:
             self.ui.pt_printer(json.dumps(self.ui.conversation.get_history(), indent=2))
         else:
             self.ui.pt_printer("❌ /history is only available in chat mode.")
@@ -308,7 +308,7 @@ class ClearCommand(Command):
         return "clear"
 
     def execute(self, app: "Application", param: str | None = None):
-        if self.ui.is_chat_mode:
+        if self.ui.state.mode != UIMode.COMPLETION:
             self.ui.conversation.clear()
             self.ui.pt_printer("🧹 History cleared.")
         else:
@@ -325,9 +325,8 @@ class SystemCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        if self.ui.is_chat_mode:
-            self.ui.native_agent_mode = False
-            self.ui.legacy_agent_mode = False
+        if self.ui.state.mode != UIMode.COMPLETION:
+            self.ui.enter_mode(UIMode.CHAT)
             self.ui.conversation.set_system_prompt(param)
             self.ui.pt_printer("🤖 System prompt set.")
         else:
@@ -364,13 +363,11 @@ class PromptCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        if not self.ui.is_chat_mode:
+        if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /prompt is only available in chat mode.")
             return
 
-        self.ui.native_agent_mode = False
-        self.ui.legacy_agent_mode = False
-
+        self.ui.enter_mode(UIMode.CHAT)
         prompt_path = self.ui.prompts_dir / f"{param}.md"
         if not prompt_path.exists():
             prompt_path = self.ui.prompts_dir / f"{param}.txt"
@@ -394,7 +391,7 @@ class AgentCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         """Loads the special 'code_editor' prompt to start an agent session."""
-        if not self.ui.is_chat_mode:
+        if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /agent is only available in chat mode.")
             return
 
@@ -403,8 +400,7 @@ class AgentCommand(Command):
                 "⚠️  Warning: Native agent mode works best with the --tools flag enabled at startup."
             )
 
-        self.ui.native_agent_mode = True
-        self.ui.legacy_agent_mode = False
+        self.ui.enter_mode(UIMode.NATIVE_AGENT)
         self.ui.client.tools_enabled = True
 
         param = "code_editor"
@@ -414,7 +410,7 @@ class AgentCommand(Command):
             content = prompt_path.read_text(encoding="utf-8")
             self.ui.conversation.set_system_prompt(content)
             self.ui.pt_printer(
-                f"🤖 Native Agent mode enabled (loaded '{param}' prompt). History cleared."
+                f"🤖 Native Agent mode enabled (loaded '{param}' prompt)."
             )
         else:
             self.ui.pt_printer(
@@ -429,7 +425,7 @@ class LegacyAgentCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         """Loads a prompt that teaches a generic model to use tools via text."""
-        if not self.ui.is_chat_mode:
+        if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /legacy_agent is only available in chat mode.")
             return
 
@@ -439,8 +435,7 @@ class LegacyAgentCommand(Command):
             )
             return
 
-        self.ui.native_agent_mode = False
-        self.ui.legacy_agent_mode = True
+        self.ui.enter_mode(UIMode.LEGACY_AGENT)
         self.ui.client.tools_enabled = False  # Disable native tools
 
         param = "legacy_agent"
@@ -473,7 +468,7 @@ class ArenaCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        if not self.ui.is_chat_mode:
+        if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /arena is only available in chat mode.")
             return
 
@@ -573,11 +568,9 @@ class ArenaCommand(Command):
                 max_turns=max_turns,
             )
 
-            # Reset all other modes
-            self.ui.conversation.clear()
-            self.ui.native_agent_mode = False
-            self.ui.legacy_agent_mode = False
-            self.ui.arena_state = arena_state
+            # Enter arena mode
+            self.ui.enter_mode(UIMode.ARENA, clear_history=True)
+            self.ui.state.arena = arena_state
             self.ui.arena_paused_event.clear()  # Start in a paused state
 
             initiator_name = arena_state.arena_config.get_initiator().name
@@ -601,7 +594,7 @@ class PauseCommand(Command):
         return "pause"
 
     def execute(self, app: "Application", param: str | None = None):
-        if not self.ui.arena_state:
+        if self.ui.state.mode != UIMode.ARENA:
             self.ui.pt_printer("❌ /pause is only available in arena mode.")
             return
         if not self.ui.arena_paused_event.is_set():
@@ -620,7 +613,7 @@ class ResumeCommand(Command):
         return "resume"
 
     def execute(self, app: "Application", param: str | None = None):
-        if not self.ui.arena_state:
+        if self.ui.state.mode != UIMode.ARENA:
             self.ui.pt_printer("❌ /resume is only available in arena mode.")
             return
         if self.ui.arena_paused_event.is_set():
@@ -641,7 +634,7 @@ class SayCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        if not self.ui.arena_state:
+        if self.ui.state.mode != UIMode.ARENA or not self.ui.state.arena:
             self.ui.pt_printer("❌ /say is only available in arena mode.")
             return
         if self.ui.arena_paused_event.is_set():
@@ -650,7 +643,7 @@ class SayCommand(Command):
             )
             return
 
-        self.ui.arena_state.last_message = param
+        self.ui.state.arena.last_message = param
         self.ui.pt_printer("💬 Interjecting with message. Resuming arena...")
         self.ui.arena_paused_event.set()
 
@@ -667,7 +660,7 @@ class SaveCommand(Command):
     def execute(self, app: "Application", param: str | None = None):
         import pickle
 
-        if not self.ui.is_chat_mode:
+        if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /save is only available in chat mode.")
             return
 
@@ -705,13 +698,8 @@ class LoadCommand(Command):
                 raise TypeError("File does not contain a valid Conversation object.")
 
             # Reset state before loading
-            self.ui.native_agent_mode = False
-            self.ui.legacy_agent_mode = False
-            self.ui.arena_state = None
-            self.ui.arena_paused_event.clear()
-
+            self.ui.enter_mode(UIMode.CHAT, clear_history=False)
             self.ui.conversation = loaded_conversation
-            self.ui.is_chat_mode = True  # Loading a session forces chat mode
             self.ui.pt_printer(f"🔄 Session loaded from '{session_path}'.")
             # Print last few messages to give context
             history = self.ui.conversation.get_history()
@@ -733,12 +721,12 @@ class ToggleModeCommand(Command):
         return "mode"
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.is_chat_mode = not self.ui.is_chat_mode
-        self.ui.native_agent_mode = False
-        self.ui.legacy_agent_mode = False
-        mode_name = "Chat" if self.ui.is_chat_mode else "Completion"
-        self.ui.conversation.clear()
-        self.ui.pt_printer(f"✅ Switched to {mode_name} mode. History cleared.")
+        new_mode = (
+            UIMode.COMPLETION if self.ui.state.mode != UIMode.COMPLETION else UIMode.CHAT
+        )
+        self.ui.enter_mode(new_mode, clear_history=True)
+        mode_name = new_mode.name.replace("_", " ").title()
+        self.ui.pt_printer(f"✅ Switched to {mode_name} mode.")
 
 
 # --- Command Handler ---

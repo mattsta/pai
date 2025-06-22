@@ -497,15 +497,34 @@ class InteractiveUI:
                 and display.smoothing_stats
             ):
                 s_stats = display.smoothing_stats
-                parts = [f"Queue: {s_stats.get('queue_size', 0)}"]
-                if "avg_delta" in s_stats:
-                    avg = s_stats["avg_delta"].replace("ms", "")
-                    med = s_stats["median_delta"].replace("ms", "")
-                    std = s_stats["stdev_delta"].replace("ms", "")
-                    parts.append(f"Δ(avg/med/std ms): {avg}/{med}/{std}")
-                if "gaps" in s_stats:
-                    parts.append(f"Gaps/Bursts: {s_stats['gaps']}/{s_stats['bursts']}")
-                line4 = f"<style fg='ansicyan'><b>Smooth Stats</b> | {' | '.join(parts)}</style>"
+                parts = []
+                is_rendering = s_stats.get("stream_finished", False) and s_stats.get(
+                    "queue_size", 0
+                ) > 0
+
+                if is_rendering:
+                    parts.append(
+                        "<style fg='ansimagenta'><b>[Rendering Queue...]</b></style>"
+                    )
+
+                parts.append(f"Queue: {s_stats.get('queue_size', 0)}")
+                if drain_time := s_stats.get("buffer_drain_time_s"):
+                    parts.append(f"Drain: {drain_time:.1f}s")
+
+                # Only show network stats when the stream is actively arriving
+                if not s_stats.get("stream_finished"):
+                    if "avg_delta" in s_stats:
+                        avg = s_stats["avg_delta"].replace("ms", "")
+                        med = s_stats["median_delta"].replace("ms", "")
+                        std = s_stats["stdev_delta"].replace("ms", "")
+                        parts.append(f"Δ(avg/med/std ms): {avg}/{med}/{std}")
+                    if "gaps" in s_stats:
+                        parts.append(
+                            f"Gaps/Bursts: {s_stats['gaps']}/{s_stats['bursts']}"
+                        )
+                line4 = (
+                    f"<style fg='ansicyan'><b>Smooth Stats</b> | {' | '.join(parts)}</style>"
+                )
 
             return HTML(f"{line1}\n{line2}\n{line3}\n{line4}")
         except Exception as e:

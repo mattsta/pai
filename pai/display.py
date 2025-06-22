@@ -36,6 +36,7 @@ class StreamingDisplay:
         self._word_queue = asyncio.Queue()
         self._smoother_task: asyncio.Task | None = None
         self._inter_chunk_deltas: list[float] = []
+        self._stream_finished: bool = False
 
         # State for UI
         self.status = "Idle"
@@ -79,6 +80,7 @@ class StreamingDisplay:
         self.line_count = 0
         self.chunk_count = 0
         self.first_token_received = False
+        self._stream_finished = False
         self.status = "Waiting..."
 
         # Start the new renderer task *after* all state is reset.
@@ -95,8 +97,26 @@ class StreamingDisplay:
     @property
     def smoothing_stats(self) -> dict[str, Any]:
         """Calculates and returns statistics for smooth streaming mode."""
-        stats: dict[str, Any] = {"queue_size": self._word_queue.qsize()}
+        stats: dict[str, Any] = {
+            "queue_size": self._word_queue.qsize(),
+            "stream_finished": self._stream_finished,
+        }
         deltas = self._inter_chunk_deltas
+
+        # Calculate buffer drain time
+        target_tps = (
+            self.current_request_stats.live_tok_per_sec
+            if self.current_request_stats
+            else 0.0
+        )
+        MIN_WPS = 8.5
+        target_word_rate = max(target_tps * 1.7, MIN_WPS)
+        target_token_rate = target_word_rate * 2
+        if target_token_rate > 0:
+            stats["buffer_drain_time_s"] = (
+                self._word_queue.qsize() / target_token_rate
+            )
+
         if len(deltas) > 2:
             try:
                 mean = statistics.mean(deltas)
@@ -246,6 +266,7 @@ class StreamingDisplay:
 
     async def finish_response(self, success: bool = True) -> RequestStats | None:
         """Finalizes the response, prints stats, and resets the display state."""
+        self._stream_finished = True
         # In smooth mode, signal the renderer to stop and wait for it to finish.
         if self.smooth_stream_mode and self._smoother_task:
             await self._word_queue.put(None)  # Send sentinel

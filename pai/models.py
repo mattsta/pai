@@ -412,6 +412,20 @@ class TomlArena(BaseModel):
     judge: Optional[TomlJudge] = None
 
 
+class TomlProfile(BaseModel):
+    """Configuration for a reusable profile."""
+
+    endpoint: Optional[str] = None
+    model: Optional[str] = None
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    timeout: Optional[int] = None
+    chat: Optional[bool] = None
+    system: Optional[str] = None
+    rich_text: Optional[bool] = None
+    confirm_tool_use: Optional[bool] = None
+
+
 class TomlToolConfig(BaseModel):
     directories: list[str] = []
 
@@ -431,12 +445,14 @@ class PolyglotConfig(BaseModel):
     endpoints: list[TomlEndpoint] = Field(default_factory=list)
     tool_config: Optional[TomlToolConfig] = None
     arenas: dict[str, TomlArena] = Field(default_factory=dict)
+    profiles: dict[str, TomlProfile] = Field(default_factory=dict)
 
 
 class RuntimeConfig(BaseModel):
     """Holds runtime configuration state, replacing argparse.Namespace."""
 
     config: str = "polyglot.toml"
+    profile: Optional[str] = None
     endpoint: str = "openai"
     model: Optional[str] = None
     chat: bool = False

@@ -6,7 +6,7 @@ This document outlines potential features and improvements for the future develo
 
 *   **Async Support:** <ins>Completed.</ins> The entire application pipeline, from the command-line interface to the network requests, has been refactored to be fully asynchronous using `httpx` and `asyncio`. This has resolved UI blocking issues and improved responsiveness.
 *   **Pydantic Configuration:** <ins>Completed.</ins> Replaced `argparse` with `typer` for CLI argument parsing and `Pydantic` for config file validation. This provides robust type safety, better error messages, and cleaner code for managing all application settings.
-*   **Profile Management:** Allow users to define and save profiles in a local config file (e.g., `~/.polyglot/config.yaml`) that store provider, model, and parameter presets (e.g., `polyglot --profile research_claude`).
+*   **Profile Management:** <ins>Completed.</ins> Added support for a `--profile <name>` flag that loads presets (endpoint, model, temperature, etc.) from a `[profiles]` section in `polyglot.toml`. CLI flags will override profile settings.
 *   **Manual Session Management:** <ins>Completed.</ins> Added `/save <name>` and `/load <name>` commands to manually save and restore interactive chat sessions.
 
 ### Advanced Agent & Tool Features

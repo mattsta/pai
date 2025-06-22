@@ -660,7 +660,7 @@ def load_toml_config(path: str) -> PolyglotConfig:
         sys.exit(f"❌ FATAL: Could not parse '{path}': {e}")
 
 
-async def _run(runtime_config: RuntimeConfig):
+async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
     """The core async logic of the application."""
     if runtime_config.log_file:
         logging.basicConfig(
@@ -670,8 +670,6 @@ async def _run(runtime_config: RuntimeConfig):
             filemode="w",
         )
         logging.info("--- Log file initialized ---")
-
-    toml_config = load_toml_config(runtime_config.config)
 
     # Conditionally load tools only if the --tools flag is active.
     if runtime_config.tools:
@@ -732,6 +730,9 @@ async def _run(runtime_config: RuntimeConfig):
 )
 def run(
     ctx: typer.Context,
+    profile: Optional[str] = typer.Option(
+        None, "--profile", help="Use a named profile from the config file."
+    ),
     prompt: Optional[str] = typer.Option(
         None, "-p", "--prompt", help="Send a single prompt and exit."
     ),
@@ -786,7 +787,26 @@ def run(
 ):
     """Main application entrypoint."""
     print("🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶")
+
+    toml_config = load_toml_config(config)
+
+    # Handle profile loading. This must happen before RuntimeConfig is instantiated
+    # so that the context can provide the correct default values.
+    if profile:
+        profile_settings = toml_config.profiles.get(profile)
+        if not profile_settings:
+            typer.echo(
+                f"❌ Error: Profile '{profile}' not found in '{config}'.", err=True
+            )
+            raise typer.Exit(code=1)
+
+        # Let Typer use the profile's values as defaults for any unspecified CLI options.
+        # `exclude_unset=True` ensures we only use values defined in the profile.
+        ctx.default_map = profile_settings.model_dump(exclude_unset=True)
+        typer.echo(f"✅ Loaded profile '{profile}'.")
+
     runtime_config = RuntimeConfig(
+        profile=profile,
         prompt=prompt,
         chat=chat,
         system=system,
@@ -804,7 +824,7 @@ def run(
         log_file=log_file,
         config=config,
     )
-    asyncio.run(_run(runtime_config))
+    asyncio.run(_run(runtime_config, toml_config))
 
 
 def main():

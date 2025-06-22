@@ -67,6 +67,12 @@ This will install the `pai` command.
 pai --chat
 ```
 
+**Using a Profile**
+You can define preset configurations in `polyglot.toml` and use them with the `--profile` flag. This is great for switching between common setups.
+```bash
+pai --profile research_haiku --chat
+```
+
 **Run a Single, Non-Interactive Prompt**
 ```bash
 # This will stream the response by default.

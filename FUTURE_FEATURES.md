@@ -12,7 +12,7 @@ This document outlines potential features and improvements for the future develo
 ### Advanced Agent & Tool Features
 
 *   **Advanced Agentic Control:** <ins>Completed.</ins> Introduced a command (`/confirm on|off`) and a flag (`--confirm`) to require user confirmation before executing any tool. This provides a critical safety layer for agentic workflows.
-*   **Multi-Tool Calls:** Improve support for models that can request multiple tool calls in a single turn, running them in parallel where possible.
+*   **Multi-Tool Calls:** <ins>Completed.</ins> Implemented parallel execution for multiple tool calls in a single turn. When a model requests several tools at once, they are now run concurrently using `asyncio.gather`, improving performance.
 *   **Arena Interjection:** <ins>Completed.</ins> The multi-model arena can now be paused and resumed using `/pause` and `/resume`. The user can interject with their own messages using the `/say` command while the arena is paused, allowing them to steer the conversation.
 *   **Arena Judge:** <ins>Completed.</ins> Arenas can now include an optional third `judge` participant. The judge is given the full conversation history at the end of the dialogue and provides a summary and verdict, which is also logged.
 

@@ -1,4 +1,5 @@
 # protocols/openai_chat_adapter.py
+import asyncio
 import json
 import time
 from typing import Any
@@ -35,6 +36,30 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
     ) -> dict[str, Any]:
         messages = list(request.messages)
         max_iterations = 5
+
+        async def _execute_and_format_tool_call(tool_call: dict) -> dict:
+            """Executes a single tool call and formats the result."""
+            name = tool_call["function"]["name"]
+            try:
+                args = json.loads(tool_call["function"]["arguments"])
+            except json.JSONDecodeError:
+                # Handle malformed JSON arguments from the model.
+                error_msg = f"Error: Model provided invalid JSON arguments for tool '{name}'."
+                context.display._print(f"  - ❌ Tool Error: {error_msg}")
+                return {
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "name": name,
+                    "content": error_msg,
+                }
+
+            result = await _execute_with_confirmation(name, args)
+            return {
+                "role": "tool",
+                "tool_call_id": tool_call["id"],
+                "name": name,
+                "content": str(result),
+            }
 
         async def _execute_with_confirmation(name: str, args: dict) -> Any:
             """Helper to wrap tool execution with an optional confirmation step."""
@@ -101,21 +126,15 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
                     if tool_calls_data := message.get("tool_calls"):
                         context.display._print(
-                            "\n🔧 [Agent Action] Model requested tool calls..."
+                            f"\n🔧 [Agent Action] Model requested {len(tool_calls_data)} tool calls..."
                         )
                         messages.append(message)
-                        for tool_call in tool_calls_data:
-                            name = tool_call["function"]["name"]
-                            args = json.loads(tool_call["function"]["arguments"])
-                            result = await _execute_with_confirmation(name, args)
-                            messages.append(
-                                {
-                                    "role": "tool",
-                                    "tool_call_id": tool_call["id"],
-                                    "name": name,
-                                    "content": str(result),
-                                }
-                            )
+                        tasks = [
+                            _execute_and_format_tool_call(tc)
+                            for tc in tool_calls_data
+                        ]
+                        tool_results = await asyncio.gather(*tasks)
+                        messages.extend(tool_results)
                         continue  # Next agent iteration
 
                     # No tool calls, regular response
@@ -204,21 +223,12 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
                 if tool_calls:
                     context.display._print(
-                        "\n🔧 [Agent Action] Model requested tool calls..."
+                        f"\n🔧 [Agent Action] Model requested {len(tool_calls)} tool calls..."
                     )
                     messages.append({"role": "assistant", "tool_calls": tool_calls})
-                    for tool_call in tool_calls:
-                        name = tool_call["function"]["name"]
-                        args = json.loads(tool_call["function"]["arguments"])
-                        result = await _execute_with_confirmation(name, args)
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tool_call["id"],
-                                "name": name,
-                                "content": str(result),
-                            }
-                        )
+                    tasks = [_execute_and_format_tool_call(tc) for tc in tool_calls]
+                    tool_results = await asyncio.gather(*tasks)
+                    messages.extend(tool_results)
                     continue
 
                 request_stats = context.display.finish_response(success=True)

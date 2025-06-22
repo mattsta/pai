@@ -704,10 +704,11 @@ class InteractiveUI:
         # allowed to propagate up to main() where they are handled for a clean exit.
         try:
             # run_async() returns the value from app.exit(). The default Ctrl+D
-            # handler passes an EOFError. We re-raise it to be caught in main().
+            # handler passes an EOFError. We handle it here to prevent it from
+            # propagating to Typer, which would cause an "Aborted." message.
             result = await self.app.run_async()
             if isinstance(result, EOFError):
-                raise result
+                return  # This triggers the finally block and exits cleanly.
         finally:
             closing(self.client.stats, printer=self.pt_printer)
 

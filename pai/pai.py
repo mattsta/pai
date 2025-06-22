@@ -221,8 +221,9 @@ class InteractiveUI:
                     color = "ansiyellow"
                 if time_since_last > 5.0:
                     color = "ansired"
+                duration = live_stats.live_stream_duration
                 return HTML(
-                    f"<style fg='{color}'>[{spinner}] Streaming... ({time_since_last:.1f}s since last token)</style>"
+                    f"<style fg='{color}'>[{spinner}] Streaming... ({duration:.1f}s duration, {time_since_last:.1f}s since last token)</style>"
                 )
             elif status == "Waiting..." and live_stats:
                 duration = live_stats.current_duration

@@ -14,7 +14,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-from .models import RequestStats
+from .models import RequestStats, SmoothingStats
 from .utils import estimate_tokens
 
 
@@ -146,17 +146,20 @@ class StreamingDisplay:
         return 0.0
 
     @property
-    def smoothing_stats(self) -> dict[str, Any]:
+    def smoothing_stats(self) -> SmoothingStats | None:
         """Calculates and returns statistics for smooth streaming mode."""
-        stats: dict[str, Any] = {
-            "queue_size": self._word_queue.qsize(),
-            "stream_finished": self._stream_finished,
-        }
+        if not self.smooth_stream_mode:
+            return None
+
+        stats = SmoothingStats(
+            queue_size=self._word_queue.qsize(),
+            stream_finished=self._stream_finished,
+        )
         deltas = self._inter_chunk_deltas
 
         # Get drain time from the smoother's internal state
         if self._smoother:
-            stats["buffer_drain_time_s"] = self._smoother.current_drain_time_s
+            stats.buffer_drain_time_s = self._smoother.current_drain_time_s
 
         # Calculate network jitter stats
         if len(deltas) > 1:
@@ -164,14 +167,14 @@ class StreamingDisplay:
                 mean = statistics.mean(deltas)
                 stdev = statistics.stdev(deltas) if len(deltas) > 2 else 0
 
-                stats["arrivals"] = len(deltas)
+                stats.arrivals = len(deltas)
                 # Filter out near-zero deltas (artifacts) for a more meaningful min value
                 non_zero_deltas = [d for d in deltas if d > 1e-3]  # 1ms
                 min_val = min(non_zero_deltas) if non_zero_deltas else 0.0
-                stats["min_delta"] = f"{min_val * 1000:.1f}"
-                stats["mean_delta"] = f"{mean * 1000:.1f}"
-                stats["median_delta"] = f"{statistics.median(deltas) * 1000:.1f}"
-                stats["max_delta"] = f"{max(deltas) * 1000:.1f}"
+                stats.min_delta = f"{min_val * 1000:.1f}"
+                stats.mean_delta = f"{mean * 1000:.1f}"
+                stats.median_delta = f"{statistics.median(deltas) * 1000:.1f}"
+                stats.max_delta = f"{max(deltas) * 1000:.1f}"
 
                 gaps = [d for d in deltas if d > mean + 1.5 * stdev] if stdev > 0 else []
                 bursts = (
@@ -179,8 +182,8 @@ class StreamingDisplay:
                     if mean and stdev
                     else 0
                 )
-                stats["gaps"] = len(gaps)
-                stats["bursts"] = bursts
+                stats.gaps = len(gaps)
+                stats.bursts = bursts
             except statistics.StatisticsError:
                 pass  # Not enough data for stats
         return stats

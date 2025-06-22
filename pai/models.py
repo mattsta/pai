@@ -213,6 +213,22 @@ class Conversation:
 
 
 @dataclass
+class SmoothingStats:
+    """Encapsulates statistics for the stream smoother."""
+
+    queue_size: int = 0
+    stream_finished: bool = False
+    buffer_drain_time_s: float = 0.0
+    arrivals: int = 0
+    min_delta: str = "N/A"
+    mean_delta: str = "N/A"
+    median_delta: str = "N/A"
+    max_delta: str = "N/A"
+    gaps: int = 0
+    bursts: int = 0
+
+
+@dataclass
 class RequestStats:
     """Encapsulates all statistics for a single request-response cycle."""
 
@@ -227,7 +243,7 @@ class RequestStats:
     input_cost: float = 0.0
     output_cost: float = 0.0
     # Statistics from the stream smoother, if active
-    smoothing_stats: dict[str, Any] | None = None
+    smoothing_stats: "SmoothingStats" | None = None
 
     # Internal state for live calculations
     _first_token_time: float | None = None
@@ -337,7 +353,16 @@ class SessionStats:
             }
             # Pass through smoothing stats if they exist
             if last.smoothing_stats:
-                stats["last_request"]["smoothing_stats"] = last.smoothing_stats
+                # Manually create a dict for printing to match what log_utils expects
+                stats["last_request"]["smoothing_stats"] = {
+                    "arrivals": last.smoothing_stats.arrivals,
+                    "gaps": last.smoothing_stats.gaps,
+                    "bursts": last.smoothing_stats.bursts,
+                    "min_delta": last.smoothing_stats.min_delta,
+                    "mean_delta": last.smoothing_stats.mean_delta,
+                    "median_delta": last.smoothing_stats.median_delta,
+                    "max_delta": last.smoothing_stats.max_delta,
+                }
         return stats
 
 

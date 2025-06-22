@@ -5,9 +5,19 @@ import json
 import pathlib
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
-TOOL_REGISTRY: dict[str, Callable] = {}
+
+@dataclass
+class ToolDefinition:
+    """Encapsulates a registered tool's function and schema."""
+
+    function: Callable
+    schema: dict[str, Any]
+
+
+TOOL_REGISTRY: dict[str, ToolDefinition] = {}
 
 
 class ToolError(Exception):
@@ -83,12 +93,12 @@ def _generate_schema_for_function(func: Callable) -> dict:
 def tool(func: Callable) -> Callable:
     """Decorator to register a function as a tool the AI can use."""
     tool_schema = _generate_schema_for_function(func)
-    TOOL_REGISTRY[func.__name__] = {"function": func, "schema": tool_schema}
+    TOOL_REGISTRY[func.__name__] = ToolDefinition(function=func, schema=tool_schema)
     return func
 
 
 def get_tool_schemas() -> list[dict[str, Any]]:
-    return [t["schema"] for t in TOOL_REGISTRY.values()] if TOOL_REGISTRY else []
+    return [t.schema for t in TOOL_REGISTRY.values()] if TOOL_REGISTRY else []
 
 
 def get_tool_manifest() -> str:
@@ -98,7 +108,7 @@ def get_tool_manifest() -> str:
 
     manifest = "You have access to the following tools:\n\n"
     for name, info in TOOL_REGISTRY.items():
-        schema = info["schema"]["function"]
+        schema = info.schema["function"]
         manifest += f"- Name: {name}\n"
         manifest += f"  Description: {schema['description']}\n"
         if properties := schema["parameters"]["properties"]:
@@ -121,8 +131,8 @@ def execute_tool(name: str, args: dict) -> Any:
     if name not in TOOL_REGISTRY:
         raise ToolNotFound(f"Tool '{name}' not found.")
 
-    tool_info = TOOL_REGISTRY[name]
-    func = tool_info["function"]
+    tool_def = TOOL_REGISTRY[name]
+    func = tool_def.function
     sig = inspect.signature(func)
 
     # Convert arguments to their correct types, including Enums

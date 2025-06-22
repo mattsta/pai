@@ -35,6 +35,7 @@ class UIState:
     mode: UIMode = UIMode.CHAT
     # Holds the state for the *active* arena session, if any.
     arena: Optional["ArenaState"] = None
+    multiline_input: bool = False
 
 
 @dataclass

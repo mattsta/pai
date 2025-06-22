@@ -89,6 +89,7 @@ class HelpCommand(Command):
   /tokens <num>          - Change max_tokens (e.g., /tokens 100)
   /timeout <seconds>     - Change request timeout (e.g., /timeout 120)
   /mode                  - Toggle between chat and completion mode (clears history)
+  /multiline             - Toggle multi-line input mode (use Esc+Enter to submit)
   /stream, /verbose, /debug, /rich, /tools, /confirm - Toggle flags on/off
   --- Chat Mode Only ---
   /system <text>         - Set a new system prompt (clears history)
@@ -685,6 +686,21 @@ class ToggleModeCommand(Command):
         self.ui.pt_printer(f"✅ Switched to {mode_name} mode.")
 
 
+class ToggleMultilineCommand(Command):
+    @property
+    def name(self):
+        return "multiline"
+
+    def execute(self, app: "Application", param: str | None = None):
+        self.ui.state.multiline_input = not self.ui.state.multiline_input
+        if self.ui.state.multiline_input:
+            self.ui.pt_printer(
+                "✅ Multiline input enabled. Use Esc+Enter or Alt+Enter to submit."
+            )
+        else:
+            self.ui.pt_printer("✅ Multiline input disabled.")
+
+
 # --- Command Handler ---
 class CommandHandler:
     """Parses and executes slash commands by dispatching to Command objects."""
@@ -726,6 +742,7 @@ class CommandHandler:
             SaveCommand,
             LoadCommand,
             ToggleModeCommand,
+            ToggleMultilineCommand,
         ]
         for cmd_class in command_classes:
             instance = cmd_class(self.ui)

@@ -114,7 +114,7 @@ class InteractiveUI:
 
         self.input_buffer = Buffer(
             name="input_buffer",
-            multiline=False,
+            multiline=Condition(lambda: self.state.multiline_input),
             history=self.history,
             enable_history_search=True,
             accept_handler=self._on_buffer_accepted,
@@ -271,6 +271,14 @@ class InteractiveUI:
     def _create_key_bindings(self) -> KeyBindings:
         """Creates key bindings, including custom Ctrl+C and Ctrl+D handlers."""
         kb = KeyBindings()
+
+        @kb.add("escape", "enter", filter=Condition(lambda: self.state.multiline_input))
+        def _(event):
+            """
+            Custom binding for submitting in multiline mode.
+            The default 'enter' key will just insert a newline.
+            """
+            event.app.current_buffer.validate_and_handle()
 
         @kb.add("c-c", eager=True)
         def _(event):
@@ -485,7 +493,11 @@ class InteractiveUI:
                 if self.runtime_config.confirm_tool_use
                 else "OFF"
             )
+            multiline_status = (
+                "<style fg='ansigreen'>ON</style>" if self.state.multiline_input else "OFF"
+            )
             line3_parts = [
+                f"<b>Multiline:</b> {multiline_status}",
                 f"<b>Rich:</b> {rich_status}",
                 f"<b>Confirm:</b> {confirm_status}",
                 f"<b>Tools:</b> {tools_status}",

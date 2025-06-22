@@ -38,11 +38,11 @@ This is a list of concrete, near-term tasks to improve the framework.
     - [x] Updated `TestSession` to accumulate total session cost.
     - [x] Added the running session cost to the toolbar and `/stats` command output.
 
-- [ ] **Multi-line Input Mode (`/multiline`):**
-    - [ ] Add a `/multiline` command to toggle multi-line input mode.
-    - [ ] When enabled, modify the main `input_buffer` in `InteractiveUI` to have `multiline=True`.
-    - [ ] The `accept_handler` will need to be configured differently or the key bindings updated so `Enter` inserts a newline and `Meta+Enter` (or `Esc+Enter`) submits the prompt.
-    - [ ] This significantly improves the experience of writing long, complex prompts or pasting code snippets.
+- [x] **Multi-line Input Mode (`/multiline`):**
+    - [x] Added a `/multiline` command to toggle multi-line input mode.
+    - [x] When enabled, the main `input_buffer` in `InteractiveUI` now uses a `prompt_toolkit.Condition` to dynamically set `multiline=True`.
+    - [x] Added a key binding for `Esc+Enter` (and `Alt+Enter` on some terminals) to submit the prompt, which correctly triggers the `accept_handler`.
+    - [x] This significantly improves the experience of writing long, complex prompts or pasting code snippets.
 
 ### Feature: Multi-Model Arena
 - [x] **Phase 1: Configuration and Data Models**

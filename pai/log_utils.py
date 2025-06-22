@@ -24,8 +24,29 @@ def print_stats(stats: "SessionStats", printer: Callable = print):
     if last_req_stats:
         printer("-" * 50)
         printer("Last Request:")
+        smoothing_stats = last_req_stats.pop("smoothing_stats", None)
         for key, value in last_req_stats.items():
             printer(f"  - {key.replace('_', ' ').title():<20}{value}")
+
+        if smoothing_stats:
+            printer("\n  Smoothing Stats:")
+            arrivals = smoothing_stats.get("arrivals", "N/A")
+            gaps = smoothing_stats.get("gaps", 0)
+            bursts = smoothing_stats.get("bursts", 0)
+            printer(f"    - {'Arrivals':<18}{arrivals}")
+            printer(f"    - {'Gaps/Bursts':<18}{gaps}/{bursts}")
+            printer(
+                f"    - {'Min Delta (ms)':<18}{smoothing_stats.get('min_delta', 'N/A')}"
+            )
+            printer(
+                f"    - {'Mean Delta (ms)':<18}{smoothing_stats.get('mean_delta', 'N/A')}"
+            )
+            printer(
+                f"    - {'Median Delta (ms)':<18}{smoothing_stats.get('median_delta', 'N/A')}"
+            )
+            printer(
+                f"    - {'Max Delta (ms)':<18}{smoothing_stats.get('max_delta', 'N/A')}"
+            )
 
     printer("=" * 50)
 

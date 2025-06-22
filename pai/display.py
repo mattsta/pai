@@ -355,6 +355,10 @@ class StreamingDisplay:
 
         self.status = "Done"
         if self.current_request_stats:
+            # Capture final smoothing stats before they are reset
+            if self._smoother:
+                self.current_request_stats.smoothing_stats = self.smoothing_stats
+
             self.current_request_stats.finish(success=success)
             # Final token count uses the full canonical text.
             self.current_request_stats.tokens_received = estimate_tokens(

@@ -226,6 +226,8 @@ class RequestStats:
     # Cost tracking
     input_cost: float = 0.0
     output_cost: float = 0.0
+    # Statistics from the stream smoother, if active
+    smoothing_stats: dict[str, Any] | None = None
 
     # Internal state for live calculations
     _first_token_time: float | None = None
@@ -333,6 +335,9 @@ class SessionStats:
                 "tokens_per_second": f"{last.final_tok_per_sec:.1f}",
                 "finish_reason": last.finish_reason or "N/A",
             }
+            # Pass through smoothing stats if they exist
+            if last.smoothing_stats:
+                stats["last_request"]["smoothing_stats"] = last.smoothing_stats
         return stats
 
 

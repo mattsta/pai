@@ -218,6 +218,7 @@ class SmoothingStats:
 
     queue_size: int = 0
     stream_finished: bool = False
+    smoothing_aborted: bool = False
     buffer_drain_time_s: float = 0.0
     arrivals: int = 0
     min_delta: str = "N/A"
@@ -362,6 +363,7 @@ class SessionStats:
                     "mean_delta": last.smoothing_stats.mean_delta,
                     "median_delta": last.smoothing_stats.median_delta,
                     "max_delta": last.smoothing_stats.max_delta,
+                    "aborted": last.smoothing_stats.smoothing_aborted,
                 }
         return stats
 

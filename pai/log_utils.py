@@ -33,6 +33,8 @@ def print_stats(stats: "SessionStats", printer: Callable = print):
             arrivals = smoothing_stats.get("arrivals", "N/A")
             gaps = smoothing_stats.get("gaps", 0)
             bursts = smoothing_stats.get("bursts", 0)
+            aborted = smoothing_stats.get("aborted", False)
+            printer(f"    - {'Aborted':<18}{'Yes' if aborted else 'No'}")
             printer(f"    - {'Arrivals':<18}{arrivals}")
             printer(f"    - {'Gaps/Bursts':<18}{gaps}/{bursts}")
             printer(

@@ -531,8 +531,11 @@ class InteractiveUI:
                     )
                 q_size = s_stats.queue_size
                 parts.append(f"Queue: {q_size:4d}")
-                drain_time = s_stats.buffer_drain_time_s
-                parts.append(f"Drain: {drain_time:4.1f}s")
+                if s_stats.smoothing_aborted:
+                    parts.append("Drain: LIVE")
+                else:
+                    drain_time = s_stats.buffer_drain_time_s
+                    parts.append(f"Drain: {drain_time:4.1f}s")
                 if not s_stats.stream_finished:
                     try:
                         min_d = float(s_stats.min_delta)

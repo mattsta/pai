@@ -154,6 +154,7 @@ class StreamingDisplay:
         stats = SmoothingStats(
             queue_size=self._word_queue.qsize(),
             stream_finished=self._stream_finished,
+            smoothing_aborted=self._smoothing_aborted,
         )
         deltas = self._inter_chunk_deltas
 

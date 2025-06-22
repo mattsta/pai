@@ -30,25 +30,20 @@ class StreamSmoother:
         self.target_buffer_s = 1.5
         self.min_wps = 8.5  # Minimum readable words per second
         self.max_wps = 100.0  # Cap to prevent runaway speeds
-        self._wps_smoothing_factor = 0.05  # How quickly we adapt to the live rate.
         self._urgency_gain = 0.5  # How aggressively we correct buffer errors.
 
         # --- State ---
-        self.smoothed_wps = self.min_wps
         self.current_drain_time_s = 0.0
 
     def get_render_delay(self, live_tps: float, queue_size: int) -> float:
         """Calculates the next sleep delay to manage the buffer."""
-        # 1. Update our smoothed render speed towards the live token rate.
+        # 1. Calculate a base render speed directly from the live token rate.
+        #    This makes the controller much more responsive to current conditions.
         live_wps = max(live_tps * 1.7, self.min_wps)
-        self.smoothed_wps = (
-            self.smoothed_wps * (1 - self._wps_smoothing_factor)
-            + live_wps * self._wps_smoothing_factor
-        )
-        self.smoothed_wps = min(self.smoothed_wps, self.max_wps)
+        live_wps = min(live_wps, self.max_wps)
 
         # 2. Calculate the base delay and how long it would take to drain the queue.
-        items_per_second_base = self.smoothed_wps * 2
+        items_per_second_base = live_wps * 2
         base_delay = 1.0 / items_per_second_base if items_per_second_base > 0 else 0.1
         self.current_drain_time_s = (
             queue_size * base_delay if items_per_second_base > 0 else 0
@@ -56,11 +51,12 @@ class StreamSmoother:
         buffer_error_s = self.current_drain_time_s - self.target_buffer_s
 
         # 3. Use a P-controller to adjust the render *delay*.
-        #    - If buffer is too big (error > 0), we must speed up -> decrease delay (factor < 1).
-        #    - If buffer is too small (error < 0), we must slow down -> increase delay (factor > 1).
-        #    The `1.0 - error` formula provides this relationship.
+        #    A large buffer (error > 0) should decrease delay (factor < 1).
+        #    A small buffer (error < 0) should increase delay (factor > 1).
         urgency_factor = 1.0 - (buffer_error_s * self._urgency_gain)
-        urgency_factor = max(0.5, min(1.5, urgency_factor))  # Clamp for stability
+        urgency_factor = max(
+            0.25, min(1.75, urgency_factor)
+        )  # Clamp for stability, being more aggressive on speed-up.
 
         # 4. The final delay is the base delay adjusted by our urgency factor.
         return base_delay * urgency_factor

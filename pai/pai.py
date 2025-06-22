@@ -459,7 +459,9 @@ class InteractiveUI:
             # --- Line 2: Performance Stats ---
             line2_parts = []
             status_esc = escape(display.status)
-            line2_parts.append(f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>")
+            line2_parts.append(
+                f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>"
+            )
 
             if live_stats and display.status in ["Waiting...", "Streaming"]:
                 live_tps = live_stats.live_tok_per_sec
@@ -470,7 +472,9 @@ class InteractiveUI:
                 live_stats_str = (
                     f"<b>Live:</b> {live_tokens:4d} tk @ {live_tps:5.1f} tk/s"
                 )
-                line2_parts.append(f"<style fg='{status_color}'>{live_stats_str}</style>")
+                line2_parts.append(
+                    f"<style fg='{status_color}'>{live_stats_str}</style>"
+                )
             else:
                 last_req = session_stats.last_request_stats
                 if last_req:

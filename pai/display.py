@@ -6,7 +6,6 @@ import re
 import statistics
 import time
 from html import escape
-from typing import Any
 
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import ANSI, HTML
@@ -178,7 +177,9 @@ class StreamingDisplay:
                 stats.median_delta = f"{statistics.median(deltas) * 1000:.1f}"
                 stats.max_delta = f"{max(deltas) * 1000:.1f}"
 
-                gaps = [d for d in deltas if d > mean + 1.5 * stdev] if stdev > 0 else []
+                gaps = (
+                    [d for d in deltas if d > mean + 1.5 * stdev] if stdev > 0 else []
+                )
                 bursts = (
                     sum(1 for d in deltas if d < mean - 0.75 * stdev)
                     if mean and stdev
@@ -340,9 +341,7 @@ class StreamingDisplay:
                 if self.current_request_stats
                 else 0
             )
-            log_line = (
-                f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
-            )
+            log_line = f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
             self._print(log_line)
             logging.info(log_line)
 

@@ -80,9 +80,7 @@ class OllamaAdapter(BaseProtocolAdapter):
 
                         message_chunk = chunk_data.get("message", {})
                         if content := message_chunk.get("content"):
-                            await context.display.show_parsed_chunk(
-                                chunk_data, content
-                            )
+                            await context.display.show_parsed_chunk(chunk_data, content)
 
                     except json.JSONDecodeError:
                         if context.display.debug_mode:

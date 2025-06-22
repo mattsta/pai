@@ -44,7 +44,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                 response_data = response.json()
                 message = response_data.get("message", {})
                 final_text = message.get("content", "")
-                context.display.show_parsed_chunk(response_data, final_text)
+                await context.display.show_parsed_chunk(response_data, final_text)
 
                 request_stats = context.display.finish_response(success=True)
                 if request_stats:
@@ -80,7 +80,9 @@ class OllamaAdapter(BaseProtocolAdapter):
 
                         message_chunk = chunk_data.get("message", {})
                         if content := message_chunk.get("content"):
-                            context.display.show_parsed_chunk(chunk_data, content)
+                            await context.display.show_parsed_chunk(
+                                chunk_data, content
+                            )
 
                     except json.JSONDecodeError:
                         if context.display.debug_mode:

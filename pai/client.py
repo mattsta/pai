@@ -33,7 +33,9 @@ class PolyglotClient:
         self.config = EndpointConfig()
         self.stats = SessionStats()
         self.display = StreamingDisplay(
-            debug_mode=runtime_config.debug, rich_text_mode=runtime_config.rich_text
+            debug_mode=runtime_config.debug,
+            rich_text_mode=runtime_config.rich_text,
+            smooth_stream_mode=runtime_config.smooth_stream,
         )
         self.http_session = http_session
         self.tools_enabled = runtime_config.tools

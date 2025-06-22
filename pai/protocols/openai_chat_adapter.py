@@ -140,7 +140,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
                     # No tool calls, regular response
                     final_text = message.get("content", "")
-                    context.display.show_parsed_chunk(response_data, final_text)
+                    await context.display.show_parsed_chunk(response_data, final_text)
                     request_stats = context.display.finish_response(success=True)
                     if request_stats:
                         usage = response_data.get("usage", {})
@@ -184,7 +184,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     delta = choice.get("delta", {})
 
                                     if content := delta.get("content"):
-                                        context.display.show_parsed_chunk(
+                                        await context.display.show_parsed_chunk(
                                             chunk_data, content
                                         )
                                     if new_tool_calls := delta.get("tool_calls"):

@@ -522,9 +522,15 @@ class InteractiveUI:
                 if self.state.multiline_input
                 else "OFF"
             )
+            smooth_status = (
+                "<style fg='ansigreen'>ON</style>"
+                if self.runtime_config.smooth_stream
+                else "OFF"
+            )
             line3_parts = [
                 f"<b>Multiline:</b> {multiline_status}",
                 f"<b>Rich:</b> {rich_status}",
+                f"<b>Smooth:</b> {smooth_status}",
                 f"<b>Confirm:</b> {confirm_status}",
                 f"<b>Tools:</b> {tools_status}",
                 f"<b>Debug:</b> {debug_status}",
@@ -606,6 +612,14 @@ class InteractiveUI:
         self.client.display.rich_text_mode = self.runtime_config.rich_text
         self.pt_printer(
             f"✅ Rich text output {'enabled' if self.runtime_config.rich_text else 'disabled'}."
+        )
+
+    def toggle_smooth_stream(self):
+        """Toggles smooth streaming mode."""
+        self.runtime_config.smooth_stream = not self.runtime_config.smooth_stream
+        self.client.display.smooth_stream_mode = self.runtime_config.smooth_stream
+        self.pt_printer(
+            f"✅ Smooth streaming {'enabled' if self.runtime_config.smooth_stream else 'disabled'}."
         )
 
     def toggle_tools(self):
@@ -779,6 +793,11 @@ def run(
         "--confirm",
         help="Require user confirmation before executing a tool.",
     ),
+    smooth_stream: bool = typer.Option(
+        False,
+        "--smooth-stream",
+        help="Enable experimental smoothed streaming output.",
+    ),
     log_file: str | None = typer.Option(
         None,
         "--log-file",
@@ -825,6 +844,7 @@ def run(
         tools=tools,
         rich_text=rich_text,
         confirm_tool_use=confirm_tool_use,
+        smooth_stream=smooth_stream,
         log_file=log_file,
         config=config,
     )

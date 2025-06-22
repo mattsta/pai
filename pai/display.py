@@ -15,9 +15,15 @@ from .utils import estimate_tokens
 class StreamingDisplay:
     """Manages all console output, ensuring prompt-toolkit UI is not corrupted."""
 
-    def __init__(self, debug_mode: bool = False, rich_text_mode: bool = True):
+    def __init__(
+        self,
+        debug_mode: bool = False,
+        rich_text_mode: bool = True,
+        smooth_stream_mode: bool = False,
+    ):
         self.debug_mode = debug_mode
         self.rich_text_mode = rich_text_mode
+        self.smooth_stream_mode = smooth_stream_mode
         self._printer = print  # Default to standard print
         self._is_interactive = False
         self.output_buffer: Buffer | None = None
@@ -68,6 +74,18 @@ class StreamingDisplay:
         # print_formatted_text function, which handles redrawing the prompt.
         self._printer(*args, **kwargs)
 
+    def _render_text(self, text: str):
+        """Internal helper to render a piece of text, updating buffer or printing."""
+        self.current_response += text
+        if self._is_interactive and self.output_buffer:
+            # We must update the full buffer text each time for prompt_toolkit.
+            self.output_buffer.text = f"{self.actor_name}: {self.current_response}"
+            # Move the cursor to the end of the buffer to ensure scrolling.
+            self.output_buffer.cursor_position = len(self.output_buffer.text)
+        elif not self._is_interactive:
+            # For non-interactive, we can just print the character.
+            self._print(text, end="", flush=True)
+
     def show_raw_line(self, line: str):
         if self.debug_mode:
             if not self.first_token_received:
@@ -90,7 +108,7 @@ class StreamingDisplay:
             self._print(log_line)
             logging.info(log_line)
 
-    def show_parsed_chunk(self, chunk_data: dict, chunk_text: str):
+    async def show_parsed_chunk(self, chunk_data: dict, chunk_text: str):
         """Handles printing a parsed chunk of text from the stream."""
         # Don't do anything for empty chunks, which some providers send.
         if not chunk_text:
@@ -105,27 +123,39 @@ class StreamingDisplay:
                 self.current_request_stats.record_first_token()
             self.first_token_received = True
 
-        self.current_response += chunk_text
+            # Print header once for non-interactive mode.
+            if not self._is_interactive:
+                self._print(f"\n{self.actor_name}: ", end="")
+
         self.chunk_count += 1
+        # Decide whether to smooth this chunk based on mode, warmup, and speed
+        is_warmed_up = (
+            self.current_request_stats
+            and self.current_request_stats.live_stream_duration > 1.5
+        )
+        target_tps = (
+            self.current_request_stats.live_tok_per_sec
+            if self.current_request_stats
+            else 0
+        )
+        should_smooth = self.smooth_stream_mode and is_warmed_up and target_tps > 10
+
+        if should_smooth:
+            # ~3.5 chars per token is a reasonable heuristic for English text.
+            target_cps = target_tps * 3.5
+            delay_per_char = 1.0 / target_cps
+            for char in chunk_text:
+                self._render_text(char)
+                await asyncio.sleep(delay_per_char)
+        else:
+            self._render_text(chunk_text)
+
+        # To ensure the live count is consistent with the final count,
+        # we recalculate from the full response string after every chunk.
         if self.current_request_stats:
-            # To ensure the live count is consistent with the final count,
-            # we recalculate from the full response string on every chunk.
             self.current_request_stats.tokens_received = estimate_tokens(
                 self.current_response
             )
-
-        # Handle rendering
-        if self._is_interactive and self.output_buffer:
-            # For interactive mode with a buffer, update the buffer's content.
-            # This will be displayed live in the UI's live output window.
-            self.output_buffer.text = f"{self.actor_name}: {self.current_response}"
-            # Move the cursor to the end of the buffer to ensure scrolling.
-            self.output_buffer.cursor_position = len(self.output_buffer.text)
-        elif not self._is_interactive:
-            # For non-interactive, print header once, then stream chunks.
-            if self.chunk_count == 1:
-                self._print(f"\n{self.actor_name}: ", end="")
-            self._print(chunk_text, end="", flush=True)
 
         if self.debug_mode:
             duration = (

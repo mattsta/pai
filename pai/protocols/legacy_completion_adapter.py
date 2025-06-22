@@ -40,7 +40,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                 response.raise_for_status()
                 response_data = response.json()
                 text = response_data.get("choices", [{}])[0].get("text", "")
-                context.display.show_parsed_chunk(response_data, text)
+                await context.display.show_parsed_chunk(response_data, text)
 
                 request_stats = context.display.finish_response(success=True)
                 if request_stats:
@@ -70,7 +70,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                                 chunk_text = chunk_data.get("choices", [{}])[0].get(
                                     "text", ""
                                 )
-                                context.display.show_parsed_chunk(
+                                await context.display.show_parsed_chunk(
                                     chunk_data, chunk_text
                                 )  # This also accumulates the response
                             except (json.JSONDecodeError, IndexError) as e:

@@ -88,7 +88,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 text = "".join(
                     c.get("text", "") for c in response_data.get("content", [])
                 )
-                context.display.show_parsed_chunk(response_data, text)
+                await context.display.show_parsed_chunk(response_data, text)
 
                 request_stats = context.display.finish_response(success=True)
                 if request_stats:
@@ -139,7 +139,9 @@ class AnthropicAdapter(BaseProtocolAdapter):
                                         context.display.current_request_stats.tokens_sent = input_tokens
                                 elif event_type == "content_block_delta":
                                     chunk_text = chunk.get("delta", {}).get("text", "")
-                                    context.display.show_parsed_chunk(chunk, chunk_text)
+                                    await context.display.show_parsed_chunk(
+                                        chunk, chunk_text
+                                    )
                                 elif event_type == "message_delta":
                                     finish_reason = chunk.get("delta", {}).get(
                                         "stop_reason"

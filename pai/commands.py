@@ -90,7 +90,7 @@ class HelpCommand(Command):
   /timeout <seconds>     - Change request timeout (e.g., /timeout 120)
   /mode                  - Toggle between chat and completion mode (clears history)
   /multiline             - Toggle multi-line input mode (use Esc+Enter to submit)
-  /stream, /verbose, /debug, /rich, /tools, /confirm - Toggle flags on/off
+  /stream, /verbose, /debug, /rich, /smooth, /tools, /confirm - Toggle flags on/off
   --- Chat Mode Only ---
   /system <text>         - Replace system prompt stack with this text
   /system show           - Show the current system prompt stack
@@ -228,6 +228,15 @@ class ToggleRichTextCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         self.ui.toggle_rich_text()
+
+
+class ToggleSmoothStreamCommand(Command):
+    @property
+    def name(self):
+        return "smooth"
+
+    def execute(self, app: "Application", param: str | None = None):
+        self.ui.toggle_smooth_stream()
 
 
 class ToggleConfirmCommand(Command):
@@ -771,6 +780,7 @@ class CommandHandler:
             ToggleVerboseCommand,
             ToggleDebugCommand,
             ToggleRichTextCommand,
+            ToggleSmoothStreamCommand,
             ToggleConfirmCommand,
             ToggleToolsCommand,
             HistoryCommand,

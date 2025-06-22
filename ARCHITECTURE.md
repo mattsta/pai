@@ -12,13 +12,32 @@ This document outlines the high-level architecture of the Polyglot AI framework.
               | (Input)                           | (Metrics)
               |                                   |
 +-------------v-----------------------------------+-------------+
-|                       pai.py / PolyglotClient                   |
-|        (Orchestrator, State Management, Command Handler)      |
-+-----------------------+---------------------------------------+
-| (Delegate Task)       | (Render Output)      | (Pass Context) |
-|      (Adapter)        v (Display)            |                |
-|       +---------------+----------------+     |                |
-|       |   Protocol Adapter System    <-----+                |
+|                         InteractiveUI                         |
+|           (UI Layout, State, Command Handler)                 |
++-----------------------------+---------------------------------+
+                              | (Dispatch)
++-----------------------------v---------------------------------+
+|                    Orchestrator System                        |
+|             (pai/orchestration/base.py)                       |
++----^-----------+----------------------^------------------^----+
+     |           |                      |                  |
+(Implements) (Implements)          (Implements)       (Implements)
+     |           |                      |                  |
++----+----+ +----v----+           +----v----+          +----v----+
+| Default | | Legacy  |           | Arena   |          | (etc)   |
++---------+ +---------+           +---------+          +---------+
+     |           |                      | (Delegates Task)
+     +-----------+----------------------+
+                 |
+                 v
++----------------+----------------+
+|     PolyglotClient / Display    |
++----------------+----------------+
+                 |
+  (Delegate Task)| (Pass Context)
+                 v
++----------------+----------------+
+|    Protocol Adapter System      |
 |       | (protocols/base_adapter.py)  |                      |
 |       +---------------^----------------+                      |
 |                       | (Implements)                          |
@@ -40,8 +59,9 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 
 1.  **`pai/pai.py` (The UI and App Entrypoint)**
     *   **Entrypoint:** Contains the `typer` application and `run` command, which orchestrates the setup and teardown of the application.
-    *   **`InteractiveUI`:** This class encapsulates all logic for the text user interface. It creates and manages a persistent `prompt_toolkit.Application`. This application, not a simple `while` loop, manages the entire UI lifecycle, including the input prompt, live output window, `SearchToolbar` for history, and status toolbar. It contains handler methods for different modes, such as `_process_and_generate`, `_run_legacy_agent_loop`, and `_run_arena_orchestrator`.
+    *   **`InteractiveUI`:** This class encapsulates all logic for the text user interface. It creates and manages a persistent `prompt_toolkit.Application` and is responsible for UI layout, state management (`UIMode`), and command dispatch. It no longer contains business logic for generation loops.
     *   **`CommandHandler` (`pai/commands.py`):** A dedicated class that parses and executes all `/` commands. Each command is its own class, making the system clean and easy to extend. The `CommandHandler` is instantiated by `InteractiveUI`.
+    *   **Orchestrator System (`pai/orchestration/`)**: A new layer responsible for the business logic of different interaction modes. `InteractiveUI` instantiates and runs the appropriate orchestrator (`DefaultOrchestrator`, `ArenaOrchestrator`, etc.) based on the current `UIMode`. This cleanly separates UI concerns from logical flow.
 
 2.  **`pai/client.py` (The Client Controller)**
     *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`SessionStats`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It is passed to the `InteractiveUI` to orchestrate the flow from user input to protocol adapter execution.
@@ -70,11 +90,11 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 
 ### Multi-Model Arena
 
-The framework supports a "Multi-Model Arena" mode where two AI models can converse with each other. This is orchestrated by the `_run_arena_orchestrator` method in `InteractiveUI`.
+The framework supports a "Multi-Model Arena" mode where two AI models can converse with each other. This is handled by the `ArenaOrchestrator`.
 
 *   **Configuration:** Arenas are defined in `polyglot.toml`. They consist of two or more `participants` and an optional `judge`. These are loaded into `Arena` and `ArenaParticipant` data models.
-*   **Orchestration:** The `_run_arena_orchestrator` manages the pausable, turn-based conversation. Crucially, it maintains a separate `Conversation` object for each participant, ensuring each model receives a valid, alternating `user`/`assistant` history from its own perspective.
-*   **Judge Model:** After the primary dialogue concludes (or is cancelled), the orchestrator can invoke an optional judge model. The judge is provided with the *entire unified conversation history* and a special prompt to generate a final summary and verdict.
+*   **Orchestration:** The `ArenaOrchestrator` manages the pausable, turn-based conversation. Crucially, it maintains a separate `Conversation` object for each participant, ensuring each model receives a valid, alternating `user`/`assistant` history from its own perspective.
+*   **Judge Model:** After the primary dialogue concludes (or is cancelled), the `ArenaOrchestrator` can invoke an optional judge model. The judge is provided with the *entire unified conversation history* and a special prompt to generate a final summary and verdict.
 *   **Unified Logging:** While each participant has a private conversation history for generating its next turn, all turns—including the final verdict from the judge—are added to a **single, unified `Conversation` object** managed by the `InteractiveUI`. This unified history is what gets saved to the session log, providing a complete, interleaved record of the entire multi-model session.
 
 ### Session Persistence and Logging

@@ -54,6 +54,12 @@ from .models import (
     UIMode,
     UIState,
 )
+from .orchestration import (
+    ArenaOrchestrator,
+    BaseOrchestrator,
+    DefaultOrchestrator,
+    LegacyAgentOrchestrator,
+)
 
 # --- Protocol Adapter Imports ---
 from .protocols import ADAPTER_MAP
@@ -331,162 +337,27 @@ class InteractiveUI:
         if stripped_input.startswith("/"):
             self.command_handler.handle(stripped_input, self.app)
         else:
-            # Handle plain text input.
-            if self.state.mode == UIMode.ARENA and self.state.arena:
-                if not self.generation_task:
-                    # This is the initial prompt that kicks off the arena.
-                    self.state.arena.last_message = stripped_input
-                    self.generation_task = asyncio.create_task(
-                        self._run_arena_orchestrator()
-                    )
-                    self.arena_paused_event.set()  # Start the loop running.
-                else:
-                    # The user has typed plain text into a paused arena. This is
-                    # an invalid action, so we guide them.
-                    self.pt_printer(
-                        HTML(
-                            "<style fg='ansiyellow'>ℹ️ Arena is paused. Use /say &lt;message&gt; to interject, or /resume to continue.</style>"
-                        )
-                    )
-            else:
-                # Standard generation outside of arena mode.
+            # Handle plain text input by dispatching to an orchestrator.
+            orchestrator = self._get_orchestrator()
+            if orchestrator:
+                self.generation_in_progress.set()
+                # The orchestrator is responsible for its own cleanup,
+                # including managing self.generation_task.
                 self.generation_task = asyncio.create_task(
-                    self._process_and_generate(stripped_input)
+                    orchestrator.run(stripped_input)
                 )
 
-    # Command handling logic has been extracted to `pai/commands.py`.
+    # Business logic for chat, agent, and arena modes has been extracted
+    # to `pai/orchestration/` classes.
 
-    async def _process_and_generate(self, user_input_str: str):
-        self.generation_in_progress.set()
-        request: ChatRequest | CompletionRequest | None = None
-        try:
-            if self.state.mode == UIMode.LEGACY_AGENT:
-                confirmer = (
-                    self._confirm_tool_call
-                    if self.runtime_config.confirm_tool_use
-                    else None
-                )
-                await self._run_legacy_agent_loop(user_input_str, confirmer)
-            elif self.state.mode == UIMode.COMPLETION:
-                request = CompletionRequest(
-                    prompt=user_input_str,
-                    model=self.client.config.model_name,
-                    max_tokens=self.runtime_config.max_tokens,
-                    temperature=self.runtime_config.temperature,
-                    stream=self.runtime_config.stream,
-                )
-            else:  # CHAT or NATIVE_AGENT
-                messages = self.conversation.get_messages_for_next_turn(
-                    user_input_str
-                )
-                request = ChatRequest(
-                    messages=messages,
-                    model=self.client.config.model_name,
-                    max_tokens=self.runtime_config.max_tokens,
-                    temperature=self.runtime_config.temperature,
-                    stream=self.runtime_config.stream,
-                    tools=get_tool_schemas() if self.client.tools_enabled else [],
-                )
-
-            # This block runs for COMPLETION, CHAT, and NATIVE_AGENT modes
-            if request:
-                confirmer = (
-                    self._confirm_tool_call
-                    if self.runtime_config.confirm_tool_use
-                    else None
-                )
-                result = await self.client.generate(
-                    request, self.runtime_config.verbose, confirmer=confirmer
-                )
-
-                if self.state.mode != UIMode.COMPLETION and result:
-                    turn = Turn(
-                        request_data=result.get("request", {}),
-                        response_data=result.get("response", {}),
-                        assistant_message=result.get("text", ""),
-                    )
-                    request_stats = self.client.stats.last_request_stats
-                    self.conversation.add_turn(turn, request_stats)
-                    try:
-                        turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
-                        turn_file.write_text(
-                            json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
-                        )
-                        save_conversation_formats(
-                            self.conversation,
-                            self.session_dir,
-                            printer=self.pt_printer,
-                        )
-                    except Exception as e:
-                        self.pt_printer(
-                            f"\n⚠️  Warning: Could not save session turn: {e}"
-                        )
-        except asyncio.CancelledError:
-            # When cancelled, we still want to save the partial response.
-            # finish_response() sets success=False and returns the incomplete stats.
-            request_stats = self.client.display.finish_response(success=False)
-            partial_text = self.client.display.current_response
-
-            # Add to session stats.
-            if request_stats:
-                request_stats.finish_reason = "cancelled"
-                # This is an approximation of tokens_sent as the final request
-                # payload is constructed inside the adapter.
-                if request:  # We can only save if we have the request object
-                    if isinstance(request, ChatRequest):
-                        request_stats.tokens_sent = sum(
-                            estimate_tokens(m.get("content", ""))
-                            for m in request.messages
-                        )
-                    elif isinstance(request, CompletionRequest):
-                        request_stats.tokens_sent = estimate_tokens(request.prompt)
-                    self.client.stats.add_completed_request(request_stats)
-
-                    if self.state.mode != UIMode.COMPLETION and partial_text:
-                        # Create a turn with the partial data for logging.
-                        request_data = request.to_dict(self.client.config.model_name)
-                        # Fabricate a partial response object for logging
-                        response_data = {
-                            "pai_note": "This response was cancelled by the user.",
-                            "choices": [
-                                {
-                                    "message": {
-                                        "role": "assistant",
-                                        "content": partial_text,
-                                    }
-                                }
-                            ],
-                        }
-                        turn = Turn(
-                            request_data=request_data,
-                            response_data=response_data,
-                            assistant_message=partial_text,
-                        )
-                        self.conversation.add_turn(turn)
-                        try:
-                            turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
-                            turn_file.write_text(
-                                json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
-                            )
-                            save_conversation_formats(
-                                self.conversation,
-                                self.session_dir,
-                                printer=self.pt_printer,
-                            )
-                        except Exception as e:
-                            self.pt_printer(
-                                f"\n⚠️  Warning: Could not save cancelled session turn: {e}"
-                            )
-
-            self.pt_printer(
-                HTML("\n<style fg='ansiyellow'>🚫 Generation cancelled.</style>")
-            )
-        except Exception as e:
-            self.client.display.finish_response(success=False)
-            self.pt_printer(HTML(f"<style fg='ansired'>❌ ERROR: {e}</style>"))
-        finally:
-            self.generation_in_progress.clear()
-            self.generation_task = None
+    def _get_orchestrator(self) -> BaseOrchestrator | None:
+        """Selects the appropriate orchestrator based on the current UI mode."""
+        if self.state.mode == UIMode.ARENA:
+            return ArenaOrchestrator(self)
+        if self.state.mode == UIMode.LEGACY_AGENT:
+            return LegacyAgentOrchestrator(self)
+        # Default for CHAT, COMPLETION, NATIVE_AGENT
+        return DefaultOrchestrator(self)
 
     async def _confirm_tool_call(self, tool_name: str, args: dict) -> bool:
         """Asks the user for confirmation to run a tool."""
@@ -496,7 +367,9 @@ class InteractiveUI:
                 f"\n<style fg='ansimagenta' bg='ansiblack'>🔧 Agent wants to execute: <b>{escape(tool_name)}</b></style>"
             )
         )
-        self.pt_printer(HTML(f"<style fg='ansimagenta'>   with arguments:\n{escape(json_args)}</style>"))
+        self.pt_printer(
+            HTML(f"<style fg='ansimagenta'>   with arguments:\n{escape(json_args)}</style>")
+        )
 
         try:
             # This modal-like prompt will temporarily take over the input line
@@ -506,286 +379,6 @@ class InteractiveUI:
             return result.lower().strip() == "y"
         except (EOFError, KeyboardInterrupt):
             return False
-
-    async def _run_legacy_agent_loop(
-        self,
-        user_input_str: str,
-        confirmer: Callable[[str, dict], Awaitable[bool]] | None,
-    ):
-        from .tools import execute_tool
-
-        messages = self.conversation.get_messages_for_next_turn(user_input_str)
-        max_loops = 5
-        used_tools_in_loop = False
-
-        for i in range(max_loops):
-            request = ChatRequest(
-                messages=messages,
-                model=self.client.config.model_name,
-                max_tokens=self.runtime_config.max_tokens,
-                temperature=self.runtime_config.temperature,
-                stream=self.runtime_config.stream,
-                tools=[],  # Legacy mode does not use native tools
-            )
-
-            # In legacy agent mode, we stream the response to the user for a better
-            # experience. The full response text is still returned from client.generate()
-            # which we can then parse for tool calls after the stream is complete.
-            result = await self.client.generate(request, self.runtime_config.verbose)
-            assistant_response = result.get("text", "")
-
-            # Add the assistant's raw response to the message history
-            messages.append({"role": "assistant", "content": assistant_response})
-
-            tool_match = re.search(
-                r"<tool_call>(.*?)</tool_call>", assistant_response, re.DOTALL
-            )
-
-            if tool_match:
-                used_tools_in_loop = True
-                self.pt_printer(
-                    HTML(
-                        "\n<style fg='ansimagenta'>🔧 Agent wants to use a tool...</style>"
-                    )
-                )
-                # The full tool_call text is printed by the generate() function's
-                # display handler. We can't easily suppress it, but we can clear
-                # it from the display object's memory so it isn't logged as a "final"
-                # assistant message if the session is cancelled here.
-                self.client.display.current_response = ""
-                tool_xml = tool_match.group(1)
-                name_match = re.search(r"<name>(.*?)</name>", tool_xml)
-                args_match = re.search(r"<args>(.*?)</args>", tool_xml, re.DOTALL)
-
-                if not name_match or not args_match:
-                    tool_result = (
-                        "Error: Invalid tool_call format. Missing <name> or <args> tag."
-                    )
-                else:
-                    tool_name = name_match.group(1).strip()
-                    tool_args_str = args_match.group(1).strip()
-                    try:
-                        tool_args = json.loads(tool_args_str)
-                        should_execute = True
-                        if confirmer:
-                            should_execute = await confirmer(tool_name, tool_args)
-
-                        if should_execute:
-                            tool_result = execute_tool(tool_name, tool_args)
-                        else:
-                            tool_result = "Tool execution cancelled by user."
-                    except json.JSONDecodeError:
-                        tool_result = (
-                            f"Error: Invalid JSON in <args> for tool {tool_name}."
-                        )
-                    except Exception as e:
-                        tool_result = f"Error executing tool {tool_name}: {e}"
-
-                # Append the tool result to the conversation for the next loop
-                # We use the 'user' role to make it clear this is external input.
-                tool_result_message = f"TOOL_RESULT:\n```\n{tool_result}\n```"
-                messages.append({"role": "user", "content": tool_result_message})
-                self.pt_printer(
-                    HTML(
-                        f"<style fg='ansimagenta'>  - Result: {escape(str(tool_result))[:300]}...</style>"
-                    )
-                )
-                # Continue the loop
-            else:
-                # No tool call found, this is the final answer. `generate()` has already
-                # called finish_response(), which handles printing. We just log the turn.
-                if used_tools_in_loop:
-                    self.pt_printer(
-                        HTML(
-                            "\n<style fg='ansigreen'>✅ Agent formulated a response using tool results.</style>"
-                        )
-                    )
-                else:
-                    self.pt_printer(
-                        HTML(
-                            "\n<style fg='ansigreen'>✅ Agent decided to respond directly.</style>"
-                        )
-                    )
-
-                turn = Turn(
-                    request_data=result.get("request", {}),
-                    response_data=result.get("response", {}),
-                    assistant_message=assistant_response,
-                )
-                request_stats = self.client.stats.last_request_stats
-                self.conversation.add_turn(turn, request_stats)
-                save_conversation_formats(
-                    self.conversation, self.session_dir, printer=self.pt_printer
-                )
-                break
-        else:
-            self.pt_printer("⚠️ Agent reached maximum loops.")
-
-    async def _run_arena_orchestrator(self):
-        self.generation_in_progress.set()
-        original_endpoint_name = self.client.config.name  # Save original state
-        try:
-            if not (state := self.state.arena):
-                # This should not happen if called correctly.
-                self.pt_printer("❌ Arena state not found.")
-                return
-
-            while state.current_speech < state.max_speeches:
-                # This is the core of the pause/resume mechanic.
-                # The loop will not proceed until the event is set.
-                await self.arena_paused_event.wait()
-
-                participant_id = state.turn_order_ids[0]
-                participant = state.arena_config.participants[participant_id]
-                turn_num = (state.current_speech // len(state.turn_order_ids)) + 1
-
-                # Switch client endpoint AND model for this participant
-                if self.client.config.name.lower() != participant.endpoint.lower():
-                    self.client.switch_endpoint(participant.endpoint)
-                self.client.config.model_name = participant.model
-
-                # Print turn header
-                self.pt_printer(
-                    HTML(
-                        f"\n<style bg='ansiblue' fg='white'> 🥊 TURN {turn_num} | Participant: {participant.name} ({participant.endpoint}/{participant.model}) </style>"
-                    )
-                )
-
-                messages = participant.conversation.get_messages_for_next_turn(
-                    state.last_message
-                )
-                request = ChatRequest(
-                    messages=messages,
-                    model=participant.model,
-                    max_tokens=self.runtime_config.max_tokens,
-                    temperature=self.runtime_config.temperature,
-                    stream=self.runtime_config.stream,
-                    tools=get_tool_schemas() if self.client.tools_enabled else [],
-                )
-
-                actor_name = f"🤖 {participant.name}"
-                result = await self.client.generate(
-                    request, self.runtime_config.verbose, actor_name=actor_name
-                )
-                assistant_message = result.get("text", "")
-
-                # Create a Turn object with all metadata
-                turn = Turn(
-                    request_data=result.get("request", {}),
-                    response_data=result.get("response", {}),
-                    assistant_message=assistant_message,
-                    participant_name=participant.name,
-                    model_name=participant.model,
-                )
-                request_stats = self.client.stats.last_request_stats
-
-                # Add to the main unified conversation for logging
-                self.conversation.add_turn(turn, request_stats)
-                # Add to the participant's individual conversation history
-                participant.conversation.add_turn(turn, request_stats)
-                save_conversation_formats(
-                    self.conversation, self.session_dir, printer=self.pt_printer
-                )
-
-                # Update state for the next iteration
-                state.last_message = assistant_message
-                state.current_speech += 1
-                state.turn_order_ids = (
-                    state.turn_order_ids[1:] + state.turn_order_ids[:1]
-                )
-
-            self.pt_printer("\n🏁 Arena finished: Maximum turns reached.")
-            await self._run_arena_judge()
-
-        except asyncio.CancelledError:
-            self.pt_printer(
-                HTML("\n<style fg='ansiyellow'>🚫 Arena cancelled by user.</style>")
-            )
-        except Exception as e:
-            if self.client.display.current_request_stats:
-                self.client.display.finish_response(success=False)
-            self.pt_printer(HTML(f"<style fg='ansired'>❌ ARENA ERROR: {e}</style>"))
-        finally:
-            if self.state.arena:
-                # If cancelled, still try to run the judge for a summary
-                await self._run_arena_judge()
-                self.pt_printer(
-                    f"\n🏁 Arena '{self.state.arena.arena_config.name}' session ended."
-                )
-
-            # Restore client to the original endpoint state
-            if self.client.config.name.lower() != original_endpoint_name.lower():
-                self.pt_printer(
-                    f"✅ Restoring client to original endpoint: {original_endpoint_name}"
-                )
-                self.client.switch_endpoint(original_endpoint_name)
-
-            self.enter_mode(UIMode.CHAT, clear_history=False)
-            self.generation_in_progress.clear()
-            self.generation_task = None
-
-    async def _run_arena_judge(self):
-        """If a judge is configured, run it to get a final verdict."""
-        if not self.state.arena or not self.state.arena.arena_config.judge:
-            return
-
-        judge = self.state.arena.arena_config.judge
-        self.pt_printer(
-            HTML(
-                f"\n<style bg='ansiyellow' fg='black'> 🧑‍⚖️ The Judge is now deliberating... </style>"
-            )
-        )
-
-        # The judge sees the entire conversation, so we create a new history
-        # that includes the judge's own system prompt.
-        messages = judge.conversation.get_history()
-        # It's a list comprehension, but it gets the `content` of the `user` message
-        # that started it all, then the `assistant` message of every turn.
-        full_dialogue = "\n\n".join(
-            [
-                f"{t.participant_name or 'user'}: {t.assistant_message or t.request_data.get('messages', [{}])[-1].get('content', '')}"
-                for t in self.conversation.turns
-            ]
-        )
-        messages.append(
-            {
-                "role": "user",
-                "content": f"Here is the full conversation transcript:\n\n---\n{full_dialogue}\n---\n\nPlease provide your summary and verdict.",
-            }
-        )
-
-        # Switch to the judge's endpoint and model
-        if self.client.config.name.lower() != judge.endpoint.lower():
-            self.client.switch_endpoint(judge.endpoint)
-        self.client.config.model_name = judge.model
-
-        request = ChatRequest(
-            messages=messages,
-            model=judge.model,
-            max_tokens=self.runtime_config.max_tokens,
-            temperature=self.runtime_config.temperature,
-            stream=self.runtime_config.stream,
-        )
-
-        actor_name = f"🧑‍⚖️ {judge.name}"
-        result = await self.client.generate(
-            request, self.runtime_config.verbose, actor_name=actor_name
-        )
-        assistant_message = result.get("text", "")
-
-        # Log the judge's turn
-        turn = Turn(
-            request_data=result.get("request", {}),
-            response_data=result.get("response", {}),
-            assistant_message=assistant_message,
-            participant_name=judge.name,
-            model_name=judge.model,
-        )
-        request_stats = self.client.stats.last_request_stats
-        self.conversation.add_turn(turn, request_stats)
-        save_conversation_formats(
-            self.conversation, self.session_dir, printer=self.pt_printer
-        )
 
     def _get_toolbar_text(self) -> HTML:
         """Generates the HTML for the multi-line bottom toolbar."""

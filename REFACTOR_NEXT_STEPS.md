@@ -19,16 +19,16 @@ The `InteractiveUI` class currently manages its mode (Chat, Agent, Arena, etc.) 
 
 The `InteractiveUI` class is currently responsible for both UI management and the business logic of running different modes (e.g., `_run_arena_orchestrator`). Extracting this logic will make the UI component simpler and the business logic easier to test independently.
 
--   [ ] **Create Orchestrator Classes:**
-    -   [ ] Create a new `pai/orchestration/` directory.
-    -   [ ] Create a `BaseOrchestrator` abstract class with an `async def run(...)` method.
-    -   [ ] Move the logic from `_run_arena_orchestrator` and `_run_arena_judge` into a new `ArenaOrchestrator` class in `pai/orchestration/arena.py`.
-    -   [ ] Move the logic from `_run_legacy_agent_loop` into a `LegacyAgentOrchestrator` in `pai/orchestration/legacy_agent.py`.
-    -   [ ] The main `_process_and_generate` logic can be moved to a `DefaultOrchestrator`.
+-   [x] **Create Orchestrator Classes:**
+    -   [x] Create a new `pai/orchestration/` directory.
+    -   [x] Create a `BaseOrchestrator` abstract class with an `async def run(...)` method.
+    -   [x] Move the logic from `_run_arena_orchestrator` and `_run_arena_judge` into a new `ArenaOrchestrator` class in `pai/orchestration/arena.py`.
+    -   [x] Move the logic from `_run_legacy_agent_loop` into a `LegacyAgentOrchestrator` in `pai/orchestration/legacy_agent.py`.
+    -   [x] The main `_process_and_generate` logic can be moved to a `DefaultOrchestrator`.
 
--   [ ] **Update `InteractiveUI`:**
-    -   [ ] The `_on_buffer_accepted` method will become a dispatcher. Based on the current `UIMode`, it will instantiate the appropriate orchestrator and run it.
-    -   [ ] The `InteractiveUI` will pass necessary context (like the `PolyglotClient` and `Conversation` objects) to the orchestrator upon creation.
+-   [x] **Update `InteractiveUI`:**
+    -   [x] The `_on_buffer_accepted` method will become a dispatcher. Based on the current `UIMode`, it will instantiate the appropriate orchestrator and run it.
+    -   [x] The `InteractiveUI` will pass necessary context (like the `PolyglotClient` and `Conversation` objects) to the orchestrator upon creation.
 
 ### Phase 3: Command and Client Decoupling
 

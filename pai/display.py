@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import time
 from html import escape
 
@@ -128,11 +129,11 @@ class StreamingDisplay:
             logging.info(log_line)
 
     async def _smoother_task_loop(self):
-        """A background task that calls _render_text with words from a queue."""
+        """A background task that calls _render_text with tokens from a queue."""
         try:
             while True:
-                word = await self._word_queue.get()
-                if word is None:  # Sentinel to stop
+                token = await self._word_queue.get()
+                if token is None:  # Sentinel to stop
                     self._word_queue.task_done()
                     break
 
@@ -144,19 +145,22 @@ class StreamingDisplay:
                 # Use a readable minimum words-per-second to prevent huge delays.
                 # 1 token is ~1.7 words. Min 5 TPS -> ~8.5 WPS.
                 MIN_WPS = 8.5
-                target_wps = max(target_tps * 1.7, MIN_WPS)
-                delay = 1.0 / target_wps
+                # We render tokens (words and spaces), not just words, so the rate needs to be faster.
+                # Let's double the effective rate to account for spaces (a rough heuristic).
+                target_word_rate = max(target_tps * 1.7, MIN_WPS)
+                target_token_rate = target_word_rate * 2
+                delay = 1.0 / target_token_rate
 
-                self._render_text(word + " ")
+                self._render_text(token)
                 self._word_queue.task_done()
                 await asyncio.sleep(delay)
         except asyncio.CancelledError:
             # On cancellation, immediately render any remaining text.
             while not self._word_queue.empty():
                 try:
-                    word = self._word_queue.get_nowait()
-                    if word:
-                        self._render_text(word + " ")
+                    token = self._word_queue.get_nowait()
+                    if token:
+                        self._render_text(token)
                     self._word_queue.task_done()
                 except asyncio.QueueEmpty:
                     break
@@ -185,9 +189,12 @@ class StreamingDisplay:
             )
 
         if self.smooth_stream_mode:
-            for word in chunk_text.split():
-                if word:
-                    await self._word_queue.put(word)
+            # Split the text while preserving whitespace as separate tokens.
+            # This ensures that newlines and multiple spaces are handled correctly.
+            tokens = re.split(r"(\s+)", chunk_text)
+            for token in tokens:
+                if token:  # Don't queue empty strings
+                    await self._word_queue.put(token)
         else:
             # Non-smooth mode renders directly and updates the rendered text state.
             self._render_text(chunk_text)

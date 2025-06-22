@@ -20,6 +20,7 @@ This document outlines potential features and improvements for the future develo
 
 *   **Rich Output Formatting:** <ins>Completed.</ins> Integrated the `rich` library to render final model output as Markdown in the terminal. HTML logs now also render Markdown and syntax-highlighted code blocks using `marked.js` and `highlight.js`.
 *   **Cost Estimation:** <ins>Completed.</ins> The framework now tracks and displays a running estimate of the session's API cost for supported providers (OpenAI, Anthropic) in the toolbar and `/stats` command.
+*   **Command Autocompletion:** <ins>Completed.</ins> Integrated a fuzzy completer for slash commands. Typing part of a command (e.g., `/swi`) and pressing `Tab` will now show a list of possible completions.
 *   **Plugin System:** After completing the "Next Steps for Refactoring," formalize the provider system into a true plugin architecture where external packages can register new providers. The proposed refactors (especially Orchestrator Extraction and State Management) are critical prerequisites for a clean plugin API.
 
 ### Provider Expansion

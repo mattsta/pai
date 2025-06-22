@@ -710,6 +710,11 @@ class CommandHandler:
         self.commands: dict[str, Command] = {}
         self._register_commands()
 
+    @property
+    def completion_list(self) -> list[str]:
+        """Returns a sorted list of all command names with a '/' prefix for completion."""
+        return sorted([f"/{name}" for name in self.commands.keys()])
+
     def _register_commands(self):
         """Initializes and registers all Command subclasses."""
         command_classes = [

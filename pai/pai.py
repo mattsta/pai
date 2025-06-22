@@ -22,6 +22,7 @@ import typer
 from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.completion import Completer, FuzzyCompleter, WordCompleter
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import ANSI, HTML
 from prompt_toolkit.history import FileHistory
@@ -75,6 +76,23 @@ def print_banner():
     print("🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶")
 
 
+class CommandCompleter(Completer):
+    """
+    A custom completer for slash commands.
+    It only provides completions if the text starts with '/' and contains no spaces.
+    """
+
+    def __init__(self, command_list: list[str]):
+        # Use a FuzzyCompleter for a better user experience.
+        self.fuzzy_completer = FuzzyCompleter(WordCompleter(command_list, ignore_case=True))
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor
+        # Only complete if it's a command at the start of the line.
+        if text.startswith("/") and " " not in text:
+            yield from self.fuzzy_completer.get_completions(document, complete_event)
+
+
 # Logging and statistics functions have been moved to `pai/log_utils.py`.
 
 
@@ -109,6 +127,11 @@ class InteractiveUI:
         self.pt_printer = print_formatted_text
         self.client.display.set_printer(self.pt_printer, is_interactive=True)
         self.history = FileHistory(str(pai_user_dir / "history.txt"))
+
+        # Command handler must be created before the input buffer that uses it.
+        self.command_handler = CommandHandler(self)
+        command_completer = CommandCompleter(self.command_handler.completion_list)
+
         self.streaming_output_buffer = Buffer()
         self.client.display.output_buffer = self.streaming_output_buffer
 
@@ -116,6 +139,8 @@ class InteractiveUI:
             name="input_buffer",
             multiline=Condition(lambda: self.state.multiline_input),
             history=self.history,
+            completer=command_completer,
+            complete_while_typing=True,
             enable_history_search=True,
             accept_handler=self._on_buffer_accepted,
         )
@@ -131,9 +156,6 @@ class InteractiveUI:
 
         # Build the application
         self.app = self._create_application()
-
-        # Command handler
-        self.command_handler = CommandHandler(self)
 
     def _get_mode_display_name(self) -> str:
         """Returns the string name of the current interaction mode."""

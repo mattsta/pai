@@ -461,15 +461,19 @@ class InteractiveUI:
             else:
                 last_req = session_stats.last_request_stats
                 if last_req:
-                    last_tps_str = f"{last_req.final_tok_per_sec:5.1f} tk/s"
-                    last_tokens_str = f"{last_req.tokens_received:4d} tk"
-                    last_stats_str = f"<b>Last:</b> {last_tokens_str}, {last_tps_str}"
-                    line2_parts.append(last_stats_str)
+                    last_tps = f"{last_req.final_tok_per_sec:5.1f} tk/s"
+                    last_tokens = f"{last_req.tokens_received:4d} tk"
+                    line2_parts.append(f"<b>Last:</b> {last_tokens}, {last_tps}")
 
             session_tokens = self.conversation.session_token_count
+            total_time = session_stats.total_response_time
+            total_received = session_stats.total_tokens_received
+            session_tps = total_received / max(total_time, 1)
+
             cost_str = f"<b>Cost:</b> ${session_stats.total_cost:.4f}"
-            session_tokens_str = f"<b>Session:</b> {session_tokens:5d} tk"
-            line2_parts.extend([cost_str, session_tokens_str])
+            session_tokens_str = f"<b>Total:</b> {session_tokens:5d} tk"
+            session_tps_str = f"<b>Avg:</b> {session_tps:5.1f} tk/s"
+            line2_parts.extend([cost_str, session_tokens_str, session_tps_str])
             line2 = " | ".join(line2_parts)
 
             # --- Line 3: Toggles ---
@@ -511,22 +515,26 @@ class InteractiveUI:
 
                 q_size = s_stats.get("queue_size", 0)
                 parts.append(f"Queue: {q_size:4d}")
-                if drain_time := s_stats.get("buffer_drain_time_s"):
-                    parts.append(f"Drain: {drain_time:4.1f}s")
+
+                drain_time = s_stats.get("buffer_drain_time_s", 0.0)
+                parts.append(f"Drain: {drain_time:4.1f}s")
 
                 # Only show network stats when the stream is actively arriving
                 if not s_stats.get("stream_finished"):
-                    if "avg_delta" in s_stats:
-                        avg = float(s_stats["avg_delta"].replace("ms", ""))
-                        med = float(s_stats["median_delta"].replace("ms", ""))
-                        std = float(s_stats["stdev_delta"].replace("ms", ""))
-                        parts.append(
-                            f"Delta (ms): {avg:5.1f} avg / {med:5.1f} med / {std:5.1f} std"
-                        )
-                    if "gaps" in s_stats:
-                        gaps = s_stats["gaps"]
-                        bursts = s_stats["bursts"]
-                        parts.append(f"Gaps/Bursts: {gaps:2d}/{bursts:3d}")
+                    min_d = float(s_stats.get("min_delta", 0.0))
+                    med_d = float(s_stats.get("median_delta", 0.0))
+                    max_d = float(s_stats.get("max_delta", 0.0))
+                    parts.append(
+                        f"Δ (min/med/max ms): {min_d:4.1f}/{med_d:4.1f}/{max_d:4.1f}"
+                    )
+                    gaps = s_stats.get("gaps", 0)
+                    bursts = s_stats.get("bursts", 0)
+                    parts.append(f"G/B: {gaps:2d}/{bursts:3d}")
+                else:
+                    # Keep layout stable by showing placeholders
+                    parts.append("Δ (min/med/max ms): --.-/--.-/--.-")
+                    parts.append("G/B: --/---")
+
                 line4 = f"<b>Smooth Stats</b> | {' | '.join(parts)}"
 
             return HTML(f"{line1}\n{line2}\n{line3}\n{line4}")

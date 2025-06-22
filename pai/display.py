@@ -113,27 +113,23 @@ class StreamingDisplay:
         target_word_rate = max(target_tps * 1.7, MIN_WPS)
         target_token_rate = target_word_rate * 2
         if target_token_rate > 0:
-            stats["buffer_drain_time_s"] = (
-                self._word_queue.qsize() / target_token_rate
-            )
+            drain_time = self._word_queue.qsize() / target_token_rate
+            stats["buffer_drain_time_s"] = drain_time
 
-        if len(deltas) > 2:
+        if len(deltas) > 1:
             try:
-                mean = statistics.mean(deltas)
-                stdev = statistics.stdev(deltas)
                 stats["arrivals"] = len(deltas)
-                stats["avg_delta"] = f"{mean * 1000:.1f}ms"
-                stats["median_delta"] = f"{statistics.median(deltas) * 1000:.1f}ms"
-                stats["stdev_delta"] = f"{stdev * 1000:.1f}ms"
-
-                # A gap is a delta significantly larger than the mean (> 1.5 stdev away)
+                stats["min_delta"] = f"{min(deltas) * 1000:.1f}"
+                stats["median_delta"] = f"{statistics.median(deltas) * 1000:.1f}"
+                stats["max_delta"] = f"{max(deltas) * 1000:.1f}"
+                mean = statistics.mean(deltas)
+                # Only calculate stdev if there's enough data
+                stdev = statistics.stdev(deltas) if len(deltas) > 2 else 0
                 gaps = [d for d in deltas if d > mean + 1.5 * stdev]
-                # A burst has deltas very close together (< mean - 0.75 stdev)
                 bursts = sum(1 for d in deltas if d < mean - 0.75 * stdev)
                 stats["gaps"] = len(gaps)
                 stats["bursts"] = bursts
             except statistics.StatisticsError:
-                # Not enough data to calculate stdev, etc.
                 pass
         return stats
 

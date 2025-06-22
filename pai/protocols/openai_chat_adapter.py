@@ -76,6 +76,11 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     f"  - Executing: {name}({json.dumps(args, indent=2)})"
                 )
             try:
+                # This is where a tool is actually run. This is a bit of a hack
+                # to reach back to the UI state. A better solution might involve
+                # passing a callback through the context.
+                if self.ui:
+                    self.ui.state.tools_used += 1
                 return execute_tool(name, args)
             except (ToolNotFound, ToolArgumentError, ToolError) as e:
                 context.display._print(f"  - ❌ Tool Error: {e}")
@@ -93,7 +98,13 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
             output_cost = (output_tokens / 1_000_000) * pricing["output"]
             return input_cost, output_cost
 
+        # This adapter needs access to the UI state to increment counters.
+        # This is a bit of a hack. A cleaner way would be a callback via context.
+        self.ui = context.display.ui if hasattr(context.display, "ui") else None
+
         for iteration in range(max_iterations):
+            if self.ui:
+                self.ui.state.agent_loops = iteration + 1
             finish_reason = None
             # MODIFIED: Access all state via the context object.
             url = f"{context.config.base_url}/chat/completions"

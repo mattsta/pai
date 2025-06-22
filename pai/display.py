@@ -25,6 +25,7 @@ class StreamingDisplay:
         rich_text_mode: bool = True,
         smooth_stream_mode: bool = False,
     ):
+        self.ui = None  # Will be set by InteractiveUI
         self.debug_mode = debug_mode
         self.rich_text_mode = rich_text_mode
         self.smooth_stream_mode = smooth_stream_mode

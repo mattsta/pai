@@ -118,6 +118,7 @@ class InteractiveUI:
         # Setup UI components
         self.pt_printer = print_formatted_text
         self.client.display.set_printer(self.pt_printer, is_interactive=True)
+        self.client.display.ui = self  # Give display access to UI state
         self.history = FileHistory(str(pai_user_dir / "history.txt"))
 
         # Command handler must be created before the input buffer that uses it.
@@ -507,11 +508,15 @@ class InteractiveUI:
 
             # --- Line 4: Dynamic Content ---
             line4 = f"Log: {session_dir_esc}"  # Default
-            if (
-                self.runtime_config.smooth_stream
-                and display.status == "Streaming"
-                and display.smoothing_stats
-            ):
+            is_agent_mode = self.state.mode in [
+                UIMode.NATIVE_AGENT,
+                UIMode.LEGACY_AGENT,
+            ]
+            is_smoothing_active = (
+                self.runtime_config.smooth_stream and display.status == "Streaming"
+            )
+
+            if is_smoothing_active and display.smoothing_stats:
                 s_stats = display.smoothing_stats
                 parts = []
                 is_rendering = s_stats.get("stream_finished", False) and s_stats.get(
@@ -547,6 +552,12 @@ class InteractiveUI:
                     parts.append("G/B: --/---")
 
                 line4 = f"<b>Smooth Stats</b> | {' | '.join(parts)}"
+            elif is_agent_mode:
+                parts = [
+                    f"Loops: {self.state.agent_loops}",
+                    f"Tools Used: {self.state.tools_used}",
+                ]
+                line4 = f"<style fg='ansimagenta'><b>Agent Stats</b> | {' | '.join(parts)}</style>"
 
             return HTML(f"{line1}\n{line2}\n{line3}\n{line4}")
         except Exception as e:
@@ -560,11 +571,10 @@ class InteractiveUI:
         self.state.mode = mode
         self.state.arena = None if mode != UIMode.ARENA else self.state.arena
 
-        # Reset agent-related flags when switching to a non-agent mode
+        # Reset agent-related flags and stats when switching modes.
         if mode not in [UIMode.NATIVE_AGENT, UIMode.LEGACY_AGENT]:
-            # These flags are still used by commands, will be removed later.
-            self.native_agent_mode = False
-            self.legacy_agent_mode = False
+            self.state.tools_used = 0
+            self.state.agent_loops = 0
 
         if clear_history:
             self.conversation.clear()

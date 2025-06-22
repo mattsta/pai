@@ -36,6 +36,9 @@ class UIState:
     # Holds the state for the *active* arena session, if any.
     arena: Optional["ArenaState"] = None
     multiline_input: bool = False
+    # Agent-specific stats
+    tools_used: int = 0
+    agent_loops: int = 0
 
 
 @dataclass

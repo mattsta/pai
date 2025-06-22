@@ -31,6 +31,7 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
 
         try:
             for i in range(max_loops):
+                self.state.agent_loops = i + 1
                 request = ChatRequest(
                     messages=messages,
                     model=self.client.config.model_name,
@@ -68,6 +69,7 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                                 tool_result = "Tool execution cancelled by user."
                             else:
                                 tool_result = execute_tool(tool_name, tool_args)
+                                self.state.tools_used += 1
                         except json.JSONDecodeError:
                             tool_result = (
                                 f"Error: Invalid JSON in <args> for {tool_name}."

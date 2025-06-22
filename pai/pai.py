@@ -483,10 +483,10 @@ class InteractiveUI:
                     )
 
                     mean_d_str = "--.-ms"
-                    if s_stats := last_req.smoothing_stats:
-                        if s_stats.mean_delta != "N/A":
+                    if j_stats := last_req.jitter_stats:
+                        if j_stats.mean_delta != "N/A":
                             try:
-                                mean_d = float(s_stats.mean_delta)
+                                mean_d = float(j_stats.mean_delta)
                                 mean_d_str = f"{mean_d:4.1f}ms"
                             except ValueError:
                                 pass  # Keep placeholder on error

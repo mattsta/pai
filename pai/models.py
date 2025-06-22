@@ -243,8 +243,8 @@ class RequestStats:
     # Cost tracking
     input_cost: float = 0.0
     output_cost: float = 0.0
-    # Statistics from the stream smoother, if active
-    smoothing_stats: Optional["SmoothingStats"] = None
+    # Statistics on stream jitter, if applicable
+    jitter_stats: Optional["SmoothingStats"] = None
 
     # Internal state for live calculations
     _first_token_time: float | None = None
@@ -352,18 +352,18 @@ class SessionStats:
                 "tokens_per_second": f"{last.final_tok_per_sec:.1f}",
                 "finish_reason": last.finish_reason or "N/A",
             }
-            # Pass through smoothing stats if they exist
-            if last.smoothing_stats:
+            # Pass through jitter stats if they exist
+            if last.jitter_stats:
                 # Manually create a dict for printing to match what log_utils expects
-                stats["last_request"]["smoothing_stats"] = {
-                    "arrivals": last.smoothing_stats.arrivals,
-                    "gaps": last.smoothing_stats.gaps,
-                    "bursts": last.smoothing_stats.bursts,
-                    "min_delta": last.smoothing_stats.min_delta,
-                    "mean_delta": last.smoothing_stats.mean_delta,
-                    "median_delta": last.smoothing_stats.median_delta,
-                    "max_delta": last.smoothing_stats.max_delta,
-                    "aborted": last.smoothing_stats.smoothing_aborted,
+                stats["last_request"]["jitter_stats"] = {
+                    "arrivals": last.jitter_stats.arrivals,
+                    "gaps": last.jitter_stats.gaps,
+                    "bursts": last.jitter_stats.bursts,
+                    "min_delta": last.jitter_stats.min_delta,
+                    "mean_delta": last.jitter_stats.mean_delta,
+                    "median_delta": last.jitter_stats.median_delta,
+                    "max_delta": last.jitter_stats.max_delta,
+                    "aborted": last.jitter_stats.smoothing_aborted,
                 }
         return stats
 

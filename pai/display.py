@@ -146,22 +146,23 @@ class StreamingDisplay:
         return 0.0
 
     @property
-    def smoothing_stats(self) -> SmoothingStats | None:
-        """Calculates and returns statistics for smooth streaming mode."""
-        if not self.smooth_stream_mode:
-            return None
-
+    def smoothing_stats(self) -> SmoothingStats:
+        """
+        Calculates and returns statistics for the stream.
+        This is used for both live smooth-mode display and final jitter stats.
+        """
         stats = SmoothingStats(
-            queue_size=self._word_queue.qsize(),
             stream_finished=self._stream_finished,
-            smoothing_aborted=self._smoothing_aborted,
         )
+
+        # Populate smoother-specific stats only if in that mode
+        if self.smooth_stream_mode:
+            stats.queue_size = self._word_queue.qsize()
+            stats.smoothing_aborted = self._smoothing_aborted
+            if self._smoother:
+                stats.buffer_drain_time_s = self._smoother.current_drain_time_s
+
         deltas = self._inter_chunk_deltas
-
-        # Get drain time from the smoother's internal state
-        if self._smoother:
-            stats.buffer_drain_time_s = self._smoother.current_drain_time_s
-
         # Calculate network jitter stats
         if len(deltas) > 1:
             try:
@@ -359,9 +360,9 @@ class StreamingDisplay:
 
         self.status = "Done"
         if self.current_request_stats:
-            # Capture final smoothing stats before they are reset
-            if self._smoother:
-                self.current_request_stats.smoothing_stats = self.smoothing_stats
+            # Capture final stream stats before they are reset
+            if self.first_token_received:
+                self.current_request_stats.jitter_stats = self.smoothing_stats
 
             self.current_request_stats.finish(success=success)
             # Final token count uses the full canonical text.

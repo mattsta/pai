@@ -47,25 +47,23 @@ class StreamSmoother:
         )
         self.smoothed_wps = min(self.smoothed_wps, self.max_wps)
 
-        # 2. Calculate how long it would take to drain the queue at this base speed.
-        # Heuristic: a queue item is a word or a space, so ~2 items per word.
+        # 2. Calculate the base delay and how long it would take to drain the queue.
         items_per_second_base = self.smoothed_wps * 2
+        base_delay = 1.0 / items_per_second_base if items_per_second_base > 0 else 0.1
         self.current_drain_time_s = (
-            queue_size / items_per_second_base if items_per_second_base > 0 else 0
+            queue_size * base_delay if items_per_second_base > 0 else 0
         )
         buffer_error_s = self.current_drain_time_s - self.target_buffer_s
 
-        # 3. Use a P-controller to adjust the final speed. If we are over budget
-        #    (error > 0), we must speed up (factor > 1). If under budget (error < 0),
-        #    we must slow down (factor < 1).
-        #    The previous formula was inverted, causing run-away lag.
+        # 3. Use a P-controller to adjust the render *delay*.
+        #    - If buffer is too big (error > 0), we must speed up -> decrease delay (factor < 1).
+        #    - If buffer is too small (error < 0), we must slow down -> increase delay (factor > 1).
+        #    The `1.0 - error` formula provides this relationship.
         urgency_factor = 1.0 - (buffer_error_s * self._urgency_gain)
-        urgency_factor = max(0.5, min(2.0, urgency_factor))  # Clamp for stability
+        urgency_factor = max(0.5, min(1.5, urgency_factor))  # Clamp for stability
 
-        final_items_per_second = items_per_second_base * urgency_factor
-
-        # 4. Calculate the delay per item based on the final adjusted speed.
-        return 1.0 / final_items_per_second if final_items_per_second > 0 else 0.1
+        # 4. The final delay is the base delay adjusted by our urgency factor.
+        return base_delay * urgency_factor
 
 
 class StreamingDisplay:

@@ -30,8 +30,8 @@ class StreamingDisplay:
         self.output_buffer: Buffer | None = None
         self.actor_name = "🤖 Assistant"
         self.rich_console = Console()
-        self.char_queue = asyncio.Queue()
-        self._renderer_task: asyncio.Task | None = None
+        self._word_queue = asyncio.Queue()
+        self._smoother_task: asyncio.Task | None = None
 
         # State for UI
         self.status = "Idle"
@@ -42,7 +42,11 @@ class StreamingDisplay:
         # Response tracking
         self.line_count: int = 0
         self.chunk_count: int = 0
+        # `current_response` tracks the TEXT RENDERED to the screen.
         self.current_response: str = ""
+        # `_full_response_text` tracks the TOTAL response received from the API.
+        # This is used for accurate token rate calculations.
+        self._full_response_text: str = ""
         self.first_token_received = False
 
     def set_printer(self, printer: callable, is_interactive: bool):
@@ -53,15 +57,16 @@ class StreamingDisplay:
     def start_response(self, tokens_sent: int = 0, actor_name: str | None = None):
         """Prepares for a new response stream."""
         # It's critical to cancel any lingering tasks *before* creating a new one.
-        if self._renderer_task and not self._renderer_task.done():
-            self._renderer_task.cancel()
+        if self._smoother_task and not self._smoother_task.done():
+            self._smoother_task.cancel()
 
         self.current_response = ""
+        self._full_response_text = ""
         if self.output_buffer:
             self.output_buffer.reset()
 
         # Create a new queue, discarding the old one, to prevent processing stale data.
-        self.char_queue = asyncio.Queue()
+        self._word_queue = asyncio.Queue()
 
         self.actor_name = actor_name or "🤖 Assistant"
         self.current_request_stats = RequestStats(tokens_sent=tokens_sent)
@@ -73,7 +78,7 @@ class StreamingDisplay:
 
         # Start the new renderer task *after* all state is reset.
         if self.smooth_stream_mode:
-            self._renderer_task = asyncio.create_task(self._smooth_renderer())
+            self._smoother_task = asyncio.create_task(self._smoother_task_loop())
 
     @property
     def time_since_last_token(self) -> float:
@@ -122,74 +127,70 @@ class StreamingDisplay:
             self._print(log_line)
             logging.info(log_line)
 
-    async def _smooth_renderer(self):
-        """A background task that renders characters from a queue at a smoothed pace."""
+    async def _smoother_task_loop(self):
+        """A background task that calls _render_text with words from a queue."""
         try:
-            # Render the first chunk instantly to establish a baseline TPS
-            # without an artificial delay.
-            first_chunk = await self.char_queue.get()
-            if first_chunk is None:
-                return
-            self._render_text(first_chunk)
-
             while True:
-                chunk_text = await self.char_queue.get()
-                if chunk_text is None:  # Sentinel to stop
+                word = await self._word_queue.get()
+                if word is None:  # Sentinel to stop
+                    self._word_queue.task_done()
                     break
 
-                # The core smoothing logic starts from the second chunk.
                 target_tps = (
                     self.current_request_stats.live_tok_per_sec
                     if self.current_request_stats
-                    else 0
+                    else 0.0
                 )
+                # Use a readable minimum words-per-second to prevent huge delays.
+                # 1 token is ~1.7 words. Min 5 TPS -> ~8.5 WPS.
+                MIN_WPS = 8.5
+                target_wps = max(target_tps * 1.7, MIN_WPS)
+                delay = 1.0 / target_wps
 
-                # If TPS is zero or very low, don't introduce huge delays.
-                # Render at a minimum readable speed (e.g., 15 CPS, ~5 TPS).
-                if target_tps < 5:
-                    delay_per_char = 1.0 / 15.0
-                else:
-                    target_cps = target_tps * 3.5  # Heuristic
-                    delay_per_char = 1.0 / target_cps
-
-                for char in chunk_text:
-                    self._render_text(char)
-                    await asyncio.sleep(delay_per_char)
+                self._render_text(word + " ")
+                self._word_queue.task_done()
+                await asyncio.sleep(delay)
         except asyncio.CancelledError:
-            # When cancelled, `finish_response` is responsible for draining the queue.
-            pass
+            # On cancellation, immediately render any remaining text.
+            while not self._word_queue.empty():
+                try:
+                    word = self._word_queue.get_nowait()
+                    if word:
+                        self._render_text(word + " ")
+                    self._word_queue.task_done()
+                except asyncio.QueueEmpty:
+                    break
 
     async def show_parsed_chunk(self, chunk_data: dict, chunk_text: str):
         """Handles a parsed chunk of text from the stream."""
-        # Don't do anything for empty chunks, which some providers send.
+        # Don't do anything for empty chunks from some providers.
         if not chunk_text:
             return
 
         self._last_token_time = time.time()
-
-        # Update state first
         if not self.first_token_received:
             self.status = "Streaming"
             if self.current_request_stats:
                 self.current_request_stats.record_first_token()
             self.first_token_received = True
-
-            # Print header once for non-interactive mode.
             if not self._is_interactive:
                 self._print(f"\n{self.actor_name}: ", end="")
 
         self.chunk_count += 1
-        if self.smooth_stream_mode:
-            await self.char_queue.put(chunk_text)
-        else:
-            self._render_text(chunk_text)
-
-        # To ensure the live count is consistent with the final count,
-        # we recalculate from the full response string after every chunk.
+        # Immediately update the full response text for accurate token rate calculation.
+        self._full_response_text += chunk_text
         if self.current_request_stats:
             self.current_request_stats.tokens_received = estimate_tokens(
-                self.current_response
+                self._full_response_text
             )
+
+        if self.smooth_stream_mode:
+            for word in chunk_text.split():
+                if word:
+                    await self._word_queue.put(word)
+        else:
+            # Non-smooth mode renders directly and updates the rendered text state.
+            self._render_text(chunk_text)
 
         if self.debug_mode:
             duration = (
@@ -197,38 +198,27 @@ class StreamingDisplay:
                 if self.current_request_stats
                 else 0
             )
-            log_line = f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
+            log_line = (
+                f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
+            )
             self._print(log_line)
             logging.info(log_line)
 
     async def finish_response(self, success: bool = True) -> RequestStats | None:
         """Finalizes the response, prints stats, and resets the display state."""
-        # In smooth mode, stop the renderer and drain the queue to ensure all text is printed.
-        if self._renderer_task and not self._renderer_task.done():
-            self._renderer_task.cancel()
-            try:
-                # Wait for the task to acknowledge cancellation.
-                await self._renderer_task
-            except asyncio.CancelledError:
-                pass  # This is the expected outcome.
-            finally:
-                self._renderer_task = None
+        # In smooth mode, signal the renderer to stop and wait for it to finish.
+        if self.smooth_stream_mode and self._smoother_task:
+            await self._word_queue.put(None)  # Send sentinel
+            await self._smoother_task
+            self._smoother_task = None
 
-        # Instantly render any text remaining in the queue.
-        while not self.char_queue.empty():
-            try:
-                chunk = self.char_queue.get_nowait()
-                if chunk is not None:
-                    self._render_text(chunk)
-            except asyncio.QueueEmpty:
-                break
+        # Sync the rendered text with the full text to ensure nothing is missed.
+        self.current_response = self._full_response_text
 
         self.status = "Done"
         if self.current_request_stats:
             self.current_request_stats.finish(success=success)
-            # The token count is now calculated live. This final assignment
-            # ensures it's perfectly accurate based on the complete final string,
-            # but the live value should already match this.
+            # Final token count uses the full canonical text.
             self.current_request_stats.tokens_received = estimate_tokens(
                 self.current_response
             )

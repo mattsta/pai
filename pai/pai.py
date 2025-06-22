@@ -454,19 +454,21 @@ class InteractiveUI:
                 status_color = (
                     "ansigreen" if display.status == "Streaming" else "ansiyellow"
                 )
-                live_stats_str = f"<b>Live:</b> {live_tokens} tk @ {live_tps:.1f} tk/s"
+                live_stats_str = (
+                    f"<b>Live:</b> {live_tokens:4d} tk @ {live_tps:5.1f} tk/s"
+                )
                 line2_parts.append(f"<style fg='{status_color}'>{live_stats_str}</style>")
             else:
                 last_req = session_stats.last_request_stats
                 if last_req:
-                    last_tps_str = f"{last_req.final_tok_per_sec:.1f} tk/s"
-                    last_tokens_str = f"{last_req.tokens_received} tk"
+                    last_tps_str = f"{last_req.final_tok_per_sec:5.1f} tk/s"
+                    last_tokens_str = f"{last_req.tokens_received:4d} tk"
                     last_stats_str = f"<b>Last:</b> {last_tokens_str}, {last_tps_str}"
                     line2_parts.append(last_stats_str)
 
             session_tokens = self.conversation.session_token_count
             cost_str = f"<b>Cost:</b> ${session_stats.total_cost:.4f}"
-            session_tokens_str = f"<b>Session:</b> {session_tokens} tk"
+            session_tokens_str = f"<b>Session:</b> {session_tokens:5d} tk"
             line2_parts.extend([cost_str, session_tokens_str])
             line2 = " | ".join(line2_parts)
 
@@ -487,7 +489,7 @@ class InteractiveUI:
                 f"<b>Debug:</b> {yellow_on if display.debug_mode else off}",
                 f"<b>Verbose:</b> {yellow_on if self.runtime_config.verbose else off}",
             ]
-            line3 = f"<style fg='grey'>Core: {' | '.join(core_toggles)}</style>    <style fg='grey'>Agent: {' | '.join(agent_toggles)}</style>"
+            line3 = f"<style fg='ansiblue'><b>Core:</b> {' | '.join(core_toggles)}</style>    <style fg='ansiblue'><b>Agent:</b> {' | '.join(agent_toggles)}</style>"
 
             # --- Line 4: Dynamic Content ---
             line4 = f"<style fg='grey'>Log: {session_dir_esc}</style>"  # Default
@@ -507,21 +509,24 @@ class InteractiveUI:
                         "<style fg='ansimagenta'><b>[Rendering Queue...]</b></style>"
                     )
 
-                parts.append(f"Queue: {s_stats.get('queue_size', 0)}")
+                q_size = s_stats.get("queue_size", 0)
+                parts.append(f"Queue: {q_size:4d}")
                 if drain_time := s_stats.get("buffer_drain_time_s"):
-                    parts.append(f"Drain: {drain_time:.1f}s")
+                    parts.append(f"Drain: {drain_time:4.1f}s")
 
                 # Only show network stats when the stream is actively arriving
                 if not s_stats.get("stream_finished"):
                     if "avg_delta" in s_stats:
-                        avg = s_stats["avg_delta"].replace("ms", "")
-                        med = s_stats["median_delta"].replace("ms", "")
-                        std = s_stats["stdev_delta"].replace("ms", "")
-                        parts.append(f"Δ(avg/med/std ms): {avg}/{med}/{std}")
-                    if "gaps" in s_stats:
+                        avg = float(s_stats["avg_delta"].replace("ms", ""))
+                        med = float(s_stats["median_delta"].replace("ms", ""))
+                        std = float(s_stats["stdev_delta"].replace("ms", ""))
                         parts.append(
-                            f"Gaps/Bursts: {s_stats['gaps']}/{s_stats['bursts']}"
+                            f"Delta (ms): {avg:5.1f} avg / {med:5.1f} med / {std:5.1f} std"
                         )
+                    if "gaps" in s_stats:
+                        gaps = s_stats["gaps"]
+                        bursts = s_stats["bursts"]
+                        parts.append(f"Gaps/Bursts: {gaps:2d}/{bursts:3d}")
                 line4 = (
                     f"<style fg='ansicyan'><b>Smooth Stats</b> | {' | '.join(parts)}</style>"
                 )

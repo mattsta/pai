@@ -910,7 +910,7 @@ def run(
 def main():
     try:
         app()
-    except (KeyboardInterrupt, EOFError):
+    except KeyboardInterrupt:
         print("\n👋 Goodbye!")
     except Exception as e:
         print(f"❌ An unexpected error occurred: {e}", file=sys.stderr)

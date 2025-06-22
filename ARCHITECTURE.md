@@ -89,24 +89,26 @@ This document outlines the high-level architecture of the Polyglot AI framework.
     *   **`StreamingDisplay` (`pai/display.py`):** This critical component now lives in its own file. It manages all console output and ensures that streaming responses do not corrupt the `prompt-toolkit` interface. It uses a swappable "printer" function to either print normally (for non-interactive use) or use `prompt-toolkit`'s thread-safe method (for interactive mode). It also tracks and exposes live state like `status` ("Waiting", "Streaming", etc.) and `live_tok_per_sec` (a smoothed average over the current stream's duration) to power the real-time UI toolbar.
         *   **`StreamSmoother`:** For smooth streaming mode, the `StreamingDisplay` uses a `StreamSmoother` instance. This class contains the adaptive rendering logic designed to convert a jittery, bursty stream from a provider into a smooth, consistently paced output for the user. It works as a classic proportional controller.
 
+            The controller's goal is to maintain a small buffer of text (e.g., 1.5 seconds worth) to print from, absorbing the "gaps" in network delivery.
+
             ```
             +---------+     +----------------+     +--------------+
             | Live    | --> | Base Render    | --> | Render Delay |
-            | TPS     |     | Speed (WPS)    |     | Controller   | ----> Final Delay
+            | TPS     |     | Speed (WPS)    |     | Controller   | ----> Final Render Delay
             +---------+     +----------------+     +--------------+
-                ^                                        | (Feedback)
+                ^                                        | (Feedback Loop)
                 |                                        |
                 +----------------------------------------+
-                | Buffer Error (Current Drain - Target Drain) |
-                +---------------------------------------------+
+                | Buffer Error (Current Drain Time - Target Drain Time) |
+                +-------------------------------------------------------+
             ```
 
-            1.  **Calculate Base Speed:** It takes the live tokens-per-second (TPS) from the provider and converts it to a base words-per-second (WPS) rendering speed.
-            2.  **Calculate Buffer Error:** It calculates the `current_drain_time` of its render queue (in seconds) and compares it to a fixed `target_buffer_s` (e.g., 1.5 seconds). The difference is the `buffer_error`.
+            1.  **Calculate Base Render Speed:** It takes the live tokens-per-second (TPS) from the provider and converts it to a base words-per-second (WPS) rendering speed. This speed is a direct, not a smoothed, reflection of the current network conditions, making the system highly responsive.
+            2.  **Calculate Buffer Error:** It calculates the `current_drain_time` of the render queue (in seconds) at the base render speed. It compares this to a fixed `target_buffer_s` (e.g., 1.5 seconds). The difference is the `buffer_error`.
             3.  **Adjust Delay with P-Controller:** It feeds this error into a proportional controller.
-                -   If the buffer is **too large** (error > 0), the controller decreases the rendering delay, speeding up printing to drain the buffer.
-                -   If the buffer is **too small** (error < 0), the controller increases the delay, slowing down printing to build up the buffer.
-            4.  **Result:** This system acts as a shock absorber. It uses the buffer to smooth over network gaps and then intelligently speeds up rendering to catch up, ensuring the user sees a continuous, predictable stream of text.
+                -   If the buffer is **too large** (error > 0), the controller *decreases* the rendering delay, speeding up printing to drain the buffer.
+                -   If the buffer is **too small** (error < 0), the controller *increases* the delay, slowing down printing to rebuild the buffer.
+            4.  **Result:** This system acts as a shock absorber. It uses the buffer to smooth over network gaps and then intelligently speeds up rendering to catch up, ensuring the user sees a continuous, predictable stream of text without falling behind. This logic is encapsulated entirely within the `StreamSmoother` class in `pai/display.py`.
 
 ### Architectural Evolution: A History of Refactoring
 
@@ -116,6 +118,8 @@ The framework underwent a series of planned refactoring phases to arrive at its 
 *   **Orchestrator Extraction (`Phase 2`):** Business logic for different modes (e.g., arena loops, agent loops) was extracted from `InteractiveUI` into a dedicated `pai/orchestration` layer. This decoupled the UI from the application's core logic, improving testability and clarity.
 *   **Decoupling (`Phase 3`):** Direct state manipulation from `Command` classes was removed. Instead, commands now call dedicated setter/toggler methods on `InteractiveUI` and `PolyglotClient`, enforcing clear API boundaries and encapsulating state.
 *   **Tool System Refinement (`Phase 4`):** The `tools.py` module was improved by separating schema-generation logic from the `@tool` decorator and by transitioning from error-string-based returns to a typed exception model (`ToolNotFound`, `ToolArgumentError`), making error handling more robust.
+*   **UI Stabilization (`Phase 5`):** All UI rendering was migrated from a simple `PromptSession` loop to a persistent `prompt_toolkit.Application`. This solved numerous rendering bugs by embracing a state-driven UI model, where background tasks update state and the `Application` handles all drawing. For a detailed breakdown of this transition, see [`docs/UI_ARCHITECTURE.md`](./docs/UI_ARCHITECTURE.md).
+*   **Data Model Standardization (`Phase 6`):** Key data structures that were previously dictionaries (e.g., for tool definitions and smoothing statistics) were refactored into strongly-typed `dataclasses` (`ToolDefinition`, `SmoothingStats`). This improved type safety, readability, and code completion throughout the project.
 
 ### Multi-Model Arena
 

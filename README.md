@@ -8,15 +8,15 @@ Polyglot AI is an interactive, provider-agnostic CLI designed for developers, re
 
 ### Key Features
 
-*   **Provider Agnostic:** Seamlessly switch between different AI providers (`Featherless`, `OpenAI`, etc.) in a single session.
-*   **Interactive Chat:** A rich, terminal-based chat experience with persistent and searchable command history (up/down arrows for navigation, prefix search, and `Ctrl+R` for reverse search), streaming, helper commands, and a live status toolbar.
-*   **Powerful Debugging:** A first-class, verbose debug mode to inspect raw API traffic, essential for development and research.
-*   **Agentic Tool Use:** A powerful, extensible system allowing models to use local Python functions. To enable this, you must start the application with the `--tools` flag. You can then guide the AI with a system prompt (e.g., by using the `/agent` command) to perform complex, multi-step tasks.
+*   **Universal Provider Support:** Seamlessly switch between different AI providers (`Featherless`, `OpenAI`, `Anthropic`, `Ollama`, etc.) and profiles in a single session using `/switch` and `/profile`.
+*   **Advanced Interactive TUI:** A rich, terminal-based chat experience built on `prompt-toolkit`, featuring persistent and searchable command history, multiline input, and a live status toolbar that provides real-time feedback on cost, performance, and agent status.
+*   **Deep Introspection & Debugging:** A first-class, verbose debug mode (`--debug`) to inspect raw API traffic, and a powerful `/stats` command to see detailed performance metrics for every request.
+*   **Powerful Agentic Tool-Use:** An extensible system allowing models to use local Python functions as tools. Supports native tool-calling APIs (OpenAI, etc.) and provides a legacy agent mode for models that lack this capability.
     *   **To create tools:** See the [Tool System Guide](./docs/TOOLS.md).
     *   **For a walkthrough:** Check out the [Tool Usage Tutorial](./docs/TOOL_TUTORIAL.md).
-*   **Agentic Looping:** The framework supports agentic loops where the model can use tools iteratively to solve complex problems.
-*   **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in the `sessions/` directory. Each turn is saved as a structured JSON file, and the entire conversation is rendered into multiple browseable HTML formats.
-*   **Extensible by Design:** Adding a new provider is as simple as creating a new class and registering it.
+*   **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in `sessions/`. Each turn is saved as structured JSON, and the entire conversation is rendered into multiple browseable HTML formats.
+*   **Extensible by Design:** Add new providers via a simple plugin system. Add new tools by dropping Python files into a directory. No core code modification needed.
+*   **Multi-Model Arena:** Pit models against each other in a conversational arena, with an optional judge model to provide a final verdict.
 
 ### Getting Started
 

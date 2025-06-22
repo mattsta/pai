@@ -468,9 +468,19 @@ class InteractiveUI:
             session_tokens = self.conversation.session_token_count
             total_time = session_stats.total_response_time
             total_received = session_stats.total_tokens_received
+            total_cost = session_stats.total_cost
+
+            # Add live data during streaming for a real-time view
+            if live_stats and display.status in ["Waiting...", "Streaming"]:
+                session_tokens += live_stats.tokens_sent + live_stats.tokens_received
+                total_time += live_stats.current_duration
+                total_received += live_stats.tokens_received
+                # Live cost is partially supported (e.g., Anthropic input cost)
+                total_cost += live_stats.input_cost + live_stats.output_cost
+
             session_tps = total_received / max(total_time, 1)
 
-            cost_str = f"<b>Cost:</b> ${session_stats.total_cost:.4f}"
+            cost_str = f"<b>Cost:</b> ${total_cost:.4f}"
             session_tokens_str = f"<b>Total:</b> {session_tokens:5d} tk"
             session_tps_str = f"<b>Avg:</b> {session_tps:5.1f} tk/s"
             line2_parts.extend([cost_str, session_tokens_str, session_tps_str])

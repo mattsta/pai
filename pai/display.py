@@ -119,7 +119,10 @@ class StreamingDisplay:
         if len(deltas) > 1:
             try:
                 stats["arrivals"] = len(deltas)
-                stats["min_delta"] = f"{min(deltas) * 1000:.1f}"
+                # Filter out near-zero deltas for a more meaningful min value
+                non_zero_deltas = [d for d in deltas if d > 1e-4]  # 0.1ms
+                min_val = min(non_zero_deltas) if non_zero_deltas else 0.0
+                stats["min_delta"] = f"{min_val * 1000:.1f}"
                 stats["median_delta"] = f"{statistics.median(deltas) * 1000:.1f}"
                 stats["max_delta"] = f"{max(deltas) * 1000:.1f}"
                 mean = statistics.mean(deltas)

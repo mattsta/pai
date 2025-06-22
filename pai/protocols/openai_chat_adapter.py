@@ -38,6 +38,8 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
         async def _execute_with_confirmation(name: str, args: dict) -> Any:
             """Helper to wrap tool execution with an optional confirmation step."""
+            from ..tools import ToolArgumentError, ToolError, ToolNotFound
+
             if context.confirmer:
                 should_run = await context.confirmer(name, args)
                 if not should_run:
@@ -46,7 +48,11 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 context.display._print(
                     f"  - Executing: {name}({json.dumps(args, indent=2)})"
                 )
-            return execute_tool(name, args)
+            try:
+                return execute_tool(name, args)
+            except (ToolNotFound, ToolArgumentError, ToolError) as e:
+                context.display._print(f"  - ❌ Tool Error: {e}")
+                return f"Error: {e}"
 
         def _calculate_cost(
             model_name: str, input_tokens: int, output_tokens: int

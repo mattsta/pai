@@ -10,6 +10,18 @@ from typing import Any
 TOOL_REGISTRY: dict[str, Callable] = {}
 
 
+class ToolError(Exception):
+    """Base exception for tool-related errors."""
+
+
+class ToolNotFound(ToolError):
+    """Raised when a tool is not found in the registry."""
+
+
+class ToolArgumentError(ToolError):
+    """Raised on errors related to tool arguments (e.g., validation, conversion)."""
+
+
 class TemperatureUnit(enum.Enum):
     """Enumeration for temperature units."""
 
@@ -17,8 +29,8 @@ class TemperatureUnit(enum.Enum):
     FAHRENHEIT = "fahrenheit"
 
 
-def tool(func: Callable) -> Callable:
-    """Decorator to register a function as a tool the AI can use."""
+def _generate_schema_for_function(func: Callable) -> dict:
+    """Introspects a function to generate an OpenAI-compatible tool schema."""
     sig = inspect.signature(func)
     docstring = inspect.getdoc(func) or ""
     param_docs = {}
@@ -52,7 +64,7 @@ def tool(func: Callable) -> Callable:
             if param.default is inspect.Parameter.empty:
                 required.append(name)
 
-    tool_schema = {
+    return {
         "type": "function",
         "function": {
             "name": func.__name__,
@@ -64,6 +76,11 @@ def tool(func: Callable) -> Callable:
             },
         },
     }
+
+
+def tool(func: Callable) -> Callable:
+    """Decorator to register a function as a tool the AI can use."""
+    tool_schema = _generate_schema_for_function(func)
     TOOL_REGISTRY[func.__name__] = {"function": func, "schema": tool_schema}
     return func
 
@@ -100,7 +117,7 @@ def get_tool_manifest() -> str:
 
 def execute_tool(name: str, args: dict) -> Any:
     if name not in TOOL_REGISTRY:
-        return f"Error: Tool '{name}' not found."
+        raise ToolNotFound(f"Tool '{name}' not found.")
 
     tool_info = TOOL_REGISTRY[name]
     func = tool_info["function"]
@@ -121,9 +138,12 @@ def execute_tool(name: str, args: dict) -> Any:
         return func(**converted_args)
     except ValueError as e:
         # Specifically for enum conversion errors
-        return f"Error: Invalid argument value provided for tool '{name}'. {e}"
+        raise ToolArgumentError(f"Invalid argument value for tool '{name}': {e}") from e
+    except TypeError as e:
+        # Catches missing required arguments.
+        raise ToolArgumentError(f"Missing or invalid arguments for tool '{name}': {e}") from e
     except Exception as e:
-        return f"Error executing tool {name} with args {args}: {e}"
+        raise ToolError(f"Error executing tool '{name}' with args {args}: {e}") from e
 
 
 @tool

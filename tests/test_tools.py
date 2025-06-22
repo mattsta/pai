@@ -77,16 +77,22 @@ def test_execute_tool_success_with_all_args():
 
 
 def test_execute_tool_not_found():
-    """Test that executing a non-existent tool returns a specific error."""
-    result = tools.execute_tool("non_existent_tool", {})
-    assert "Error: Tool 'non_existent_tool' not found." in result
+    """Test that executing a non-existent tool raises ToolNotFound."""
+    with pytest.raises(tools.ToolNotFound, match="Tool 'non_existent_tool' not found"):
+        tools.execute_tool("non_existent_tool", {})
 
 
 def test_execute_tool_invalid_enum_value():
-    """Test that executing a tool with an invalid enum value returns a ValueError."""
-    result = tools.execute_tool("sample_tool", {"name": "test", "option": "c"})
-    assert "Error: Invalid argument value provided" in result
-    assert "'c' is not a valid SampleEnum" in str(result)
+    """Test that an invalid enum value raises ToolArgumentError."""
+    with pytest.raises(tools.ToolArgumentError, match="'c' is not a valid SampleEnum"):
+        tools.execute_tool("sample_tool", {"name": "test", "option": "c"})
+
+
+def test_execute_tool_missing_required_arg():
+    """Test that a missing required argument raises ToolArgumentError."""
+    with pytest.raises(tools.ToolArgumentError, match="Missing or invalid arguments"):
+        # The 'name' argument is required and has no default value.
+        tools.execute_tool("sample_tool", {})
 
 
 def test_get_tool_manifest():

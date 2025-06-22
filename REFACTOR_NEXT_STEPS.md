@@ -37,15 +37,15 @@ The `Command` classes and the `PolyglotClient` are now more cleanly decoupled fr
 -   [x] **Refined Command Dependencies:** All commands that modify `RuntimeConfig` (e.g., `/temp`, `/tokens`, `/stream`, `/debug`) now call dedicated setter/toggler methods on the `InteractiveUI` class. This centralizes state management logic within the UI controller.
 -   [x] **Clarified Client Responsibilities:** Commands that modify the active endpoint's configuration (`/model`, `/timeout`) now call dedicated methods on the `PolyglotClient` (`client.set_model`, `client.set_timeout`). This properly encapsulates client state within the client object itself.
 
-### Phase 4: Tool System Refinement
+### Phase 4: Tool System Refinement (Completed)
 
-The `@tool` decorator in `pai/tools.py` is very powerful but also very complex. Breaking it down will improve clarity and testability.
+The tool system in `pai/tools.py` has been refactored for better clarity, error handling, and testability.
 
--   [ ] **Extract Schema Generation:**
-    -   [ ] Create a private helper function `_generate_schema_for_function(func: Callable) -> dict` within `pai/tools.py`.
-    -   [ ] Move all the `inspect` logic for parsing signatures and docstrings into this new function.
-    -   [ ] The `@tool` decorator will then become much simpler: it will call `_generate_schema_for_function` and register the function and its schema in the `TOOL_REGISTRY`.
+-   [x] **Extracted Schema Generation:**
+    -   [x] The complex logic for schema generation has been moved from the `@tool` decorator into a dedicated private helper function, `_generate_schema_for_function`.
+    -   [x] The `@tool` decorator is now a simple wrapper that calls the helper and registers the result, making its purpose much clearer.
 
--   [ ] **Improve Tool Error Handling:**
-    -   [ ] The `execute_tool` function currently returns error strings. This works but is not ideal for programmatic use.
-    -   [ ] Refactor `execute_tool` to raise specific exceptions (`ToolNotFound`, `ToolArgumentError`) and have the calling code (the protocol adapters) catch these and format them into the appropriate "tool result" message for the AI.
+-   [x] **Improved Tool Error Handling:**
+    -   [x] `execute_tool` no longer returns error strings. It now raises specific, typed exceptions (`ToolNotFound`, `ToolArgumentError`) for different failure modes.
+    -   [x] The calling code in `OpenAIChatAdapter` and `LegacyAgentOrchestrator` has been updated to catch these specific exceptions and format them into user-friendly error messages for the AI model.
+    -   [x] Unit tests in `tests/test_tools.py` have been updated to use `pytest.raises` to assert that the correct exceptions are thrown, making the tests more robust.

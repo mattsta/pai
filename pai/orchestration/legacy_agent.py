@@ -59,6 +59,8 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                     else:
                         tool_name = name_match.group(1).strip()
                         tool_args_str = args_match.group(1).strip()
+                        from ..tools import ToolArgumentError, ToolError, ToolNotFound
+
                         try:
                             tool_args = json.loads(tool_args_str)
                             if confirmer and not await confirmer(tool_name, tool_args):
@@ -69,8 +71,8 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                             tool_result = (
                                 f"Error: Invalid JSON in <args> for {tool_name}."
                             )
-                        except Exception as e:
-                            tool_result = f"Error executing tool {tool_name}: {e}"
+                        except (ToolNotFound, ToolArgumentError, ToolError) as e:
+                            tool_result = f"Error: {e}"
 
                     tool_result_message = f"TOOL_RESULT:\n```\n{tool_result}\n```"
                     messages.append({"role": "user", "content": tool_result_message})

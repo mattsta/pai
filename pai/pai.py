@@ -490,7 +490,6 @@ class InteractiveUI:
             # --- Line 3: Toggles ---
             on = "<style fg='ansigreen'>ON</style>"
             off = "<style fg='default'>OFF</style>"
-            yellow_on = "<style fg='ansiyellow'>ON</style>"
 
             core_toggles = [
                 f"Stream: {on if self.runtime_config.stream else off}",
@@ -498,16 +497,10 @@ class InteractiveUI:
                 f"Smooth: {on if self.runtime_config.smooth_stream else off}",
                 f"Multiline: {on if self.state.multiline_input else off}",
             ]
-            agent_toggles = [
-                f"Tools: {on if client.tools_enabled else off}",
-                f"Confirm: {yellow_on if self.runtime_config.confirm_tool_use else off}",
-                f"Debug: {yellow_on if display.debug_mode else off}",
-                f"Verbose: {yellow_on if self.runtime_config.verbose else off}",
-            ]
-            line3 = f"<b>Core</b> | {' | '.join(core_toggles)}    <b>Agent</b> | {' | '.join(agent_toggles)}"
+            line3 = f"<b>Toggles</b> | {' | '.join(core_toggles)}"
 
             # --- Line 4: Dynamic Content ---
-            line4 = f"Log: {session_dir_esc}"  # Default
+            line4 = ""  # Default to empty
             is_agent_mode = self.state.mode in [
                 UIMode.NATIVE_AGENT,
                 UIMode.LEGACY_AGENT,
@@ -527,14 +520,10 @@ class InteractiveUI:
                     parts.append(
                         "<style fg='ansimagenta'><b>[Rendering Queue...]</b></style>"
                     )
-
                 q_size = s_stats.get("queue_size", 0)
                 parts.append(f"Queue: {q_size:4d}")
-
                 drain_time = s_stats.get("buffer_drain_time_s", 0.0)
                 parts.append(f"Drain: {drain_time:4.1f}s")
-
-                # Only show network stats when the stream is actively arriving
                 if not s_stats.get("stream_finished"):
                     min_d = float(s_stats.get("min_delta", 0.0))
                     mean_d = float(s_stats.get("mean_delta", 0.0))
@@ -547,10 +536,8 @@ class InteractiveUI:
                     bursts = s_stats.get("bursts", 0)
                     parts.append(f"G/B: {gaps:2d}/{bursts:3d}")
                 else:
-                    # Keep layout stable by showing placeholders
                     parts.append("Δ (min/mean/med/max ms): --.-/--.-/--.-/--.-")
                     parts.append("G/B: --/---")
-
                 line4 = f"<b>Smooth Stats</b> | {' | '.join(parts)}"
             elif is_agent_mode:
                 parts = [
@@ -558,6 +545,17 @@ class InteractiveUI:
                     f"Tools Used: {self.state.tools_used}",
                 ]
                 line4 = f"<style fg='ansimagenta'><b>Agent Stats</b> | {' | '.join(parts)}</style>"
+            else:
+                yellow_on = "<style fg='ansiyellow'>ON</style>"
+                agent_toggles = [
+                    f"Tools: {on if client.tools_enabled else off}",
+                    f"Confirm: {yellow_on if self.runtime_config.confirm_tool_use else off}",
+                    f"Debug: {yellow_on if display.debug_mode else off}",
+                    f"Verbose: {yellow_on if self.runtime_config.verbose else off}",
+                ]
+                log_part = f"Log: {session_dir_esc}"
+                agent_part = f"<b>Agent Toggles</b> | {' | '.join(agent_toggles)}"
+                line4 = f"{log_part}    {agent_part}"
 
             return HTML(f"{line1}\n{line2}\n{line3}\n{line4}")
         except Exception as e:

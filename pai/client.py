@@ -16,6 +16,7 @@ from .models import (
 )
 from .protocols import ADAPTER_MAP
 from .protocols.base_adapter import ProtocolContext
+from .pricing import PricingService
 
 
 class APIError(Exception):
@@ -28,6 +29,7 @@ class PolyglotClient:
         runtime_config: RuntimeConfig,
         toml_config: PolyglotConfig,
         http_session: httpx.AsyncClient,
+        pricing_service: PricingService,
     ):
         self.toml_config = toml_config
         self.config = EndpointConfig()
@@ -39,6 +41,7 @@ class PolyglotClient:
         )
         self.http_session = http_session
         self.tools_enabled = runtime_config.tools
+        self.pricing_service = pricing_service
         self.switch_endpoint(runtime_config.endpoint)
         if self.config and runtime_config.model:
             self.config.model_name = runtime_config.model
@@ -131,5 +134,6 @@ class PolyglotClient:
             config=self.config,
             tools_enabled=self.tools_enabled,
             confirmer=confirmer,
+            pricing_service=self.pricing_service,
         )
         return await adapter.generate(context, request, verbose, actor_name=actor_name)

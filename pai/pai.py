@@ -53,6 +53,7 @@ from .orchestration import (
     DefaultOrchestrator,
     LegacyAgentOrchestrator,
 )
+from .pricing import PricingService
 
 # --- Protocol Adapter Imports ---
 from .protocols import load_protocol_adapters
@@ -781,8 +782,11 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
     # Use a single httpx client session for the application's lifecycle
     transport = httpx.AsyncHTTPTransport(retries=3)
     async with httpx.AsyncClient(transport=transport, timeout=30.0) as http_session:
+        pricing_service = PricingService()
+        await pricing_service.load_pricing_data()
+
         try:
-            client = PolyglotClient(runtime_config, toml_config, http_session)
+            client = PolyglotClient(runtime_config, toml_config, http_session, pricing_service)
             if runtime_config.prompt:
                 # Non-interactive mode
                 if runtime_config.chat:

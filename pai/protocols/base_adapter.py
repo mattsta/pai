@@ -9,6 +9,7 @@ import httpx
 if TYPE_CHECKING:
     from ..display import StreamingDisplay
     from ..models import ChatRequest, CompletionRequest, EndpointConfig, SessionStats
+    from ..pricing import PricingService
 
 
 # NEW: Define a simple data structure to pass context from the client to the adapters.
@@ -20,6 +21,7 @@ class ProtocolContext(NamedTuple):
     config: "EndpointConfig"
     tools_enabled: bool
     confirmer: Callable[[str, dict], Awaitable[bool]] | None
+    pricing_service: "PricingService"
 
 
 # Request types are now imported from pai.models

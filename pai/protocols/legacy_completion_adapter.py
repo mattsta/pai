@@ -84,6 +84,9 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
             request_stats = await context.display.finish_response(success=True)
             if request_stats:
                 request_stats.tokens_sent = tokens_sent
+                pricing = context.pricing_service.get_model_pricing(context.config.name, request.model or context.config.model_name)
+                request_stats.input_cost = (request_stats.tokens_sent / 1_000_000) * pricing["input_cost_per_token"]
+                request_stats.output_cost = (request_stats.tokens_received / 1_000_000) * pricing["output_cost_per_token"]
                 context.stats.add_completed_request(request_stats)
 
             return {

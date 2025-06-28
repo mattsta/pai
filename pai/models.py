@@ -279,6 +279,8 @@ class RequestStats:
     # Cost tracking
     input_cost: float = 0.0
     output_cost: float = 0.0
+    input_cost_per_token: float = 0.0
+    output_cost_per_token: float = 0.0
     # Statistics on stream jitter, if applicable
     jitter_stats: Optional["SmoothingStats"] = None
 

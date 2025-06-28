@@ -1,10 +1,10 @@
 # Polyglot AI Configuration File
 # Define all your provider endpoints here.
 
-# Optional: Path to a custom TOML file for model pricing.
+# Optional: Path to a custom TOML or YAML file for model pricing.
 # This can be used to override default prices or provide pricing for local models.
 # See docs/PRICING.md for details.
-# custom-pricing-file = "custom_prices.toml"
+# custom-pricing-file = "custom_prices.yaml"
 
 [[endpoints]]
 name = "featherless"

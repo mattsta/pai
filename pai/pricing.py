@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
 import dataclasses
 import toml
+import yaml
 
 import pathlib
 import json
@@ -90,19 +91,33 @@ class PricingService:
 
         # 4. Load custom pricing file if provided
         if custom_file_path:
-            try:
-                path = pathlib.Path(custom_file_path)
-                with open(path, "r", encoding="utf-8") as f:
-                    custom_data = toml.load(f)
-                    self._custom_pricing_data = TomlCustomPricing.model_validate(
-                        custom_data
-                    )
-                print(f"Loaded custom pricing from '{custom_file_path}'")
-            except FileNotFoundError:
+            path = pathlib.Path(custom_file_path)
+            if not path.is_file():
                 print(
                     f"Warning: Custom pricing file not found at '{custom_file_path}'"
                 )
-            except (toml.TomlDecodeError, Exception) as e:
+                return
+
+            try:
+                custom_data = None
+                content = path.read_text("utf-8")
+                if path.suffix.lower() == ".toml":
+                    custom_data = toml.loads(content)
+                elif path.suffix.lower() in [".yaml", ".yml"]:
+                    custom_data = yaml.safe_load(content)
+                else:
+                    print(
+                        f"Warning: Unsupported custom pricing file format: '{path.suffix}'. Please use .toml or .yaml/.yml."
+                    )
+                    return
+
+                if custom_data:
+                    self._custom_pricing_data = TomlCustomPricing.model_validate(
+                        custom_data
+                    )
+                    print(f"Loaded custom pricing from '{custom_file_path}'")
+
+            except (toml.TomlDecodeError, yaml.YAMLError, Exception) as e:
                 print(
                     f"Warning: Could not parse custom pricing file '{custom_file_path}': {e}"
                 )

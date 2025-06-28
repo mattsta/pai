@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  build-and-test:
+  lint-and-format:
     runs-on: ubuntu-latest
 
     steps:
@@ -32,6 +32,73 @@ jobs:
 
     - name: Run Ruff Format Check
       run: uv run ruff format . --check
+
+  auto-fix-pr:
+    runs-on: ubuntu-latest
+    needs: lint-and-format # This job runs after lint-and-format
+    if: failure() && github.event_name == 'pull_request' # Only if lint-and-format failed AND it's a PR
+    permissions:
+      contents: write # Required to push changes
+      pull-requests: write # Required to create pull requests
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }} # Checkout the head of the PR branch
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      run: pip install uv
+
+    - name: Install dependencies with uv
+      run: uv sync
+
+    - name: Run Ruff Auto-Fix
+      run: |
+        uv run ruff format .
+        uv run ruff check . --fix
+
+    - name: Check for changes
+      id: git_status
+      run: echo "changes_present=$(git status --porcelain | wc -l)" >> "$GITHUB_OUTPUT"
+
+    - name: Create Pull Request with fixes
+      if: steps.git_status.outputs.changes_present > 0
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "fix(lint): Apply automatic formatting and linting fixes"
+        title: "fix(lint): Apply automatic formatting and linting fixes"
+        body: |
+          This PR was automatically created by the CI pipeline to apply formatting and linting fixes.
+          Please review and merge these changes.
+        branch: auto-fix/lint-format-${{ github.head_ref }} # New branch name
+        delete-branch: true # Delete the auto-fix branch after merging
+
+  run-tests:
+    runs-on: ubuntu-latest
+    needs: lint-and-format # This job runs after lint-and-format
+    if: success() # Only if lint-and-format passed
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      run: pip install uv
+
+    - name: Install dependencies with uv
+      run: uv sync
 
     - name: Run Pytest
       run: uv run pytest

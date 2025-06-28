@@ -5,7 +5,7 @@ import yaml
 
 import pathlib
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import re
 import httpx
 from .models import (
@@ -312,7 +312,7 @@ class PricingService:
         Returns:
             A tuple containing (input_cost, output_cost).
         """
-        now_utc = datetime.utcnow()
+        now_utc = datetime.now(UTC)
         current_hour = now_utc.hour
 
         # Default to "anytime" pricing

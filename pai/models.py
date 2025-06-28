@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
 import ulid
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .utils import estimate_tokens
 
@@ -686,6 +686,8 @@ class PolyglotConfig(BaseModel):
 class RuntimeConfig(BaseModel):
     """Holds runtime configuration state, replacing argparse.Namespace."""
 
+    model_config = ConfigDict(frozen=False)  # Allows mutation by commands
+
     config: str = "polyglot.toml"
     profile: str | None = None
     endpoint: str = "openai"
@@ -705,6 +707,3 @@ class RuntimeConfig(BaseModel):
     confirm_tool_use: bool = False
     smooth_stream: bool = False
     custom_pricing_file: str | None = Field(None, alias="custom-pricing-file")
-
-    class Config:
-        frozen = False  # Allows mutation by commands

@@ -38,7 +38,6 @@ pricing:
     return str(yaml_file)
 
 
-@pytest.mark.asyncio
 async def test_load_and_merge_custom_pricing(
     pricing_service: PricingService, custom_pricing_filepath: str
 ):

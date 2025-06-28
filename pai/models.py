@@ -288,27 +288,38 @@ class RequestStats:
     _first_token_time: float | None = None
 
 @dataclass
-class TieredCostEntry:
-    tokens_up_to: int
-    cost_per_token: float
+class TieredCost:
+    """Represents a single tier in a tiered pricing model."""
+
+    up_to: int  # The upper bound of the token count for this tier (exclusive). -1 for infinity.
+    cost: float  # The cost per million tokens for this tier.
+
 
 @dataclass
-class TimeBasedCostEntry:
-    start_time: str
-    end_time: str
-    cost_per_token: float
+class TimeWindowPricing:
+    """Encapsulates all pricing information for a specific time window."""
+
+    start_hour: int  # The start hour of the window (0-23).
+    end_hour: int  # The end hour of the window (0-23).
+    input_cost: float = 0.0  # Flat input cost per million tokens.
+    output_cost: float = 0.0  # Flat output cost per million tokens.
+    input_tiers: list[TieredCost] = field(default_factory=list)
+    output_tiers: list[TieredCost] = field(default_factory=list)
+
 
 @dataclass
 class ModelPricing:
+    """Unified model for pricing, supporting flat, tiered, and time-based rates."""
+
+    # "Anytime" flat rates (used if no time windows match or are defined)
     input_cost_per_token: float = 0.0
     output_cost_per_token: float = 0.0
-    # For future extensibility: tiered pricing based on token ranges
-    tiered_input_costs: list[TieredCostEntry] = field(default_factory=list)
-    tiered_output_costs: list[TieredCostEntry] = field(default_factory=list)
-    # For future extensibility: time-based pricing
-    time_based_input_costs: list[TimeBasedCostEntry] = field(default_factory=list)
-    time_based_output_costs: list[TimeBasedCostEntry] = field(default_factory=list)
-    # LiteLLM specific batch pricing
+    # "Anytime" tiered rates
+    tiered_input_costs: list[TieredCost] = field(default_factory=list)
+    tiered_output_costs: list[TieredCost] = field(default_factory=list)
+    # Time-window specific rates
+    time_windows: list[TimeWindowPricing] = field(default_factory=list)
+    # LiteLLM specific batch pricing (for compatibility)
     input_cost_per_token_batches: float = 0.0
     output_cost_per_token_batches: float = 0.0
 
@@ -561,6 +572,41 @@ class TomlArena(BaseModel):
     judge: TomlJudge | None = None
 
 
+# --- Custom Pricing Configuration Models ---
+class TomlTieredCost(BaseModel):
+    """A single tier in a custom pricing config."""
+
+    up_to: int
+    cost: float
+
+
+class TomlTimeWindowCost(BaseModel):
+    """A time-based pricing window in a custom pricing config."""
+
+    start_hour: int
+    end_hour: int
+    input_cost: float | None = None
+    output_cost: float | None = None
+    input_tiers: list[TomlTieredCost] = []
+    output_tiers: list[TomlTieredCost] = []
+
+
+class TomlCustomModelPricing(BaseModel):
+    """Pricing definition for a single model in a custom config."""
+
+    input_cost: float | None = None
+    output_cost: float | None = None
+    input_tiers: list[TomlTieredCost] = []
+    output_tiers: list[TomlTieredCost] = []
+    time_windows: list[TomlTimeWindowCost] = []
+
+
+class TomlCustomPricing(BaseModel):
+    """The root model for a custom pricing TOML file."""
+
+    pricing: dict[str, dict[str, TomlCustomModelPricing]] = Field(default_factory=dict)
+
+
 class TomlProfile(BaseModel):
     """Configuration for a reusable profile."""
 
@@ -591,6 +637,7 @@ class TomlEndpoint(BaseModel):
 class PolyglotConfig(BaseModel):
     """Represents the structure of the polyglot.toml file."""
 
+    custom_pricing_file: str | None = Field(None, alias="custom-pricing-file")
     endpoints: list[TomlEndpoint] = Field(default_factory=list)
     tool_config: TomlToolConfig | None = None
     arenas: dict[str, TomlArena] = Field(default_factory=dict)

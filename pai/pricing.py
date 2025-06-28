@@ -1,6 +1,11 @@
 from typing import Any, Dict, Optional
 
-from ..models import ModelPricing
+import pathlib
+import json
+from datetime import datetime, timedelta
+import re
+import httpx
+from .models import ModelPricing, TieredCost
 
 LITELLM_PRICING_URL = "https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/main/model_prices_and_context_window.json"
 LITELLM_PRICING_CACHE_FILE = "model_prices_and_context_window.json"
@@ -108,31 +113,30 @@ class PricingService:
         for key in lookup_keys:
             model_info = self._pricing_data.get(key)
             if model_info:
-                # Parse tiered costs into dataclass instances
+                # Parse tiered costs from LiteLLM format into our new structure
                 tiered_input_costs = [
-                    TieredCostEntry(**t) for t in model_info.get("tiered_input_costs", [])
+                    TieredCost(up_to=t["tokens_up_to"], cost=t["cost_per_token"])
+                    for t in model_info.get("tiered_input_costs", [])
                 ]
                 tiered_output_costs = [
-                    TieredCostEntry(**t) for t in model_info.get("tiered_output_costs", [])
+                    TieredCost(up_to=t["tokens_up_to"], cost=t["cost_per_token"])
+                    for t in model_info.get("tiered_output_costs", [])
                 ]
 
-                # Parse time-based costs into dataclass instances
-                time_based_input_costs = [
-                    TimeBasedCostEntry(**t) for t in model_info.get("time_based_input_costs", [])
-                ]
-                time_based_output_costs = [
-                    TimeBasedCostEntry(**t) for t in model_info.get("time_based_output_costs", [])
-                ]
-
+                # LiteLLM format doesn't have the rich time_windows structure we support.
+                # It will be populated from custom pricing files later.
                 return ModelPricing(
                     input_cost_per_token=model_info.get("input_cost_per_token", 0.0),
                     output_cost_per_token=model_info.get("output_cost_per_token", 0.0),
                     tiered_input_costs=tiered_input_costs,
                     tiered_output_costs=tiered_output_costs,
-                    time_based_input_costs=time_based_input_costs,
-                    time_based_output_costs=time_based_output_costs,
-                    input_cost_per_token_batches=model_info.get("input_cost_per_token_batches", 0.0),
-                    output_cost_per_token_batches=model_info.get("output_cost_per_token_batches", 0.0),
+                    time_windows=[],
+                    input_cost_per_token_batches=model_info.get(
+                        "input_cost_per_token_batches", 0.0
+                    ),
+                    output_cost_per_token_batches=model_info.get(
+                        "output_cost_per_token_batches", 0.0
+                    ),
                 )
 
         # If no specific pricing found, return default zero costs

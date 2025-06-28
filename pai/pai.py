@@ -769,7 +769,9 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
                 )
                 raise typer.Exit(code=1)
         if arena_config.judge:
-            if not any(ep.name == arena_config.judge.endpoint for ep in toml_config.endpoints):
+            if not any(
+                ep.name == arena_config.judge.endpoint for ep in toml_config.endpoints
+            ):
                 typer.echo(
                     f"❌ FATAL: Arena '{arena_name}' judge references non-existent endpoint '{arena_config.judge.endpoint}'.",
                     err=True,

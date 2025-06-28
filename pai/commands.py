@@ -644,7 +644,7 @@ class SayCommand(Command):
 
         # If arena is running, pause it first
         if self.ui.arena_paused_event.is_set():
-            self.ui.arena_paused_event.clear() # Clear the event to pause
+            self.ui.arena_paused_event.clear()  # Clear the event to pause
             self.ui.pt_printer("⏸️  Arena paused to interject.")
 
         self.ui.state.arena.last_message = param
@@ -701,14 +701,19 @@ class LoadCommand(Command):
                 self.ui.pt_printer(f"🔄 Session loaded from JSON file: '{json_path}'.")
             elif pickle_path.exists():
                 import pickle
-                self.ui.pt_printer("Legacy .pkl file found. Loading and converting to JSON.")
+
+                self.ui.pt_printer(
+                    "Legacy .pkl file found. Loading and converting to JSON."
+                )
                 with open(pickle_path, "rb") as f:
                     loaded_conversation = pickle.load(f)
                 # Save back as JSON for future use
                 with open(json_path, "w", encoding="utf-8") as f:
                     json.dump(loaded_conversation.to_json(), f, indent=2)
-                pickle_path.unlink() # Remove old pickle file
-                self.ui.pt_printer(f"✅ Converted to '{json_path}' and removed old file.")
+                pickle_path.unlink()  # Remove old pickle file
+                self.ui.pt_printer(
+                    f"✅ Converted to '{json_path}' and removed old file."
+                )
 
             if not isinstance(loaded_conversation, Conversation):
                 raise TypeError("File does not contain a valid Conversation object.")
@@ -716,7 +721,7 @@ class LoadCommand(Command):
             # Reset state before loading
             self.ui.enter_mode(UIMode.CHAT, clear_history=False)
             self.ui.conversation = loaded_conversation
-            
+
             # Print last few messages to give context
             history = self.ui.conversation.get_history()
             if history:

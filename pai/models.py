@@ -237,7 +237,7 @@ class Conversation:
             )
             for t in data.get("turns", [])
         ]
-        
+
         convo = cls(
             conversation_id=ulid.parse(data["conversation_id"]),
             turns=turns,

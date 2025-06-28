@@ -178,15 +178,6 @@ class PricingService:
         self, provider_name: str, model_name: str
     ) -> ModelPricing:
         """Looks up the base pricing from the cached LiteLLM data."""
-
-        Args:
-            provider_name (str): The Polyglot AI endpoint name (e.g., "openai", "anthropic").
-            model_name (str): The model name (e.g., "gpt-4o", "claude-3-haiku-20240307").
-
-        Returns:
-            ModelPricing: An instance of ModelPricing with 'input_cost_per_token' and 'output_cost_per_token'.
-                          Returns 0.0 for both if not found.
-        """
         if self._pricing_data is None:
             # Data not loaded, return default zero costs
             return ModelPricing()

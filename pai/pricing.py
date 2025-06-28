@@ -12,7 +12,9 @@ class PricingService:
             "openai": "openai",
             "anthropic": "anthropic",
             "ollama": "ollama",
-            "together": "together-ai", # LiteLLM uses together-ai
+            "together": "together-ai",  # LiteLLM uses together-ai
+            "mistral": "mistralai", # Mistral AI is 'mistralai' in LiteLLM
+            "azure": "azure", # Azure is 'azure' in LiteLLM
             # Add more mappings as needed for other providers
         }
 
@@ -45,17 +47,23 @@ class PricingService:
             # Data not loaded, return default zero costs
             return {"input_cost_per_token": 0.0, "output_cost_per_token": 0.0}
 
-        # Map Polyglot AI provider name to LiteLLM provider name
+        # Normalize provider name
         litellm_provider = self._provider_map.get(provider_name.lower(), provider_name.lower())
 
-        # LiteLLM model keys are often in the format "provider/model_name"
-        # or just "model_name" if the provider is implicit.
-        # We'll try a few common patterns.
+        # Normalize model name for lookup (lowercase and remove common suffixes/prefixes)
+        normalized_model_name = model_name.lower()
+        # Remove common suffixes/prefixes that might not be in LiteLLM keys
+        normalized_model_name = re.sub(r'-(latest|preview|20\d{2}-\d{2}-\d{2}|v\d+)$|', '', normalized_model_name)
+        normalized_model_name = normalized_model_name.replace('gpt-4o', 'gpt-4o') # Ensure gpt-4o is consistent
+
+        # LiteLLM model keys are often in the format "provider/model_name" or just "model_name".
+        # We'll try a few common patterns, prioritizing more specific matches.
         lookup_keys = [
-            f"{litellm_provider}/{model_name}",
-            model_name, # Direct model name lookup
-            f"{litellm_provider}/{model_name.replace('-', '_')}", # Try replacing hyphens with underscores
-            f"{litellm_provider}/{model_name.split('/')[-1]}", # For cases like 'org/model'
+            f"{litellm_provider}/{normalized_model_name}",
+            normalized_model_name, # Direct model name lookup
+            f"{litellm_provider}/{normalized_model_name.replace('-', '_')}", # Try replacing hyphens with underscores
+            f"{litellm_provider}/{normalized_model_name.split('/')[-1]}", # For cases like 'org/model'
+            model_name.lower(), # Original model name, lowercased
         ]
 
         for key in lookup_keys:

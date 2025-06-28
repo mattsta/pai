@@ -641,11 +641,11 @@ class SayCommand(Command):
         if self.ui.state.mode != UIMode.ARENA or not self.ui.state.arena:
             self.ui.pt_printer("❌ /say is only available in arena mode.")
             return
+
+        # If arena is running, pause it first
         if self.ui.arena_paused_event.is_set():
-            self.ui.pt_printer(
-                "❌ Arena must be paused to interject. Use /pause first."
-            )
-            return
+            self.ui.arena_paused_event.clear() # Clear the event to pause
+            self.ui.pt_printer("⏸️  Arena paused to interject.")
 
         self.ui.state.arena.last_message = param
         self.ui.pt_printer("💬 Interjecting with message. Resuming arena...")

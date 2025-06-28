@@ -85,7 +85,7 @@ def apply_search_replace(edit_script: str) -> str:
                     full_path.write_text(replace_block, encoding="utf-8")
                     operation_result["status"] = "success"
                     operation_result["reason"] = f"Created new file: {file_path}"
-            """# Handle file editing
+            # Handle file editing
             else:
                 if not full_path.is_file():
                     operation_result["status"] = "failure"
@@ -139,7 +139,6 @@ def apply_search_replace(edit_script: str) -> str:
                         full_path.write_text(final_content, encoding="utf-8")
                         operation_result["status"] = "success"
                         operation_result["reason"] = f"Applied edit to {file_path}"
-""
 
         except Exception as e:
             operation_result["status"] = "failure"

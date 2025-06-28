@@ -1,3 +1,8 @@
+import asyncio
+import json
+import time
+from typing import Any
+
 import httpx
 
 # Pricing per million tokens
@@ -291,7 +296,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         f"Authentication failed for endpoint '{context.config.name}'. Please check your API key."
                     ) from e
                 else:
-                    raise ConnectionError(f"Request failed with status {e.response.status_code}: {e.response.text}") from e
+                    raise ConnectionError(
+                        f"Request failed with status {e.response.status_code}: {e.response.text}"
+                    ) from e
             except Exception as e:
                 # On failure, finalize stats as unsuccessful and re-raise
                 request_stats = await context.display.finish_response(success=False)

@@ -695,13 +695,13 @@ class LoadCommand(Command):
         try:
             loaded_conversation = None
             if json_path.exists():
-                with open(json_path, "r", encoding="utf-8") as f:
+                with open(json_path, encoding="utf-8") as f:
                     data = json.load(f)
                     loaded_conversation = Conversation.from_json(data)
                 self.ui.pt_printer(f"🔄 Session loaded from JSON file: '{json_path}'.")
             elif pickle_path.exists():
                 import pickle
-                self.ui.pt_printer(f"Legacy .pkl file found. Loading and converting to JSON.")
+                self.ui.pt_printer("Legacy .pkl file found. Loading and converting to JSON.")
                 with open(pickle_path, "rb") as f:
                     loaded_conversation = pickle.load(f)
                 # Save back as JSON for future use

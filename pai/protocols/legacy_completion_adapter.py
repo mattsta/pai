@@ -1,6 +1,7 @@
-import httpx
 import json
 from typing import Any
+
+import httpx
 
 from ..models import CompletionRequest
 from ..utils import estimate_tokens
@@ -101,7 +102,9 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                     f"Authentication failed for endpoint '{context.config.name}'. Please check your API key."
                 ) from e
             else:
-                raise ConnectionError(f"Request failed with status {e.response.status_code}: {e.response.text}") from e
+                raise ConnectionError(
+                    f"Request failed with status {e.response.status_code}: {e.response.text}"
+                ) from e
         except Exception as e:
             request_stats = await context.display.finish_response(success=False)
             if request_stats:

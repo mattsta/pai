@@ -665,6 +665,7 @@ class RuntimeConfig(BaseModel):
     log_file: str | None = None
     confirm_tool_use: bool = False
     smooth_stream: bool = False
+    custom_pricing_file: str | None = Field(None, alias="custom-pricing-file")
 
     class Config:
         frozen = False  # Allows mutation by commands

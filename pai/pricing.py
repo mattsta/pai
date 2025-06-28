@@ -1,11 +1,19 @@
 from typing import Any, Dict, Optional
+import dataclasses
+import toml
 
 import pathlib
 import json
 from datetime import datetime, timedelta
 import re
 import httpx
-from .models import ModelPricing, TieredCost
+from .models import (
+    ModelPricing,
+    TieredCost,
+    TimeWindowPricing,
+    TomlCustomPricing,
+    TomlCustomModelPricing,
+)
 
 LITELLM_PRICING_URL = "https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/main/model_prices_and_context_window.json"
 LITELLM_PRICING_CACHE_FILE = "model_prices_and_context_window.json"
@@ -15,6 +23,7 @@ class PricingService:
     def __init__(self, url: str = LITELLM_PRICING_URL):
         self.url = url
         self._pricing_data: Optional[Dict[str, Any]] = None
+        self._custom_pricing_data: Optional[TomlCustomPricing] = None
         self._provider_map: Dict[str, str] = {
             "openai": "openai",
             "anthropic": "anthropic",
@@ -33,8 +42,11 @@ class PricingService:
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir
 
-    async def load_pricing_data(self):
-        """Fetches and caches the pricing data from the LiteLLM URL, with fallback to cache."""
+    async def load_pricing_data(self, custom_file_path: str | None = None):
+        """
+        Fetches and caches pricing data from LiteLLM. Optionally loads a custom
+        pricing file to override or supplement the base pricing.
+        """
         # 1. Try loading from cache first if it's fresh
         if self._cache_file_path.exists():
             file_mod_time = datetime.fromtimestamp(self._cache_file_path.stat().st_mtime)
@@ -76,8 +88,96 @@ class PricingService:
             print(f"Error: Could not parse pricing data from {self.url}: {e}")
             self._pricing_data = {}
 
+        # 4. Load custom pricing file if provided
+        if custom_file_path:
+            try:
+                path = pathlib.Path(custom_file_path)
+                with open(path, "r", encoding="utf-8") as f:
+                    custom_data = toml.load(f)
+                    self._custom_pricing_data = TomlCustomPricing.model_validate(
+                        custom_data
+                    )
+                print(f"Loaded custom pricing from '{custom_file_path}'")
+            except FileNotFoundError:
+                print(
+                    f"Warning: Custom pricing file not found at '{custom_file_path}'"
+                )
+            except (toml.TomlDecodeError, Exception) as e:
+                print(
+                    f"Warning: Could not parse custom pricing file '{custom_file_path}': {e}"
+                )
+
+    def _merge_pricing(
+        self, base: ModelPricing, custom: TomlCustomModelPricing
+    ) -> ModelPricing:
+        """Merges custom pricing rules onto a base ModelPricing object."""
+        # Create a new ModelPricing object from the base to avoid mutating it.
+        merged = dataclasses.replace(base)
+
+        if custom.input_cost is not None:
+            merged.input_cost_per_token = custom.input_cost
+        if custom.output_cost is not None:
+            merged.output_cost_per_token = custom.output_cost
+
+        if custom.input_tiers:
+            merged.tiered_input_costs = [
+                TieredCost(up_to=t.up_to, cost=t.cost) for t in custom.input_tiers
+            ]
+        if custom.output_tiers:
+            merged.tiered_output_costs = [
+                TieredCost(up_to=t.up_to, cost=t.cost) for t in custom.output_tiers
+            ]
+
+        if custom.time_windows:
+            merged.time_windows = [
+                TimeWindowPricing(
+                    start_hour=tw.start_hour,
+                    end_hour=tw.end_hour,
+                    input_cost=tw.input_cost if tw.input_cost is not None else 0.0,
+                    output_cost=tw.output_cost if tw.output_cost is not None else 0.0,
+                    input_tiers=[
+                        TieredCost(up_to=t.up_to, cost=t.cost) for t in tw.input_tiers
+                    ],
+                    output_tiers=[
+                        TieredCost(up_to=t.up_to, cost=t.cost)
+                        for t in tw.output_tiers
+                    ],
+                )
+                for tw in custom.time_windows
+            ]
+
+        return merged
+
     def get_model_pricing(self, provider_name: str, model_name: str) -> ModelPricing:
-        """Looks up pricing for a given model and provider.
+        """
+        Looks up pricing for a model, combining base pricing with custom overrides.
+        """
+        # 1. Get base pricing from the cached LiteLLM data.
+        base_pricing = self._get_base_model_pricing(provider_name, model_name)
+
+        # 2. If no custom pricing file is loaded, we're done.
+        if not self._custom_pricing_data:
+            return base_pricing
+
+        # 3. Check for a matching provider and model in the custom data.
+        custom_provider_pricing = self._custom_pricing_data.pricing.get(
+            provider_name.lower()
+        )
+        if not custom_provider_pricing:
+            return base_pricing
+
+        custom_model_pricing = custom_provider_pricing.get(model_name)
+        if not custom_model_pricing:
+            return base_pricing
+
+        # 4. If a custom entry is found, merge it over the base pricing.
+        print(f"Applying custom pricing for '{provider_name}/{model_name}'")
+        return self._merge_pricing(base_pricing, custom_model_pricing)
+
+    def _get_base_model_pricing(
+        self, provider_name: str, model_name: str
+    ) -> ModelPricing:
+        """Looks up the base pricing from the cached LiteLLM data."""
 
         Args:
             provider_name (str): The Polyglot AI endpoint name (e.g., "openai", "anthropic").

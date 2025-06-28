@@ -783,7 +783,11 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
     transport = httpx.AsyncHTTPTransport(retries=3)
     async with httpx.AsyncClient(transport=transport, timeout=30.0) as http_session:
         pricing_service = PricingService()
-        await pricing_service.load_pricing_data()
+        # The CLI flag takes precedence over the setting in the config file.
+        custom_pricing_path = (
+            runtime_config.custom_pricing_file or toml_config.custom_pricing_file
+        )
+        await pricing_service.load_pricing_data(custom_file_path=custom_pricing_path)
 
         try:
             client = PolyglotClient(runtime_config, toml_config, http_session, pricing_service)
@@ -886,6 +890,13 @@ def run(
     config: str = typer.Option(
         "polyglot.toml", help="Path to the TOML configuration file."
     ),
+    custom_pricing_file: str
+    | None = typer.Option(
+        None,
+        "--custom-pricing-file",
+        help="Path to a custom TOML pricing file. Overrides 'custom-pricing-file' in config.",
+        show_default=False,
+    ),
 ):
     """Main application entrypoint."""
     print("🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶")
@@ -926,6 +937,7 @@ def run(
         smooth_stream=smooth_stream,
         log_file=log_file,
         config=config,
+        custom_pricing_file=custom_pricing_file,
     )
     asyncio.run(_run(runtime_config, toml_config))
 

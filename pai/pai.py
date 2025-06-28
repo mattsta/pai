@@ -759,6 +759,23 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
         else:
             typer.echo("  (No 'tool_config' section in polyglot.toml)")
 
+    # Validate arena configurations
+    for arena_name, arena_config in toml_config.arenas.items():
+        for p_id, participant in arena_config.participants.items():
+            if not any(ep.name == participant.endpoint for ep in toml_config.endpoints):
+                typer.echo(
+                    f"❌ FATAL: Arena '{arena_name}' participant '{p_id}' references non-existent endpoint '{participant.endpoint}'.",
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+        if arena_config.judge:
+            if not any(ep.name == arena_config.judge.endpoint for ep in toml_config.endpoints):
+                typer.echo(
+                    f"❌ FATAL: Arena '{arena_name}' judge references non-existent endpoint '{arena_config.judge.endpoint}'.",
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+
     # Use a single httpx client session for the application's lifecycle
     transport = httpx.AsyncHTTPTransport(retries=3)
     async with httpx.AsyncClient(transport=transport, timeout=30.0) as http_session:

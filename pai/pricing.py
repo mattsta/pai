@@ -204,21 +204,28 @@ class PricingService:
         for key in lookup_keys:
             model_info = self._pricing_data.get(key)
             if model_info:
-                # Parse tiered costs from LiteLLM format into our new structure
+                # Parse tiered costs from LiteLLM format, converting to cost per 1M tokens
                 tiered_input_costs = [
-                    TieredCost(up_to=t["tokens_up_to"], cost=t["cost_per_token"])
+                    TieredCost(
+                        up_to=t["tokens_up_to"], cost=t["cost_per_token"] * 1_000_000
+                    )
                     for t in model_info.get("tiered_input_costs", [])
                 ]
                 tiered_output_costs = [
-                    TieredCost(up_to=t["tokens_up_to"], cost=t["cost_per_token"])
+                    TieredCost(
+                        up_to=t["tokens_up_to"], cost=t["cost_per_token"] * 1_000_000
+                    )
                     for t in model_info.get("tiered_output_costs", [])
                 ]
 
                 # LiteLLM format doesn't have the rich time_windows structure we support.
                 # It will be populated from custom pricing files later.
+                # Convert costs to be per 1M tokens for consistency.
                 return ModelPricing(
-                    input_cost_per_token=model_info.get("input_cost_per_token", 0.0),
-                    output_cost_per_token=model_info.get("output_cost_per_token", 0.0),
+                    input_cost_per_token=model_info.get("input_cost_per_token", 0.0)
+                    * 1_000_000,
+                    output_cost_per_token=model_info.get("output_cost_per_token", 0.0)
+                    * 1_000_000,
                     tiered_input_costs=tiered_input_costs,
                     tiered_output_costs=tiered_output_costs,
                     time_windows=[],
@@ -232,3 +239,101 @@ class PricingService:
 
         # If no specific pricing found, return default zero costs
         return ModelPricing()
+
+    def _calculate_tiered_cost(self, tiers: list[TieredCost], total_tokens: int) -> float:
+        """Calculates the cost for a token count based on a tiered structure."""
+        if not tiers or total_tokens <= 0:
+            return 0.0
+
+        # Sort tiers by their 'up_to' boundary. -1 (infinity) is handled correctly.
+        sorted_tiers = sorted(
+            tiers, key=lambda t: t.up_to if t.up_to != -1 else float("inf")
+        )
+
+        total_cost = 0.0
+        remaining_tokens = total_tokens
+        last_boundary = 0
+
+        for tier in sorted_tiers:
+            tier_upper_bound = tier.up_to
+            if tier_upper_bound == -1:
+                # This is the last tier, it takes all remaining tokens.
+                tier_upper_bound = float("inf")
+
+            # Number of tokens this tier's price applies to
+            tier_capacity = tier_upper_bound - last_boundary
+
+            # Number of tokens to actually price in this tier for this request
+            tokens_in_tier = min(remaining_tokens, tier_capacity)
+
+            if tokens_in_tier <= 0:
+                # This can happen if tiers overlap, though they shouldn't.
+                # Also handles the case where remaining_tokens is now 0.
+                continue
+
+            total_cost += (tokens_in_tier / 1_000_000) * tier.cost
+
+            remaining_tokens -= tokens_in_tier
+            if remaining_tokens <= 0:
+                break
+
+            last_boundary = tier_upper_bound
+
+        return total_cost
+
+    def calculate_cost(
+        self, model_pricing: ModelPricing, input_tokens: int, output_tokens: int
+    ) -> tuple[float, float]:
+        """
+        Calculates the cost for a given number of input and output tokens
+        based on the model's specific pricing rules (flat, tiered, time-based).
+        All costs are in USD.
+
+        Args:
+            model_pricing: The ModelPricing object containing the rates.
+            input_tokens: The number of input tokens.
+            output_tokens: The number of output tokens.
+
+        Returns:
+            A tuple containing (input_cost, output_cost).
+        """
+        now_utc = datetime.utcnow()
+        current_hour = now_utc.hour
+
+        # Default to "anytime" pricing
+        active_input_cost_rate = model_pricing.input_cost_per_token
+        active_output_cost_rate = model_pricing.output_cost_per_token
+        active_input_tiers = model_pricing.tiered_input_costs
+        active_output_tiers = model_pricing.tiered_output_costs
+
+        # Check for time-based pricing overrides
+        for window in model_pricing.time_windows:
+            # Handle overnight windows (e.g., 22:00 to 06:00)
+            if window.start_hour > window.end_hour:
+                if current_hour >= window.start_hour or current_hour <= window.end_hour:
+                    active_input_cost_rate = window.input_cost
+                    active_output_cost_rate = window.output_cost
+                    active_input_tiers = window.input_tiers
+                    active_output_tiers = window.output_tiers
+                    break
+            # Handle standard daytime windows
+            elif window.start_hour <= current_hour <= window.end_hour:
+                active_input_cost_rate = window.input_cost
+                active_output_cost_rate = window.output_cost
+                active_input_tiers = window.input_tiers
+                active_output_tiers = window.output_tiers
+                break
+
+        # --- Calculate Input Cost ---
+        if active_input_tiers:
+            input_cost = self._calculate_tiered_cost(active_input_tiers, input_tokens)
+        else:
+            input_cost = (input_tokens / 1_000_000) * active_input_cost_rate
+
+        # --- Calculate Output Cost ---
+        if active_output_tiers:
+            output_cost = self._calculate_tiered_cost(active_output_tiers, output_tokens)
+        else:
+            output_cost = (output_tokens / 1_000_000) * active_output_cost_rate
+
+        return input_cost, output_cost

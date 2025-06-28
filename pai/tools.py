@@ -204,7 +204,7 @@ def load_tools_from_directory(directory: str, printer: Callable = print):
         )
         return
 
-    printer(f"🔎 Loading custom tools from: {path.resolve()}")
+    printer(f"🔎 Loading custom tools from: {path}")
     found = False
     for file_path in path.glob("*.py"):
         # Skip __init__ files and any other private-like files.

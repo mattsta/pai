@@ -2,13 +2,57 @@
 
 **A Universal Command-Line Interface for Interacting with Any AI Provider.**
 
-Polyglot AI is an interactive, provider-agnostic CLI designed for developers, researchers, and AI enthusiasts. It provides a single, unified interface to test, debug, and converse with a multitude of AI models from different providers like Featherless and OpenAI, with a plug-and-play architecture to easily add more.
+Polyglot AI is an interactive, provider-agnostic CLI designed for developers, researchers, and AI enthusiasts. It provides a single, unified interface to test, debug, and converse with a multitude of AI models from different providers with a plug-and-play architecture to easily add more.
 
-![Demo Screenshot](https://i.imgur.com/g88t8D4.png) <!-- A placeholder for a future screenshot -->
+
+### Sample Output
+
+```
+$ uv run pai --stream --model THUDM/GLM-4-32B-0414 --chat --endpoint featherless  --tools
+
+🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶
+🔎 Loading protocol adapters from entry point group 'polyglot_ai.protocols'...
+  ✅ Loaded adapter 'anthropic' from 'pai.protocols.anthropic_adapter'
+  ✅ Loaded adapter 'legacy_completion' from 'pai.protocols.legacy_completion_adapter'
+  ✅ Loaded adapter 'ollama' from 'pai.protocols.ollama_adapter'
+  ✅ Loaded adapter 'openai_chat' from 'pai.protocols.openai_chat_adapter'
+🛠️  --tools flag detected. Loading tools...
+🔎 Loading custom tools from: custom_tools
+  ✅ Loaded custom tool module: data_converter.py
+  ✅ Loaded custom tool module: http_client.py
+  ✅ Loaded custom tool module: developer_tools.py
+  ✅ Loaded custom tool module: code_editor.py
+  ✅ Loaded custom tool module: file_system.py
+  ✅ Loaded custom tool module: code_generator.py
+✅ Switched to endpoint: featherless
+🎯 Chat Mode | Endpoint: featherless | Model: THUDM/GLM-4-32B-0414
+💾 Session logs will be saved to: sessions/2025-06-28_09-34-42-interactive
+Type '/help' for commands, '/quit' to exit.
+------------------------------------------------------------
+
+👤 (Chat) User: hello how are you today
+╭─ 🤖 Assistant ──────────────────────────────────────────────────────────────────────────────────────╮
+│ Hello! I'm doing well, thank you for asking. As an AI, I don't have feelings, but I'm functioning   │
+│ optimally. How about you? Is there anything I can assist you with today?                            │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+👤 (Chat) User: /mode
+🧹 History cleared.
+✅ Switched to Completion mode.
+
+👤 (Completion) User: /tokens 30
+✅ Max tokens set to: 30
+
+👤 (Completion) User: i really want to dance but
+╭─ 🤖 Assistant ──────────────────────────────────────────────────────────────────────────────────────╮
+│ i have no idea how to so i just like... stand there awkwardly when music comes on or try to wiggle  │
+│ a bit and it looks stupid                                                                           │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
 
 ### Key Features
 
-*   **Universal Provider Support:** Seamlessly switch between different AI providers (`Featherless`, `OpenAI`, `Anthropic`, `Ollama`, etc.) and profiles in a single session using `/switch` and `/profile`.
+*   **Universal Provider Support:** Seamlessly switch between different AI providers and profiles in a single session using `/switch` and `/profile`.
 *   **Advanced Interactive TUI:** A rich, terminal-based chat experience built on `prompt-toolkit`, featuring persistent and searchable command history, multiline input, and a live status toolbar that provides real-time feedback on cost, performance, and agent status.
 *   **Deep Introspection & Debugging:** A first-class, verbose debug mode (`--debug`) to inspect raw API traffic, and a powerful `/stats` command to see detailed performance metrics for every request.
 *   **Powerful Agentic Tool-Use:** An extensible system allowing models to use local Python functions as tools. Supports native tool-calling APIs (OpenAI, etc.) and provides a legacy agent mode for models that lack this capability.
@@ -110,8 +154,4 @@ Once in interactive mode, use `/` commands to control the session:
 *   `/clear`: Clear the current conversation history.
 *   `/quit`: Exit the application.
 
-For more details on session logging, see `docs/LOGGING.md`.
-```
-
----
-
+For more details on session logging, see [`docs/LOGGING.md`](docs/LOGGING.md).

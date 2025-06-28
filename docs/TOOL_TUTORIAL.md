@@ -52,12 +52,25 @@ The `/agent` command is a shortcut that loads the `prompts/code_editor.md` syste
 **User Prompt 2: Start the Task**
 Now that the AI has both the capability (`--tools`) and the behavior (`/agent`), you can give it a high-level goal. Assume there is a typo in `README.md` where `uv sync -U` is written as `uv cync -U`.
 
-uv sync -U
-=======
-uv sync -U
->>>>>>> REPLACE
-´´´´
-```
+> There's a typo in the README.md file. Please fix `uv cync -U` to `uv sync -U`.
+
+**What Happens Next (A More Detailed Agent Loop):**
+1.  **Model Plans:** The AI, guided by the `code_editor` prompt, decides to first read the `README.md` file to confirm the typo's existence and get the exact text for its `SEARCH` block.
+2.  **Model Executes `read_file`:** It requests to run `read_file(path="README.md")`.
+3.  **`pai` Executes and Reports:** The tool runs, and its output (the content of the README) is sent back to the model.
+4.  **Model Formulates the Edit:** Now, with the exact text, the model constructs a `SEARCH/REPLACE` block.
+5.  **Model Executes `apply_search_replace`:** The model requests to run the edit tool with the following script:
+
+    ```
+    ´´´´
+    README.md
+    <<<<<<< SEARCH
+    uv cync -U
+    =======
+    uv sync -U
+    >>>>>>> REPLACE
+    ´´´´
+    ```
 *   **Tool Result:** A JSON object: `{"file_path": "README.md", "status": "success", ...}`
 
 **AI's Final Response:**

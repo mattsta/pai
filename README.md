@@ -141,17 +141,50 @@ Now you can ask it to perform tasks that require tools: `Refactor the 'get_curre
 
 Once in interactive mode, use `/` commands to control the session:
 
-*   `/help`: Shows the list of available commands.
-*   `/stats`: Displays statistics for the current session.
-*   `/switch <name>`: Switch to a different endpoint (e.g., `/switch openai`).
-*   `/model <name>`: Change the model (e.g., `/model gpt-4o-mini`).
-*   `/system ...`: Manage the system prompt stack (`add`, `pop`, `show`, `clear`, or replace).
-*   `/prompt <name>`: Load a prompt from the `prompts/` directory and add it to the system prompt stack.
-*   `/agent`: A shortcut to load the `code_editor` prompt and enable agent mode.
-*   `/legacy_agent`: A shortcut to load the `legacy_agent` prompt for models without native tool-use.
-*   `/tools`: Toggle tool-use on or off for the current session (Requires starting with `--tools`).
-*   `/debug`: Toggle raw protocol debugging on or off.
-*   `/clear`: Clear the current conversation history.
-*   `/quit`: Exit the application.
+*   `/help`: Shows this list of commands.
+*   `/stats`: Displays performance and cost statistics for the current session.
+*   `/quit` or `/q`: Exits the application.
+
+**Provider & Model Controls:**
+*   `/endpoints`: Lists all available provider endpoints from your config file.
+*   `/switch <name>`: Switches to a different provider endpoint (e.g., `/switch anthropic`).
+*   `/model <name>`: Changes the model for the current session (e.g., `/model gpt-4o-mini`).
+*   `/temp <value>`: Changes the generation temperature (e.g., `/temp 0.9`).
+*   `/tokens <num>`: Changes the maximum number of tokens for the response (e.g., `/tokens 4000`).
+*   `/timeout <seconds>`: Changes the network request timeout (e.g., `/timeout 120`).
+
+**Agent & Tool Controls:**
+*   `/agent`: Enables agent mode by loading the `code_editor` system prompt. Requires starting with `--tools`.
+*   `/legacy_agent`: Enables agent mode for models that don't support native tool-calling.
+*   `/tools`: Toggles the tool-use capability on or off for the current session.
+*   `/confirm on|off`: Toggles whether the agent must ask for confirmation before executing a tool.
+
+**Chat & History Management:**
+*   `/mode`: Toggles between `chat` and `completion` modes. Clears history.
+*   `/system <text>`: Replaces the entire system prompt stack with new text.
+*   `/system add <text>`: Adds a new system prompt to the top of the stack.
+*   `/system pop`: Removes the most recent system prompt from the stack.
+*   `/system show`: Shows all system prompts currently in the stack.
+*   `/system clear`: Clears all system prompts.
+*   `/prompts`: Lists all available, loadable system prompts from the `prompts/` directory.
+*   `/prompt <name>`: Loads a prompt from the `prompts/` directory and adds it to the system prompt stack.
+*   `/clear`: Clears the current conversation history.
+*   `/history`: Shows the raw message history for the current conversation.
+*   `/save <name>`: Saves the current chat session to a file in `saved_sessions/`.
+*   `/load <name>`: Loads a chat session from a file.
+
+**Multi-Model Arena:**
+*   `/arena <name> [turns]`: Starts a multi-model arena conversation defined in `polyglot.toml`.
+*   `/pause`: Pauses the arena conversation after the current model's turn.
+*   `/resume`: Resumes a paused arena.
+*   `/say <message>`: While paused, interjects with a message to steer the conversation.
+
+**UI & Debugging:**
+*   `/multiline`: Toggles multi-line input mode (use `Esc+Enter` to submit).
+*   `/stream`: Toggles response streaming on or off.
+*   `/rich`: Toggles rich Markdown rendering for final output.
+*   `/smooth`: Toggles the adaptive smooth streaming mode.
+*   `/verbose`: Toggles verbose logging of request parameters.
+*   `/debug`: Toggles raw protocol-level debugging for network streams.
 
 For more details on session logging, see [`docs/LOGGING.md`](docs/LOGGING.md).

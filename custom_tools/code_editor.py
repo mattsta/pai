@@ -85,14 +85,22 @@ def apply_search_replace(edit_script: str) -> str:
                     full_path.write_text(replace_block, encoding="utf-8")
                     operation_result["status"] = "success"
                     operation_result["reason"] = f"Created new file: {file_path}"
-            # Handle file editing
+            """# Handle file editing
             else:
                 if not full_path.is_file():
                     operation_result["status"] = "failure"
                     operation_result["reason"] = f"File not found at '{file_path}'."
                 else:
                     original_content = full_path.read_text(encoding="utf-8")
-                    if search_block not in original_content:
+                    # Normalize line endings for robust matching
+                    normalized_content = original_content.replace("
+", "
+")
+                    normalized_search = search_block.replace("
+", "
+")
+
+                    if normalized_search not in normalized_content:
                         # Provide a diff for debugging if the match failed
                         diff = difflib.unified_diff(
                             search_block.splitlines(keepends=True),
@@ -101,23 +109,37 @@ def apply_search_replace(edit_script: str) -> str:
                             tofile=str(file_path),
                             n=2,  # two lines of context
                         )
-                        closest_match = "\n".join(list(diff))
+                        closest_match = "
+".join(list(diff))
                         operation_result["status"] = "failure"
                         operation_result["reason"] = (
-                            "SEARCH block not found in file. The file content may have changed."
+                            "SEARCH block not found in file. The file content may have changed, or line endings might differ."
                         )
                         operation_result["debug_hint"] = (
-                            f"A diff of the SEARCH block against the file content suggests there are differences.    Diff:\n{closest_match}"
+                            f"A diff of the SEARCH block against the file content suggests there are differences.    Diff:
+{closest_match}"
                         )
 
                     else:
-                        # Replace only the first occurrence
-                        new_content = original_content.replace(
-                            search_block, replace_block, 1
+                        # Replace only the first occurrence in the normalized content
+                        normalized_new_content = normalized_content.replace(
+                            normalized_search, replace_block.replace("
+", "
+"), 1
                         )
-                        full_path.write_text(new_content, encoding="utf-8")
+                        # If the original file used CRLF, convert back
+                        if "
+" in original_content:
+                            final_content = normalized_new_content.replace("
+", "
+")
+                        else:
+                            final_content = normalized_new_content
+
+                        full_path.write_text(final_content, encoding="utf-8")
                         operation_result["status"] = "success"
                         operation_result["reason"] = f"Applied edit to {file_path}"
+""
 
         except Exception as e:
             operation_result["status"] = "failure"

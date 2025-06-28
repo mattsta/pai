@@ -1,3 +1,4 @@
+import httpx
 import json
 from typing import Any
 
@@ -107,7 +108,17 @@ class OllamaAdapter(BaseProtocolAdapter):
                 "response": final_response_object,
                 "text": context.display.current_response,
             }
-
+        except httpx.HTTPStatusError as e:
+            request_stats = await context.display.finish_response(success=False)
+            if request_stats:
+                request_stats.tokens_sent = tokens_sent
+                context.stats.add_completed_request(request_stats)
+            if e.response.status_code in [401, 403]:
+                raise ConnectionError(
+                    f"Authentication failed for endpoint '{context.config.name}'. Please check your API key."
+                ) from e
+            else:
+                raise ConnectionError(f"Request failed with status {e.response.status_code}: {e.response.text}") from e
         except Exception as e:
             request_stats = await context.display.finish_response(success=False)
             if request_stats:

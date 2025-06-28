@@ -1,8 +1,4 @@
-# protocols/openai_chat_adapter.py
-import asyncio
-import json
-import time
-from typing import Any
+import httpx
 
 # Pricing per million tokens
 OPENAI_PRICING = {
@@ -285,7 +281,17 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     "response": response_data,
                     "text": context.display.current_response,
                 }
-
+            except httpx.HTTPStatusError as e:
+                request_stats = await context.display.finish_response(success=False)
+                if request_stats:
+                    request_stats.tokens_sent = tokens_sent
+                    context.stats.add_completed_request(request_stats)
+                if e.response.status_code in [401, 403]:
+                    raise ConnectionError(
+                        f"Authentication failed for endpoint '{context.config.name}'. Please check your API key."
+                    ) from e
+                else:
+                    raise ConnectionError(f"Request failed with status {e.response.status_code}: {e.response.text}") from e
             except Exception as e:
                 # On failure, finalize stats as unsuccessful and re-raise
                 request_stats = await context.display.finish_response(success=False)

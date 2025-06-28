@@ -5,19 +5,7 @@ from typing import Any
 
 import httpx
 
-# Pricing per million tokens
-OPENAI_PRICING = {
-    # gpt-4o
-    "gpt-4o": {"input": 5.00, "output": 15.00},
-    "gpt-4o-2024-05-13": {"input": 5.00, "output": 15.00},
-    # gpt-4-turbo
-    "gpt-4-turbo": {"input": 10.00, "output": 30.00},
-    "gpt-4-turbo-2024-04-09": {"input": 10.00, "output": 30.00},
-    # gpt-3.5-turbo
-    "gpt-3.5-turbo-0125": {"input": 0.50, "output": 1.50},
-}
-
-from ..models import ChatRequest
+from ..models import ChatRequest, RequestCost
 from ..tools import execute_tool
 from ..utils import estimate_tokens
 
@@ -87,14 +75,6 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 context.display._print(f"  - ❌ Tool Error: {e}")
                 return f"Error: {e}"
 
-        def _calculate_cost(
-            model_name: str, input_tokens: int, output_tokens: int
-        ) -> tuple[float, float]:
-            """Calculates the cost of a request based on the model and token counts."""
-            pricing = context.pricing_service.get_model_pricing(context.config.name, model_name)
-            input_cost = (input_tokens / 1_000_000) * pricing.input_cost_per_token
-            output_cost = (output_tokens / 1_000_000) * pricing.output_cost_per_token
-            return input_cost, output_cost
 
         # This adapter needs access to the UI state to increment counters.
         # This is a bit of a hack. A cleaner way would be a callback via context.
@@ -119,6 +99,15 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 context.display.start_response(
                     tokens_sent=tokens_sent, actor_name=actor_name
                 )
+                # Create and attach the cost tracker to the request stats
+                model_pricing = context.pricing_service.get_model_pricing(
+                    context.config.name, context.config.model_name
+                )
+                if stats := context.display.current_request_stats:
+                    stats.cost = RequestCost(
+                        _pricing_service=context.pricing_service,
+                        _model_pricing=model_pricing,
+                    )
                 if iteration > 0:
                     context.display._print(
                         "\n🔄 [Agent Loop] Sending tool results back to model..."
@@ -157,12 +146,10 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         output_tokens = usage.get("completion_tokens", 0)
                         request_stats.tokens_sent = input_tokens
                         request_stats.tokens_received = output_tokens
-                        (
-                            request_stats.input_cost,
-                            request_stats.output_cost,
-                        ) = _calculate_cost(
-                            context.config.model_name, input_tokens, output_tokens
-                        )
+                        if request_stats.cost:
+                            request_stats.cost.update(
+                                input_tokens=input_tokens, output_tokens=output_tokens
+                            )
                         request_stats.finish_reason = finish_reason
                         context.stats.add_completed_request(request_stats)
 
@@ -246,12 +233,10 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
                     tokens_received = request_stats.tokens_received
-                    (
-                        request_stats.input_cost,
-                        request_stats.output_cost,
-                    ) = _calculate_cost(
-                        context.config.model_name, tokens_sent, tokens_received
-                    )
+                    if request_stats.cost:
+                        request_stats.cost.update(
+                            input_tokens=tokens_sent, output_tokens=tokens_received
+                        )
                     request_stats.finish_reason = finish_reason
                     context.stats.add_completed_request(request_stats)
 

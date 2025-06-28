@@ -3,7 +3,7 @@ from typing import Any
 
 import httpx
 
-from ..models import CompletionRequest
+from ..models import CompletionRequest, RequestCost
 from ..utils import estimate_tokens
 
 # MODIFIED: No longer imports from the main script. Imports the context object instead.
@@ -33,6 +33,15 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
             context.display.start_response(
                 tokens_sent=tokens_sent, actor_name=actor_name
             )
+            # Create and attach the cost tracker to the request stats
+            model_pricing = context.pricing_service.get_model_pricing(
+                context.config.name, request.model or context.config.model_name
+            )
+            if stats := context.display.current_request_stats:
+                stats.cost = RequestCost(
+                    _pricing_service=context.pricing_service,
+                    _model_pricing=model_pricing,
+                )
 
             if not request.stream:
                 response = await context.http_session.post(
@@ -84,9 +93,11 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
             request_stats = await context.display.finish_response(success=True)
             if request_stats:
                 request_stats.tokens_sent = tokens_sent
-                pricing = context.pricing_service.get_model_pricing(context.config.name, request.model or context.config.model_name)
-                request_stats.input_cost = (request_stats.tokens_sent / 1_000_000) * pricing.input_cost_per_token
-                request_stats.output_cost = (request_stats.tokens_received / 1_000_000) * pricing.output_cost_per_token
+                if request_stats.cost:
+                    request_stats.cost.update(
+                        input_tokens=request_stats.tokens_sent,
+                        output_tokens=request_stats.tokens_received,
+                    )
                 context.stats.add_completed_request(request_stats)
 
             return {

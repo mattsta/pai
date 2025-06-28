@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from .utils import estimate_tokens
 
 if TYPE_CHECKING:
-    from .models import RequestStats
+    from .models import RequestCost, RequestStats
     from .protocols.base_adapter import BaseProtocolAdapter
 
 
@@ -65,6 +65,47 @@ class Turn:
             "participant_name": self.participant_name,
             "model_name": self.model_name,
         }
+
+
+@dataclass
+class RequestCost:
+    """Tracks and calculates the cost of a single API request."""
+
+    # Dependencies for calculation
+    _pricing_service: "PricingService"
+    _model_pricing: "ModelPricing"
+
+    # State
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    # Calculated properties
+    input_cost: float = 0.0
+    output_cost: float = 0.0
+
+    def update(self, input_tokens: int | None = None, output_tokens: int | None = None):
+        """
+        Updates token counts and recalculates costs. Only updates counts that are provided.
+        """
+        if self._pricing_service is None or self._model_pricing is None:
+            return  # Cannot calculate cost
+
+        if input_tokens is not None:
+            self.input_tokens = input_tokens
+        if output_tokens is not None:
+            self.output_tokens = output_tokens
+
+        (
+            self.input_cost,
+            self.output_cost,
+        ) = self._pricing_service.calculate_cost(
+            self._model_pricing, self.input_tokens, self.output_tokens
+        )
+
+    @property
+    def total_cost(self) -> float:
+        """The total cost of the request."""
+        return self.input_cost + self.output_cost
 
 
 @dataclass
@@ -277,10 +318,7 @@ class RequestStats:
     success: bool = True
     finish_reason: str | None = None
     # Cost tracking
-    input_cost: float = 0.0
-    output_cost: float = 0.0
-    input_cost_per_token: float = 0.0
-    output_cost_per_token: float = 0.0
+    cost: "RequestCost | None" = None
     # Statistics on stream jitter, if applicable
     jitter_stats: Optional["SmoothingStats"] = None
 
@@ -386,7 +424,8 @@ class SessionStats:
         self.requests_sent += 1
         self.total_tokens_sent += stats.tokens_sent
         self.total_tokens_received += stats.tokens_received
-        self.total_cost += stats.input_cost + stats.output_cost
+        if stats.cost:
+            self.total_cost += stats.cost.total_cost
         if stats.response_time:
             self.total_response_time += stats.response_time
 
@@ -414,8 +453,7 @@ class SessionStats:
 
         if self.last_request_stats:
             last = self.last_request_stats
-            last = self.last_request_stats
-            last_req_cost = last.input_cost + last.output_cost
+            last_req_cost = last.cost.total_cost if last.cost else 0.0
             stats["last_request"] = {
                 "cost": f"${last_req_cost:.5f}",
                 "ttft": f"{last.ttft:.2f}s" if last.ttft else "N/A",

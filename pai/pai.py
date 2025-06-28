@@ -510,8 +510,9 @@ class InteractiveUI:
                 session_tokens += live_stats.tokens_sent + live_stats.tokens_received
                 total_time += live_stats.current_duration
                 total_received += live_stats.tokens_received
-                # Live cost is partially supported (e.g., Anthropic input cost)
-                total_cost += live_stats.input_cost + live_stats.output_cost
+                if live_stats.cost:
+                    # Live cost is partially supported (e.g., Anthropic input cost)
+                    total_cost += live_stats.cost.total_cost
 
             session_tps = total_received / max(total_time, 1)
 

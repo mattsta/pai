@@ -288,15 +288,26 @@ class RequestStats:
     _first_token_time: float | None = None
 
 @dataclass
+class TieredCostEntry:
+    tokens_up_to: int
+    cost_per_token: float
+
+@dataclass
+class TimeBasedCostEntry:
+    start_time: str
+    end_time: str
+    cost_per_token: float
+
+@dataclass
 class ModelPricing:
     input_cost_per_token: float = 0.0
     output_cost_per_token: float = 0.0
     # For future extensibility: tiered pricing based on token ranges
-    tiered_input_costs: list[dict[str, Any]] = field(default_factory=list)
-    tiered_output_costs: list[dict[str, Any]] = field(default_factory=list)
+    tiered_input_costs: list[TieredCostEntry] = field(default_factory=list)
+    tiered_output_costs: list[TieredCostEntry] = field(default_factory=list)
     # For future extensibility: time-based pricing
-    time_based_input_costs: list[dict[str, Any]] = field(default_factory=list)
-    time_based_output_costs: list[dict[str, Any]] = field(default_factory=list)
+    time_based_input_costs: list[TimeBasedCostEntry] = field(default_factory=list)
+    time_based_output_costs: list[TimeBasedCostEntry] = field(default_factory=list)
     # LiteLLM specific batch pricing
     input_cost_per_token_batches: float = 0.0
     output_cost_per_token_batches: float = 0.0

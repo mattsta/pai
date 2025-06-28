@@ -108,13 +108,29 @@ class PricingService:
         for key in lookup_keys:
             model_info = self._pricing_data.get(key)
             if model_info:
+                # Parse tiered costs into dataclass instances
+                tiered_input_costs = [
+                    TieredCostEntry(**t) for t in model_info.get("tiered_input_costs", [])
+                ]
+                tiered_output_costs = [
+                    TieredCostEntry(**t) for t in model_info.get("tiered_output_costs", [])
+                ]
+
+                # Parse time-based costs into dataclass instances
+                time_based_input_costs = [
+                    TimeBasedCostEntry(**t) for t in model_info.get("time_based_input_costs", [])
+                ]
+                time_based_output_costs = [
+                    TimeBasedCostEntry(**t) for t in model_info.get("time_based_output_costs", [])
+                ]
+
                 return ModelPricing(
                     input_cost_per_token=model_info.get("input_cost_per_token", 0.0),
                     output_cost_per_token=model_info.get("output_cost_per_token", 0.0),
-                    tiered_input_costs=model_info.get("tiered_input_costs", []),
-                    tiered_output_costs=model_info.get("tiered_output_costs", []),
-                    time_based_input_costs=model_info.get("time_based_input_costs", []),
-                    time_based_output_costs=model_info.get("time_based_output_costs", []),
+                    tiered_input_costs=tiered_input_costs,
+                    tiered_output_costs=tiered_output_costs,
+                    time_based_input_costs=time_based_input_costs,
+                    time_based_output_costs=time_based_output_costs,
                     input_cost_per_token_batches=model_info.get("input_cost_per_token_batches", 0.0),
                     output_cost_per_token_batches=model_info.get("output_cost_per_token_batches", 0.0),
                 )

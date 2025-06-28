@@ -105,20 +105,23 @@ def apply_search_replace(edit_script: str) -> str:
                             tofile=str(file_path),
                             n=2,  # two lines of context
                         )
-                        closest_match = "
-".join(list(diff))
+                        closest_match = "\n".join(list(diff))
                         operation_result["status"] = "failure"
                         operation_result["reason"] = (
                             "SEARCH block not found in file. The file content may have changed, or line endings might differ."
                         )
                         operation_result["debug_hint"] = (
-                            f"A diff of the SEARCH block against the file content suggests there are differences.    Diff:
-{closest_match}"
+                            f"A diff of the SEARCH block against the file content suggests there are differences.    Diff:\n{closest_match}"
                         )
 
                     else:
                         # Replace only the first occurrence in the normalized content
-                        normalized_new_content = normalized_content.replace(                            normalized_search, replace_block.replace("\r\n", "\n"), 1                        )                        # If the original file used CRLF, convert back                        if "\r\n" in original_content:                            final_content = normalized_new_content.replace("\n", "\r\n")
+                        normalized_new_content = normalized_content.replace(
+                            normalized_search, replace_block.replace("\r\n", "\n"), 1
+                        )
+                        # If the original file used CRLF, convert back
+                        if "\r\n" in original_content:
+                            final_content = normalized_new_content.replace("\n", "\r\n")
                         else:
                             final_content = normalized_new_content
 

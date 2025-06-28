@@ -27,6 +27,7 @@ extend-select = [
   # isort imports
   "I",
 ]
+ignore = ["E402"] # Ignore Module level import not at top of file
 
 [project.scripts]
 pai = "pai.pai:main"

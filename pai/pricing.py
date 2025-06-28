@@ -111,6 +111,12 @@ class PricingService:
                 return ModelPricing(
                     input_cost_per_token=model_info.get("input_cost_per_token", 0.0),
                     output_cost_per_token=model_info.get("output_cost_per_token", 0.0),
+                    tiered_input_costs=model_info.get("tiered_input_costs", []),
+                    tiered_output_costs=model_info.get("tiered_output_costs", []),
+                    time_based_input_costs=model_info.get("time_based_input_costs", []),
+                    time_based_output_costs=model_info.get("time_based_output_costs", []),
+                    input_cost_per_token_batches=model_info.get("input_cost_per_token_batches", 0.0),
+                    output_cost_per_token_batches=model_info.get("output_cost_per_token_batches", 0.0),
                 )
 
         # If no specific pricing found, return default zero costs

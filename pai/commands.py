@@ -662,16 +662,14 @@ class SaveCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        import pickle
-
         if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /save is only available in chat mode.")
             return
 
-        session_path = self.ui.saved_sessions_dir / f"{param}.pkl"
+        session_path = self.ui.saved_sessions_dir / f"{param}.json"
         try:
-            with open(session_path, "wb") as f:
-                pickle.dump(self.ui.conversation, f)
+            with open(session_path, "w", encoding="utf-8") as f:
+                json.dump(self.ui.conversation.to_json(), f, indent=2)
             self.ui.pt_printer(f"💾 Session saved to '{session_path}'")
         except Exception as e:
             self.ui.pt_printer(f"❌ Error saving session: {e}")
@@ -687,16 +685,30 @@ class LoadCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        import pickle
+        json_path = self.ui.saved_sessions_dir / f"{param}.json"
+        pickle_path = self.ui.saved_sessions_dir / f"{param}.pkl"
 
-        session_path = self.ui.saved_sessions_dir / f"{param}.pkl"
-        if not session_path.exists():
-            self.ui.pt_printer(f"❌ Session file not found: '{session_path}'")
+        if not json_path.exists() and not pickle_path.exists():
+            self.ui.pt_printer(f"❌ Session file not found for '{param}'.")
             return
 
         try:
-            with open(session_path, "rb") as f:
-                loaded_conversation = pickle.load(f)
+            loaded_conversation = None
+            if json_path.exists():
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    loaded_conversation = Conversation.from_json(data)
+                self.ui.pt_printer(f"🔄 Session loaded from JSON file: '{json_path}'.")
+            elif pickle_path.exists():
+                import pickle
+                self.ui.pt_printer(f"Legacy .pkl file found. Loading and converting to JSON.")
+                with open(pickle_path, "rb") as f:
+                    loaded_conversation = pickle.load(f)
+                # Save back as JSON for future use
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(loaded_conversation.to_json(), f, indent=2)
+                pickle_path.unlink() # Remove old pickle file
+                self.ui.pt_printer(f"✅ Converted to '{json_path}' and removed old file.")
 
             if not isinstance(loaded_conversation, Conversation):
                 raise TypeError("File does not contain a valid Conversation object.")
@@ -704,7 +716,7 @@ class LoadCommand(Command):
             # Reset state before loading
             self.ui.enter_mode(UIMode.CHAT, clear_history=False)
             self.ui.conversation = loaded_conversation
-            self.ui.pt_printer(f"🔄 Session loaded from '{session_path}'.")
+            
             # Print last few messages to give context
             history = self.ui.conversation.get_history()
             if history:
@@ -715,7 +727,7 @@ class LoadCommand(Command):
                 )
                 self.ui.pt_printer("------------------------------------")
 
-        except (pickle.UnpicklingError, TypeError, Exception) as e:
+        except (TypeError, Exception) as e:
             self.ui.pt_printer(f"❌ Error loading session: {e}")
 
 

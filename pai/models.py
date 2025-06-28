@@ -211,6 +211,42 @@ class Conversation:
         self._system_prompts = [system_prompt]
         self._recalculate_token_count()
 
+    def to_json(self) -> dict[str, Any]:
+        """Serializes the conversation to a JSON-compatible dictionary."""
+        return {
+            "conversation_id": str(self.conversation_id),
+            "turns": [turn.to_dict() for turn in self.turns],
+            "_system_prompts": self._system_prompts,
+            "_messages": self._messages,
+            "session_token_count": self.session_token_count,
+        }
+
+    @classmethod
+    def from_json(cls, data: dict[str, Any]) -> "Conversation":
+        """Deserializes a conversation from a dictionary."""
+        # Reconstruct Turn objects from their dictionary representation
+        turns = [
+            Turn(
+                turn_id=ulid.parse(t["turn_id"]),
+                timestamp=datetime.fromisoformat(t["timestamp"]),
+                request_data=t["request_data"],
+                response_data=t["response_data"],
+                assistant_message=t["assistant_message"],
+                participant_name=t.get("participant_name"),
+                model_name=t.get("model_name"),
+            )
+            for t in data.get("turns", [])
+        ]
+        
+        convo = cls(
+            conversation_id=ulid.parse(data["conversation_id"]),
+            turns=turns,
+            _system_prompts=data.get("_system_prompts", []),
+            _messages=data.get("_messages", []),
+            session_token_count=data.get("session_token_count", 0),
+        )
+        return convo
+
 
 @dataclass
 class SmoothingStats:

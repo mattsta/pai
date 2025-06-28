@@ -15,6 +15,7 @@ from .utils import estimate_tokens
 
 if TYPE_CHECKING:
     from .models import RequestCost, RequestStats
+    from .pricing import PricingService
     from .protocols.base_adapter import BaseProtocolAdapter
 
 

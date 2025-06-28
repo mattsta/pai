@@ -93,12 +93,8 @@ def apply_search_replace(edit_script: str) -> str:
                 else:
                     original_content = full_path.read_text(encoding="utf-8")
                     # Normalize line endings for robust matching
-                    normalized_content = original_content.replace("
-", "
-")
-                    normalized_search = search_block.replace("
-", "
-")
+                    normalized_content = original_content.replace("\r\n", "\n")
+                    normalized_search = search_block.replace("\r\n", "\n")
 
                     if normalized_search not in normalized_content:
                         # Provide a diff for debugging if the match failed
@@ -122,17 +118,7 @@ def apply_search_replace(edit_script: str) -> str:
 
                     else:
                         # Replace only the first occurrence in the normalized content
-                        normalized_new_content = normalized_content.replace(
-                            normalized_search, replace_block.replace("
-", "
-"), 1
-                        )
-                        # If the original file used CRLF, convert back
-                        if "
-" in original_content:
-                            final_content = normalized_new_content.replace("
-", "
-")
+                        normalized_new_content = normalized_content.replace(                            normalized_search, replace_block.replace("\r\n", "\n"), 1                        )                        # If the original file used CRLF, convert back                        if "\r\n" in original_content:                            final_content = normalized_new_content.replace("\n", "\r\n")
                         else:
                             final_content = normalized_new_content
 

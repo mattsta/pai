@@ -1,9 +1,6 @@
-import json
-import httpx
-import pathlib
-from datetime import datetime, timedelta
-import re
 from typing import Any, Dict, Optional
+
+from ..models import ModelPricing
 
 LITELLM_PRICING_URL = "https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/main/model_prices_and_context_window.json"
 LITELLM_PRICING_CACHE_FILE = "model_prices_and_context_window.json"
@@ -74,7 +71,7 @@ class PricingService:
             print(f"Error: Could not parse pricing data from {self.url}: {e}")
             self._pricing_data = {}
 
-    def get_model_pricing(self, provider_name: str, model_name: str) -> Dict[str, float]:
+    def get_model_pricing(self, provider_name: str, model_name: str) -> ModelPricing:
         """Looks up pricing for a given model and provider.
 
         Args:
@@ -82,12 +79,12 @@ class PricingService:
             model_name (str): The model name (e.g., "gpt-4o", "claude-3-haiku-20240307").
 
         Returns:
-            Dict[str, float]: A dictionary with 'input_cost_per_token' and 'output_cost_per_token'.
-                              Returns 0.0 for both if not found.
+            ModelPricing: An instance of ModelPricing with 'input_cost_per_token' and 'output_cost_per_token'.
+                          Returns 0.0 for both if not found.
         """
         if self._pricing_data is None:
             # Data not loaded, return default zero costs
-            return {"input_cost_per_token": 0.0, "output_cost_per_token": 0.0}
+            return ModelPricing()
 
         # Normalize provider name
         litellm_provider = self._provider_map.get(provider_name.lower(), provider_name.lower())
@@ -111,10 +108,10 @@ class PricingService:
         for key in lookup_keys:
             model_info = self._pricing_data.get(key)
             if model_info:
-                return {
-                    "input_cost_per_token": model_info.get("input_cost_per_token", 0.0),
-                    "output_cost_per_token": model_info.get("output_cost_per_token", 0.0),
-                }
+                return ModelPricing(
+                    input_cost_per_token=model_info.get("input_cost_per_token", 0.0),
+                    output_cost_per_token=model_info.get("output_cost_per_token", 0.0),
+                )
 
         # If no specific pricing found, return default zero costs
-        return {"input_cost_per_token": 0.0, "output_cost_per_token": 0.0}
+        return ModelPricing()

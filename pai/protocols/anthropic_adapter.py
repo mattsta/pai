@@ -24,8 +24,8 @@ class AnthropicAdapter(BaseProtocolAdapter):
     ) -> tuple[float, float]:
         """Calculates the cost of a request based on the model and token counts."""
         pricing = context.pricing_service.get_model_pricing(context.config.name, model_name)
-        input_cost = (input_tokens / 1_000_000) * pricing["input_cost_per_token"]
-        output_cost = (output_tokens / 1_000_000) * pricing["output_cost_per_token"]
+        input_cost = (input_tokens / 1_000_000) * pricing.input_cost_per_token
+        output_cost = (output_tokens / 1_000_000) * pricing.output_cost_per_token
         return input_cost, output_cost
 
     async def generate(

@@ -287,6 +287,11 @@ class RequestStats:
     # Internal state for live calculations
     _first_token_time: float | None = None
 
+@dataclass
+class ModelPricing:
+    input_cost_per_token: float = 0.0
+    output_cost_per_token: float = 0.0
+
     def record_first_token(self):
         """Call this when the first token is received to capture TTFT."""
         if self._first_token_time is None:

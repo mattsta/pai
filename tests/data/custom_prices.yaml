@@ -1,0 +1,52 @@
+# Test custom pricing file
+pricing:
+  openai:
+    "gpt-4o":
+      # Override default price
+      input_cost: 100.0
+      output_cost: 200.0
+
+  test-provider:
+    "flat-model":
+      input_cost: 1.0
+      output_cost: 2.0
+    "tiered-model":
+      # Tiers for input tokens.
+      input_tiers:
+        - up_to: 1000
+          cost: 10.0 # $10 / 1M tokens for first 1000
+        - up_to: -1
+          cost: 5.0  # $5 / 1M tokens after that
+      # Flat output cost
+      output_cost: 20.0
+    "time-based-model":
+      # Fallback anytime rate
+      input_cost: 1.0
+      output_cost: 1.0
+      # Time windows
+      time_windows:
+        # 9 AM to 5 PM UTC (peak)
+        - start_hour: 9
+          end_hour: 17
+          input_cost: 50.0
+          output_cost: 60.0
+        # 10 PM to 6 AM UTC (off-peak)
+        - start_hour: 22
+          end_hour: 6
+          input_cost: 5.0
+          output_cost: 10.0
+    "complex-model":
+      # Fallback anytime rate
+      input_cost: 1.0
+      output_cost: 1.0
+      time_windows:
+        - start_hour: 8
+          end_hour: 18
+          # flat input cost for this window
+          input_cost: 7.0
+          # tiered output cost for this window
+          output_tiers:
+            - up_to: 2048
+              cost: 18.0
+            - up_to: -1
+              cost: 30.0

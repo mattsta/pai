@@ -116,19 +116,19 @@ def test_calculate_time_based_cost(
     monkeypatch.setattr("pai.pricing.datetime", mock_dt)
 
     # --- Test Peak Hours (e.g., 10:00 UTC) ---
-    mock_dt.utcnow.return_value = datetime(2025, 1, 1, 10, 0, 0)
+    mock_dt.now.return_value = datetime(2025, 1, 1, 10, 0, 0)
     input_cost, output_cost = pricing_service.calculate_cost(pricing, 1_000_000, 1_000_000)
     assert input_cost == pytest.approx(50.0)
     assert output_cost == pytest.approx(60.0)
 
     # --- Test Off-Peak Hours (e.g., 23:00 UTC) ---
-    mock_dt.utcnow.return_value = datetime(2025, 1, 1, 23, 0, 0)
+    mock_dt.now.return_value = datetime(2025, 1, 1, 23, 0, 0)
     input_cost, output_cost = pricing_service.calculate_cost(pricing, 1_000_000, 1_000_000)
     assert input_cost == pytest.approx(5.0)
     assert output_cost == pytest.approx(10.0)
 
     # --- Test Fallback Hours (e.g., 08:00 UTC) ---
-    mock_dt.utcnow.return_value = datetime(2025, 1, 1, 8, 0, 0)
+    mock_dt.now.return_value = datetime(2025, 1, 1, 8, 0, 0)
     input_cost, output_cost = pricing_service.calculate_cost(pricing, 1_000_000, 1_000_000)
     assert input_cost == pytest.approx(1.0)
     assert output_cost == pytest.approx(2.0)
@@ -156,7 +156,7 @@ def test_calculate_complex_time_and_tiered_cost(
     monkeypatch.setattr("pai.pricing.datetime", mock_dt)
 
     # Mock time to be inside the window
-    mock_dt.utcnow.return_value = datetime(2025, 1, 1, 12, 0, 0)
+    mock_dt.now.return_value = datetime(2025, 1, 1, 12, 0, 0)
 
     # 1M input tokens at flat $7/M rate = $7
     # 3000 output tokens = (2048 @ $18/M) + (952 @ $30/M)

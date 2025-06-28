@@ -41,8 +41,10 @@ ollama = "pai.protocols.ollama_adapter:OllamaAdapter"
 [project.optional-dependencies]
 dev = [
     "pytest>=8.4.0",
-    "pytest-asyncio>=0.23.0",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "anyio"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pai/"]

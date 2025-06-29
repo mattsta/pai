@@ -68,7 +68,7 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                             if confirmer and not await confirmer(tool_name, tool_args):
                                 tool_result = "Tool execution cancelled by user."
                             else:
-                                tool_result = execute_tool(tool_name, tool_args)
+                                tool_result = await execute_tool(tool_name, tool_args)
                                 self.state.tools_used += 1
                         except json.JSONDecodeError:
                             tool_result = (

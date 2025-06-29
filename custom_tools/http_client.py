@@ -18,7 +18,7 @@ class HttpMethod(enum.Enum):
 
 
 @tool
-def make_http_request(
+async def make_http_request(
     url: str,
     method: HttpMethod,
     headers: str = "{}",
@@ -45,16 +45,15 @@ def make_http_request(
 
     response_data = {}
     try:
-        # The timeout is configured on the client, not on the send call.
-        with httpx.Client(timeout=15.0) as client:
-            request = httpx.Request(
+        # Use an async client to avoid blocking the event loop.
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.request(
                 method.value,
                 url,
                 headers=parsed_headers,
                 params=parsed_params,
                 content=body,
             )
-            response = client.send(request)
 
             response_data = {
                 "status_code": response.status_code,

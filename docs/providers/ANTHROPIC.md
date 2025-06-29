@@ -82,10 +82,10 @@ Using `-e` (editable mode) is recommended during development, as it allows you t
 
 ## Step 5: Configure an Endpoint
 
-Finally, open your `polyglot.toml` and add a new endpoint that uses the `name` you defined in your `entry_point`.
+Finally, open your `pai.toml` and add a new endpoint that uses the `name` you defined in your `entry_point`.
 
 ```toml
-# In polyglot.toml
+# In pai.toml
 
 [[endpoints]]
 name = "my_new_ai"

@@ -62,10 +62,10 @@ Now that the AI has both the capability (`--tools`) and the behavior (`/agent`),
 5.  **Model Executes `apply_search_replace`:** The model requests to run the edit tool with the following script:
 
     ```
-    ´´´´
+    ````
     README.md
     <<<<<<< SEARCH
-    uv cync -U
+    uv sync -U
     =======
     uv sync -U
     >>>>>>> REPLACE

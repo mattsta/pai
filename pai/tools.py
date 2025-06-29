@@ -127,7 +127,7 @@ def get_tool_manifest() -> str:
     return manifest
 
 
-def execute_tool(name: str, args: dict) -> Any:
+async def execute_tool(name: str, args: dict) -> Any:
     if name not in TOOL_REGISTRY:
         raise ToolNotFound(f"Tool '{name}' not found.")
 
@@ -147,6 +147,8 @@ def execute_tool(name: str, args: dict) -> Any:
                 else:
                     converted_args[param_name] = arg_value
             # Let Python handle missing args with default values
+        if inspect.iscoroutinefunction(func):
+            return await func(**converted_args)
         return func(**converted_args)
     except ValueError as e:
         # Specifically for enum conversion errors

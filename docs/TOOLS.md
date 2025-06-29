@@ -165,7 +165,7 @@ The `edit_script` must contain one or more blocks with the following strict form
 ´´´´[language]
 path/to/file.ext
 <<<<<<< SEARCH
-content_to_find
+content_to_replace_with
 =======
 content_to_replace_with
 >>>>>>> REPLACE

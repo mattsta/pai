@@ -67,7 +67,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     f"  - Executing: {name}({json.dumps(args, indent=2)})"
                 )
             try:
-                result = execute_tool(name, args)
+                result = await execute_tool(name, args)
                 tools_used_count += 1
                 return result
             except (ToolNotFound, ToolArgumentError, ToolError) as e:

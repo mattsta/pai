@@ -38,7 +38,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                     f"  - Executing: {name}({json.dumps(args, indent=2)})"
                 )
             try:
-                result = execute_tool(name, args)
+                result = await execute_tool(name, args)
                 tools_used_count += 1
                 return result
             except (ToolNotFound, ToolArgumentError, ToolError) as e:
@@ -97,8 +97,18 @@ class OllamaAdapter(BaseProtocolAdapter):
                         messages.append(message)  # Add assistant's tool call request
                         for tool_call in tool_calls:
                             name = tool_call["function"]["name"]
-                            args = tool_call["function"]["arguments"]
-                            result = await _execute_with_confirmation(name, args)
+                            args_raw = tool_call["function"]["arguments"]
+                            try:
+                                args = (
+                                    json.loads(args_raw)
+                                    if isinstance(args_raw, str)
+                                    else args_raw
+                                )
+                                result = await _execute_with_confirmation(name, args)
+                            except json.JSONDecodeError as e:
+                                result = f"Error: Model provided invalid JSON arguments for tool '{name}': {e}"
+                                context.display._print(f"  - ❌ Tool Error: {result}")
+
                             messages.append(
                                 {"role": "tool", "content": str(result)}
                             )

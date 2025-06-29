@@ -8,3 +8,4 @@ Focus on:
 - Correct use of type hints (Python 3.12+ style).
 
 Do not change the code's behavior. Explain your changes clearly using Markdown.
+Provide all your suggested code changes inside SEARCH/REPLACE blocks.

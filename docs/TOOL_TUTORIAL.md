@@ -17,7 +17,7 @@ To load all available tools and enable the tool-use capability, you **must** sta
 
 ```bash
 # This loads tools from custom_tools/ and enables the /tools command
-uv run pai --chat --endpoint openai --model gpt-4o --tools
+pai --chat --endpoint openai --model gpt-4o --tools
 ```
 
 ## Step 2: Your First Tool Call (Simple Task)
@@ -33,9 +33,6 @@ The easiest way to trigger a tool is to ask a question that directly maps to a t
 3.  **`pai` Executes the Tool:** The `pai` framework executes the local Python function and captures its output (e.g., a JSON string: `{"location": "Paris", "temperature": "22", ...}`).
 4.  **`pai` Reports Back to Model:** `pai` sends the tool's output back to the model in a new message. The conversation history now includes your prompt, the model's request to call the tool, and the tool's result.
 5.  **Model Generates Final Answer:** The model, now equipped with the weather data, generates a final, user-friendly response based on the tool's output.
-
-**AI's Final Response:**
-> The weather in Paris is 22°C and Sunny.
 
     uv sync -U
     =======

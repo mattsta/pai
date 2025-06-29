@@ -133,8 +133,6 @@ These tools allow the AI to interact with your local filesystem. For security, t
 *   `delete_file(path: str)`: Deletes a single file.
 *   `delete_directory(path: str)`: Recursively deletes a directory and all its contents. Use with caution.
 
-**Example Usage:** `"write a file named 'hello.txt' with 'hello world', then read it, then delete it."`
-
 content_to_replace_with
 =======
 content_to_replace_with

@@ -23,6 +23,20 @@ class OllamaAdapter(BaseProtocolAdapter):
         max_iterations = 5
         tools_used_count = 0
 
+        async def _execute_and_format_tool_call(tool_call: dict) -> dict:
+            """Executes a single tool call and formats the result for Ollama."""
+            name = tool_call["function"]["name"]
+            args_raw = tool_call["function"]["arguments"]
+
+            try:
+                args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                result = await _execute_with_confirmation(name, args)
+            except json.JSONDecodeError as e:
+                result = f"Error: Model provided invalid JSON arguments for tool '{name}': {e}"
+                context.display._print(f"  - ❌ Tool Error: {result}")
+
+            return {"role": "tool", "content": str(result)}
+
         async def _execute_with_confirmation(name: str, args: dict) -> Any:
             nonlocal tools_used_count
             if context.confirmer:
@@ -89,21 +103,11 @@ class OllamaAdapter(BaseProtocolAdapter):
                             f"\n🔧 [Agent Action] Model requested {len(tool_calls)} tool calls..."
                         )
                         messages.append(message)  # Add assistant's tool call request
-                        for tool_call in tool_calls:
-                            name = tool_call["function"]["name"]
-                            args_raw = tool_call["function"]["arguments"]
-                            try:
-                                args = (
-                                    json.loads(args_raw)
-                                    if isinstance(args_raw, str)
-                                    else args_raw
-                                )
-                                result = await _execute_with_confirmation(name, args)
-                            except json.JSONDecodeError as e:
-                                result = f"Error: Model provided invalid JSON arguments for tool '{name}': {e}"
-                                context.display._print(f"  - ❌ Tool Error: {result}")
-
-                            messages.append({"role": "tool", "content": str(result)})
+                        tasks = [
+                            _execute_and_format_tool_call(tc) for tc in tool_calls
+                        ]
+                        tool_results = await asyncio.gather(*tasks)
+                        messages.extend(tool_results)
                         continue  # Next agent iteration
 
                     final_text = message.get("content", "")

@@ -50,6 +50,7 @@ build-backend = "hatchling.build"
 dev = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.0.0",
+    "ruff>=0.12.1",
 ]
 
 [tool.pytest.ini_options]

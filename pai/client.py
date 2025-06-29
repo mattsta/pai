@@ -14,9 +14,9 @@ from .models import (
     RuntimeConfig,
     SessionStats,
 )
+from .pricing import PricingService
 from .protocols import ADAPTER_MAP
 from .protocols.base_adapter import ProtocolContext
-from .pricing import PricingService
 
 
 class APIError(Exception):

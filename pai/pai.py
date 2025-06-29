@@ -791,7 +791,9 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
         await pricing_service.load_pricing_data(custom_file_path=custom_pricing_path)
 
         try:
-            client = PolyglotClient(runtime_config, toml_config, http_session, pricing_service)
+            client = PolyglotClient(
+                runtime_config, toml_config, http_session, pricing_service
+            )
             if runtime_config.prompt:
                 # Non-interactive mode
                 if runtime_config.chat:
@@ -891,8 +893,7 @@ def run(
     config: str = typer.Option(
         "polyglot.toml", help="Path to the TOML configuration file."
     ),
-    custom_pricing_file: str
-    | None = typer.Option(
+    custom_pricing_file: str | None = typer.Option(
         None,
         "--custom-pricing-file",
         help="Path to a custom TOML pricing file. Overrides 'custom-pricing-file' in config.",

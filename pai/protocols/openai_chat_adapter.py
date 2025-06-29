@@ -75,7 +75,6 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 context.display._print(f"  - ❌ Tool Error: {e}")
                 return f"Error: {e}"
 
-
         # This adapter needs access to the UI state to increment counters.
         # This is a bit of a hack. A cleaner way would be a callback via context.
         self.ui = context.display.ui if hasattr(context.display, "ui") else None

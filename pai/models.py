@@ -368,6 +368,7 @@ class RequestStats:
             return self.tokens_received / self.response_time
         return 0.0
 
+
 @dataclass
 class TieredCost:
     """Represents a single tier in a tiered pricing model."""

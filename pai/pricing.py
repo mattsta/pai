@@ -1,37 +1,39 @@
-from typing import Any, Dict, Optional
 import dataclasses
+import json
+import pathlib
+import re
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import httpx
 import toml
 import yaml
 
-import pathlib
-import json
-from datetime import UTC, datetime, timedelta
-import re
-import httpx
 from .models import (
     ModelPricing,
     TieredCost,
     TimeWindowPricing,
-    TomlCustomPricing,
     TomlCustomModelPricing,
+    TomlCustomPricing,
 )
 
 LITELLM_PRICING_URL = "https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/main/model_prices_and_context_window.json"
 LITELLM_PRICING_CACHE_FILE = "model_prices_and_context_window.json"
 CACHE_EXPIRATION_DAYS = 7
 
+
 class PricingService:
     def __init__(self, url: str = LITELLM_PRICING_URL):
         self.url = url
-        self._pricing_data: Optional[Dict[str, Any]] = None
-        self._custom_pricing_data: Optional[TomlCustomPricing] = None
-        self._provider_map: Dict[str, str] = {
+        self._pricing_data: dict[str, Any] | None = None
+        self._custom_pricing_data: TomlCustomPricing | None = None
+        self._provider_map: dict[str, str] = {
             "openai": "openai",
             "anthropic": "anthropic",
             "ollama": "ollama",
             "together": "together-ai",  # LiteLLM uses together-ai
-            "mistral": "mistralai", # Mistral AI is 'mistralai' in LiteLLM
-            "azure": "azure", # Azure is 'azure' in LiteLLM
+            "mistral": "mistralai",  # Mistral AI is 'mistralai' in LiteLLM
+            "azure": "azure",  # Azure is 'azure' in LiteLLM
             # Add more mappings as needed for other providers
         }
         self._cache_dir = self._get_cache_dir()
@@ -51,10 +53,12 @@ class PricingService:
         # --- Step 1: Load Base Pricing Data ---
         loaded_from_cache = False
         if self._cache_file_path.exists():
-            file_mod_time = datetime.fromtimestamp(self._cache_file_path.stat().st_mtime)
+            file_mod_time = datetime.fromtimestamp(
+                self._cache_file_path.stat().st_mtime
+            )
             if datetime.now() - file_mod_time < timedelta(days=CACHE_EXPIRATION_DAYS):
                 try:
-                    with open(self._cache_file_path, "r", encoding="utf-8") as f:
+                    with open(self._cache_file_path, encoding="utf-8") as f:
                         self._pricing_data = json.load(f)
                     print(f"Loaded pricing data from cache: {self._cache_file_path}")
                     loaded_from_cache = True
@@ -78,7 +82,7 @@ class PricingService:
                 print(f"Warning: Could not fetch pricing data from {self.url}: {e}")
                 if self._cache_file_path.exists():
                     try:
-                        with open(self._cache_file_path, "r", encoding="utf-8") as f:
+                        with open(self._cache_file_path, encoding="utf-8") as f:
                             self._pricing_data = json.load(f)
                         print(
                             "Loaded stale pricing data from cache as fallback: "
@@ -125,9 +129,7 @@ class PricingService:
                         f"'{custom_file_path}': {e}"
                     )
             else:
-                print(
-                    f"Warning: Custom pricing file not found at '{custom_file_path}'"
-                )
+                print(f"Warning: Custom pricing file not found at '{custom_file_path}'")
 
     def _merge_pricing(
         self, base: ModelPricing, custom: TomlCustomModelPricing
@@ -161,8 +163,7 @@ class PricingService:
                         TieredCost(up_to=t.up_to, cost=t.cost) for t in tw.input_tiers
                     ],
                     output_tiers=[
-                        TieredCost(up_to=t.up_to, cost=t.cost)
-                        for t in tw.output_tiers
+                        TieredCost(up_to=t.up_to, cost=t.cost) for t in tw.output_tiers
                     ],
                 )
                 for tw in custom.time_windows
@@ -205,22 +206,28 @@ class PricingService:
             return ModelPricing()
 
         # Normalize provider name
-        litellm_provider = self._provider_map.get(provider_name.lower(), provider_name.lower())
+        litellm_provider = self._provider_map.get(
+            provider_name.lower(), provider_name.lower()
+        )
 
         # Normalize model name for lookup (lowercase and remove common suffixes/prefixes)
         normalized_model_name = model_name.lower()
         # Remove common suffixes/prefixes that might not be in LiteLLM keys
-        normalized_model_name = re.sub(r'-(latest|preview|20\d{2}-\d{2}-\d{2}|v\d+)$|', '', normalized_model_name)
-        normalized_model_name = normalized_model_name.replace('gpt-4o', 'gpt-4o') # Ensure gpt-4o is consistent
+        normalized_model_name = re.sub(
+            r"-(latest|preview|20\d{2}-\d{2}-\d{2}|v\d+)$|", "", normalized_model_name
+        )
+        normalized_model_name = normalized_model_name.replace(
+            "gpt-4o", "gpt-4o"
+        )  # Ensure gpt-4o is consistent
 
         # LiteLLM model keys are often in the format "provider/model_name" or just "model_name".
         # We'll try a few common patterns, prioritizing more specific matches.
         lookup_keys = [
             f"{litellm_provider}/{normalized_model_name}",
-            normalized_model_name, # Direct model name lookup
-            f"{litellm_provider}/{normalized_model_name.replace('-', '_')}", # Try replacing hyphens with underscores
-            f"{litellm_provider}/{normalized_model_name.split('/')[-1]}", # For cases like 'org/model'
-            model_name.lower(), # Original model name, lowercased
+            normalized_model_name,  # Direct model name lookup
+            f"{litellm_provider}/{normalized_model_name.replace('-', '_')}",  # Try replacing hyphens with underscores
+            f"{litellm_provider}/{normalized_model_name.split('/')[-1]}",  # For cases like 'org/model'
+            model_name.lower(),  # Original model name, lowercased
         ]
 
         for key in lookup_keys:
@@ -262,7 +269,9 @@ class PricingService:
         # If no specific pricing found, return default zero costs
         return ModelPricing()
 
-    def _calculate_tiered_cost(self, tiers: list[TieredCost], total_tokens: int) -> float:
+    def _calculate_tiered_cost(
+        self, tiers: list[TieredCost], total_tokens: int
+    ) -> float:
         """Calculates the cost for a token count based on a tiered structure."""
         if not tiers or total_tokens <= 0:
             return 0.0
@@ -354,7 +363,9 @@ class PricingService:
 
         # --- Calculate Output Cost ---
         if active_output_tiers:
-            output_cost = self._calculate_tiered_cost(active_output_tiers, output_tokens)
+            output_cost = self._calculate_tiered_cost(
+                active_output_tiers, output_tokens
+            )
         else:
             output_cost = (output_tokens / 1_000_000) * active_output_cost_rate
 

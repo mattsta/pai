@@ -107,9 +107,13 @@ def test_calculate_time_based_cost(
         output_cost_per_token=2.0,  # Fallback "anytime" rate
         time_windows=[
             # Peak hours: 9 AM to 5 PM UTC
-            TimeWindowPricing(start_hour=9, end_hour=17, input_cost=50.0, output_cost=60.0),
+            TimeWindowPricing(
+                start_hour=9, end_hour=17, input_cost=50.0, output_cost=60.0
+            ),
             # Off-peak (overnight): 10 PM to 6 AM UTC
-            TimeWindowPricing(start_hour=22, end_hour=6, input_cost=5.0, output_cost=10.0),
+            TimeWindowPricing(
+                start_hour=22, end_hour=6, input_cost=5.0, output_cost=10.0
+            ),
         ],
     )
     mock_dt = MagicMock()
@@ -117,19 +121,25 @@ def test_calculate_time_based_cost(
 
     # --- Test Peak Hours (e.g., 10:00 UTC) ---
     mock_dt.now.return_value = datetime(2025, 1, 1, 10, 0, 0)
-    input_cost, output_cost = pricing_service.calculate_cost(pricing, 1_000_000, 1_000_000)
+    input_cost, output_cost = pricing_service.calculate_cost(
+        pricing, 1_000_000, 1_000_000
+    )
     assert input_cost == pytest.approx(50.0)
     assert output_cost == pytest.approx(60.0)
 
     # --- Test Off-Peak Hours (e.g., 23:00 UTC) ---
     mock_dt.now.return_value = datetime(2025, 1, 1, 23, 0, 0)
-    input_cost, output_cost = pricing_service.calculate_cost(pricing, 1_000_000, 1_000_000)
+    input_cost, output_cost = pricing_service.calculate_cost(
+        pricing, 1_000_000, 1_000_000
+    )
     assert input_cost == pytest.approx(5.0)
     assert output_cost == pytest.approx(10.0)
 
     # --- Test Fallback Hours (e.g., 08:00 UTC) ---
     mock_dt.now.return_value = datetime(2025, 1, 1, 8, 0, 0)
-    input_cost, output_cost = pricing_service.calculate_cost(pricing, 1_000_000, 1_000_000)
+    input_cost, output_cost = pricing_service.calculate_cost(
+        pricing, 1_000_000, 1_000_000
+    )
     assert input_cost == pytest.approx(1.0)
     assert output_cost == pytest.approx(2.0)
 

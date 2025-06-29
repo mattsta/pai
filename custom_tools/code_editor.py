@@ -1,8 +1,41 @@
-    content_to_replace_with
+import difflib
+import json
+import pathlib
+import re
+
+from pai.tools import tool
+
+from .file_system import WORKSPACE, is_safe_path
+
+# The regex to parse a single SEARCH/REPLACE block from a script.
+# It captures the file path, search content, and replace content.
+# The re.DOTALL flag allows '.' to match newlines, which is crucial for multiline blocks.
+EDIT_BLOCK_REGEX = re.compile(
+    r"````(?:[a-zA-Z]+)?\n"  # Optional language hint (non-capturing)
+    r"(.+?)\n"  # Capture group 1: File path
+    r"<<<<<<< SEARCH\n"
+    r"(.*?)"  # Capture group 2: Search content
+    r"=======\n"
+    r"(.*?)"  # Capture group 3: Replace content
+    r">>>>>>> REPLACE\n"
+    r"````",  # Closing fence
+    re.DOTALL,
+)
+
+
+@tool
+def apply_search_replace(edit_script: str) -> str:
+    """Parses a script containing one or more SEARCH/REPLACE blocks and applies the edits.
+
+    Each block must strictly follow the format:
+    ````[language]
+    path/to/file.ext
+    <<<<<<< S·E·A·R·C·H
+    content_to_find
     =======
     content_to_replace_with
-    >>>>>>> REPLACE
-    ´´´´
+    >>>>>>> R·E·P·L·A·C·E
+    ````
 
     The tool processes each block sequentially and returns a JSON array of results,
     detailing the success or failure of each operation. For new files, the SEARCH
@@ -20,7 +53,7 @@
             [
                 {
                     "status": "failure",
-                    "reason": "No valid SEARCH/REPLACE blocks were found in the provided script. Please ensure the   format is correct.",
+                    "reason": "No valid SEARCH/REPLACE blocks were found in the provided script. Please ensure the format is correct.",
                 }
             ]
         )
@@ -39,7 +72,7 @@
             full_path = WORKSPACE / file_path
 
             # Handle new file creation
-            if not search_block.strip():
+            if not search_block:
                 if full_path.exists():
                     operation_result["status"] = "failure"
                     operation_result["reason"] = (
@@ -77,7 +110,7 @@
                             "SEARCH block not found in file. The file content may have changed, or line endings might differ."
                         )
                         operation_result["debug_hint"] = (
-                            f"A diff of the SEARCH block against the file content suggests there are differences.    Diff:\n{closest_match}"
+                            f"A diff of the SEARCH block against the file content suggests there are differences. Diff:\n{closest_match}"
                         )
 
                     else:

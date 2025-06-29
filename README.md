@@ -157,7 +157,7 @@ Once in interactive mode, use `/` commands to control the session:
 **Agent & Tool Controls:**
 *   `/agent`: Enables agent mode by loading the `code_editor` system prompt. Requires starting with `--tools`.
 *   `/legacy_agent`: Enables agent mode for models that don't support native tool-calling.
-*   `/tools`: Toggles the tool-use capability on or off for the current session.
+*   `/tools`: Toggles the tool-use capability on or off for the current session. (Requires starting `pai` with `--tools`).
 *   `/confirm on|off`: Toggles whether the agent must ask for confirmation before executing a tool.
 
 **Chat & History Management:**

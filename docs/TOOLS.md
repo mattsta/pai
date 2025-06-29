@@ -122,9 +122,17 @@ Tools for generating code and other structured text.
 
 **Example Usage:** `"generate a python dataclass named 'Book' with fields: title: str, author: str, and published_year: int"`
 
-### Filesystem Tools (`file_system.py`)
+### Code Editing Tools (`code_editor.py`)
 
-These tools allow the AI to interact with your local filesystem. For security, they are "jailed" to the project's current working directory by default.
+This is one of the most powerful tools, allowing the AI to edit code by providing `SEARCH/REPLACE` blocks.
+
+*   `apply_search_replace(edit_script: str)`: Parses and applies one or more `SEARCH/REPLACE` blocks. The edit script must follow a strict format:
+
+    ```
+    ´´´´[language]
+    path/to/file.ext
+    <<<<<<< SEARCH
+    content_to_find
 
 *   `read_file(path: str)`: Reads the content of a file.
 *   `list_directory(path: str = ".")`: Lists files and folders in a directory.

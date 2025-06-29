@@ -30,10 +30,6 @@ The easiest way to trigger a tool is to ask a question that directly maps to a t
 **What Happens Next (The Agent Loop):**
 1.  **Model Recognizes Intent:** Your prompt is sent to the AI. The AI also receives the list of available tools and their descriptions, including `get_current_weather`. The model sees that "what is the weather" is a very close match for the tool's purpose.
 2.  **Model Requests Tool Call:** The model doesn't answer you directly. Instead, it sends back a special `tool_calls` message to `pai`, asking to run `get_current_weather(location="Paris")`.
-3.  **`pai` Executes the Tool:** The `pai` framework executes the local Python function and captures its output (e.g., a JSON string: `{"location": "Paris", "temperature": "22", ...}`).
-4.  **`pai` Reports Back to Model:** `pai` sends the tool's output back to the model in a new message. The conversation history now includes your prompt, the model's request to call the tool, and the tool's result.
-5.  **Model Generates Final Answer:** The model, now equipped with the weather data, generates a final, user-friendly response based on the tool's output.
-
     uv sync -U
     =======
     uv sync -U

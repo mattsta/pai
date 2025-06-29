@@ -38,12 +38,6 @@ legacy_completion = "pai.protocols.legacy_completion_adapter:LegacyCompletionAda
 anthropic = "pai.protocols.anthropic_adapter:AnthropicAdapter"
 ollama = "pai.protocols.ollama_adapter:OllamaAdapter"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.4.0",
-    "pytest-anyio",
-]
-
 [tool.hatch.build.targets.wheel]
 packages = ["pai/"]
 
@@ -51,3 +45,11 @@ packages = ["pai/"]
 requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

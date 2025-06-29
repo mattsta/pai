@@ -2,6 +2,8 @@ import json
 import asyncio
 from typing import Any
 
+import httpx
+
 from ..models import ChatRequest, CompletionRequest, RequestCost
 from ..tools import ToolArgumentError, ToolError, ToolNotFound, execute_tool
 from ..utils import estimate_tokens

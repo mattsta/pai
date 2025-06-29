@@ -101,11 +101,11 @@ Now, when you run `pai`, it will automatically discover and load your installed 
 
 ```bash
 # Check if the adapter was loaded (you should see a "✅ Loaded adapter 'myai'..." message)
-uv run pai --help
+pai --help
 
 # Run pai with your new provider
 export MYAI_API_KEY="key-..."
-uv run pai --chat --endpoint my_new_ai --model some-model
+pai --chat --endpoint my_new_ai --model some-model
 ```
 
 By following this pattern, you can integrate any AI provider into the Polyglot AI framework without ever needing to modify the core `pai` codebase.

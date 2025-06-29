@@ -37,13 +37,6 @@ The easiest way to trigger a tool is to ask a question that directly maps to a t
 **AI's Final Response:**
 > The weather in Paris is 22°C and Sunny.
 
-## Step 3: A Complex Task (Agentic Behavior)
-
-For a complex task like editing a file, simply having the tool *capability* is not enough. You also need to give the AI a behavioral framework. This is where "agent mode" comes in.
-
-**User Prompt 1: Enable Agent Behavior**
-The `/agent` command is a shortcut that loads the `prompts/code_editor.md` system prompt. This prompt tells the AI to act like a methodical software engineer.
-
     uv sync -U
     =======
     uv sync -U

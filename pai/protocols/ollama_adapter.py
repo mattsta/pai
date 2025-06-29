@@ -1,6 +1,8 @@
 import json
 from typing import Any
 
+import httpx
+
 from ..models import ChatRequest, RequestCost
 from ..utils import estimate_tokens
 from .base_adapter import BaseProtocolAdapter, ProtocolContext

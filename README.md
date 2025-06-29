@@ -8,7 +8,7 @@ Polyglot AI is an interactive, provider-agnostic CLI designed for developers, re
 ### Sample Output
 
 ```
-$ uv run pai --chat --endpoint openai --model gpt-4o --tools
+$ pai --chat --endpoint openai --model gpt-4o --tools
 
 🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶
 🔎 Loading protocol adapters from entry point group 'polyglot_ai.protocols'...

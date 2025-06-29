@@ -38,26 +38,22 @@ async def apply_search_replace(edit_script: str) -> str:
     ||>>>>>>> R·E·P·L·A·C·E
     ||````
 
-    The tool processes each block sequentially and returns a JSON array of results,
-    detailing the success or failure of each operation. For new files, the SEARCH
-    block should be empty. For edits, the SEARCH block must exactly match a
-    contiguous block of text in the file.
+    The tool processes each block sequentially and returns a single JSON object.
+    The `result` field contains a list of results for each block.
+    For new files, the SEARCH block should be empty. For edits, it must exactly match.
 
     Args:
         edit_script (str): A string containing one or more valid SEARCH/REPLACE blocks.
     """
-    results = []
+    operation_results = []
     blocks = EDIT_BLOCK_REGEX.findall(edit_script)
 
     if not blocks:
-        return json.dumps(
-            [
-                {
-                    "status": "failure",
-                    "reason": "No valid SEARCH/REPLACE blocks were found in the provided script. Please ensure the format is correct.",
-                }
-            ]
-        )
+        result = {
+            "status": "failure",
+            "reason": "No valid SEARCH/REPLACE blocks were found in the provided script. Please ensure the format is correct.",
+        }
+        return json.dumps(result, indent=2)
 
     for file_path_str, search_block, replace_block in blocks:
         file_path = pathlib.Path(file_path_str.strip())
@@ -66,7 +62,7 @@ async def apply_search_replace(edit_script: str) -> str:
         if not is_safe_path(str(file_path)):
             operation_result["status"] = "failure"
             operation_result["reason"] = "Path is outside the allowed workspace."
-            results.append(operation_result)
+            operation_results.append(operation_result)
             continue
 
         try:
@@ -141,6 +137,7 @@ async def apply_search_replace(edit_script: str) -> str:
             operation_result["status"] = "failure"
             operation_result["reason"] = f"An unexpected error occurred: {e!r}"
 
-        results.append(operation_result)
+        operation_results.append(operation_result)
 
-    return json.dumps(results, indent=2)
+    final_result = {"status": "success", "result": operation_results}
+    return json.dumps(final_result, indent=2)

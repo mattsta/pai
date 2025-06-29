@@ -174,18 +174,19 @@ def get_current_weather(
         location (str): The city and state, e.g., "San Francisco, CA".
         unit (TemperatureUnit): The unit of temperature.
     """
+    weather_data = {}
     if "tokyo" in location.lower():
         temp = "15" if unit == TemperatureUnit.CELSIUS else "59"
-        return json.dumps(
-            {"location": "Tokyo", "temperature": temp, "condition": "Cloudy"}
-        )
-    if "paris" in location.lower():
+        weather_data = {"location": "Tokyo", "temperature": temp, "condition": "Cloudy"}
+    elif "paris" in location.lower():
         temp = "22" if unit == TemperatureUnit.CELSIUS else "72"
-        return json.dumps(
-            {"location": "Paris", "temperature": temp, "condition": "Sunny"}
-        )
-    temp = "30" if unit == TemperatureUnit.CELSIUS else "86"
-    return json.dumps({"location": location, "temperature": temp, "condition": "Hot"})
+        weather_data = {"location": "Paris", "temperature": temp, "condition": "Sunny"}
+    else:
+        temp = "30" if unit == TemperatureUnit.CELSIUS else "86"
+        weather_data = {"location": location, "temperature": temp, "condition": "Hot"}
+
+    result = {"status": "success", "result": weather_data}
+    return json.dumps(result, indent=2)
 
 
 def load_tools_from_directory(directory: str, printer: Callable = print):

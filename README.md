@@ -1,4 +1,4 @@
-# 🪶 Polyglot AI Framework
+# 🪶 Polyglot AI
 
 **A Universal Command-Line Interface for Interacting with Any AI Provider.**
 
@@ -87,7 +87,7 @@ Clone or download the repository. The core structure is:
 |-- tools.py
 /sessions/                # Auto-generated for session logs
 /docs/                    # Detailed documentation
-pai.toml                  # Endpoint configuration
+pai.toml                  # Project configuration (endpoints, tools, profiles, arenas)
 pyproject.toml            # Project dependencies and definition
 ```
 

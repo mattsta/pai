@@ -78,40 +78,53 @@ class HelpCommand(Command):
     def execute(self, app: "Application", param: str | None = None):
         self.ui.pt_printer(
             """
-🔧 AVAILABLE COMMANDS:
+--- GENERAL COMMANDS ---
   /help                  - Show this help message
   /stats                 - Show session statistics
   /quit, /exit, /q       - Exit the program
-  /endpoints             - List available endpoints from config file
-  /switch <name>         - Switch to a different endpoint
-  /model <name>          - Change the default model for the session
-  /temp <value>          - Change temperature (e.g., /temp 0.9)
-  /tokens <num>          - Change max_tokens (e.g., /tokens 100)
-  /timeout <seconds>     - Change request timeout (e.g., /timeout 120)
-  /mode                  - Toggle between chat and completion mode (clears history)
-  /multiline             - Toggle multi-line input mode (use Esc+Enter to submit)
-  /stream, /verbose, /debug, /rich, /smooth, /tools - Toggle various session flags
-  /confirm on|off        - Require user confirmation before executing a tool
-  --- Chat Mode Only ---
-  /system <text>         - Replace system prompt stack with this text
+
+--- PROVIDER & MODEL ---
+  /endpoints             - List available provider endpoints
+  /switch <name>         - Switch to a different provider endpoint
+  /model <name>          - Set the model for the current session
+  /temp <value>          - Set the generation temperature (0.0-2.0)
+  /tokens <num>          - Set the max tokens for the response
+  /timeout <seconds>     - Set the network request timeout
+
+--- AGENT & TOOLS ---
+  /agent                 - Enable native agent mode (requires --tools)
+  /legacy_agent          - Enable agent mode for models without tool-calling
+  /tools                 - Toggle tool-use capability on/off for the session
+  /confirm on|off        - Toggle user confirmation for tool execution
+
+--- CHAT & HISTORY ---
+  /mode                  - Toggle between chat and completion modes
+  /system <text>         - Replace the system prompt stack with new text
+  /system add <text>     - Add a prompt to the system stack
+  /system pop            - Remove the last prompt from the system stack
   /system show           - Show the current system prompt stack
-  /system add <text>     - Add a new prompt to the stack
-  /system pop            - Remove the last prompt from the stack
-  /system clear          - Clear all system prompts from the stack
-  /history               - Show conversation history
-  /clear                 - Clear conversation history
-  /save <name>           - Save the current chat session to a file
+  /system clear          - Clear all system prompts
+  /prompts               - List available prompts from the 'prompts/' directory
+  /prompt <name>         - Add a prompt from file to the system stack
+  /clear                 - Clear the current conversation history
+  /history               - Show the raw message history for the conversation
+  /save <name>           - Save the chat session to a file
   /load <name>           - Load a chat session from a file
-  /prompts               - List available, loadable system prompts
-  /prompt <name>         - Add a system prompt from file to the current stack
-  /agent                 - Start agent mode for OpenAI-compatible tool-use
-  /legacy_agent          - Start agent mode for models without native tool-use
-  --- Arena Mode Commands ---
-  /arena <name> [turns]  - Start a multi-model arena conversation (clears history)
-  /pause                 - Pause the arena conversation after the current turn
-  /resume                - Resume a paused arena conversation
-  /say <message>         - Interject with a message in a paused arena
-    """
+
+--- MULTI-MODEL ARENA ---
+  /arena <name> [turns]  - Start a multi-model arena conversation
+  /pause                 - Pause the arena after the current model's turn
+  /resume                - Resume a paused arena
+  /say <message>         - Interject with a message while arena is paused
+
+--- UI & DEBUGGING ---
+  /multiline             - Toggle multi-line input mode (use Esc+Enter)
+  /stream                - Toggle response streaming on/off
+  /rich                  - Toggle rich Markdown rendering for output
+  /smooth                - Toggle adaptive smooth streaming
+  /verbose               - Toggle verbose logging of request parameters
+  /debug                 - Toggle raw protocol-level debugging
+"""
         )
 
 

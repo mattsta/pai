@@ -880,9 +880,9 @@ def run(
         help="Require user confirmation before executing a tool.",
     ),
     smooth_stream: bool = typer.Option(
-        False,
-        "--smooth-stream",
-        help="Enable experimental smoothed streaming output.",
+        True,
+        "--smooth-stream/--no-smooth-stream",
+        help="Enable/disable smoothed streaming output. On by default.",
     ),
     log_file: str | None = typer.Option(
         None,

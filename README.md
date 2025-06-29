@@ -8,7 +8,7 @@ Polyglot AI is an interactive, provider-agnostic CLI designed for developers, re
 ### Sample Output
 
 ```
-$ uv run pai --stream --model THUDM/GLM-4-32B-0414 --chat --endpoint featherless  --tools
+$ pai --chat --endpoint featherless --model THUDM/GLM-4-32B-0414 --tools
 
 🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶
 🔎 Loading protocol adapters from entry point group 'polyglot_ai.protocols'...
@@ -53,7 +53,7 @@ Type '/help' for commands, '/quit' to exit.
 ### Key Features
 
 *   **Universal Provider Support:** Seamlessly switch between different AI providers and profiles in a single session using `/switch` and `/profile`.
-*   **Advanced Interactive TUI:** A rich, terminal-based chat experience built on `prompt-toolkit`, featuring persistent and searchable command history, multiline input, and a live status toolbar that provides real-time feedback on cost, performance, and agent status.
+*   **Advanced Interactive TUI:** A rich, terminal-based chat experience built on `prompt-toolkit`, featuring persistent history, multiline input, and a live status toolbar with default smooth-stream rendering that provides real-time feedback on cost, performance, and agent status.
 *   **Deep Introspection & Debugging:** A first-class, verbose debug mode (`--debug`) to inspect raw API traffic, and a powerful `/stats` command to see detailed performance metrics for every request.
 *   **Customizable Pricing Engine:** While default pricing is fetched automatically, you can provide a custom YAML or TOML file to override costs, define pricing for local models, and even specify complex tiered or time-based pricing rules. See the [Custom Pricing Guide](./docs/PRICING.md) for details.
 *   **Powerful Agentic Tool-Use:** An extensible system allowing models to use local Python functions as tools. Supports native tool-calling APIs (OpenAI, etc.) and provides a legacy agent mode for models that lack this capability.
@@ -184,7 +184,7 @@ Once in interactive mode, use `/` commands to control the session:
 *   `/multiline`: Toggles multi-line input mode (use `Esc+Enter` to submit).
 *   `/stream`: Toggles response streaming on or off.
 *   `/rich`: Toggles rich Markdown rendering for final output.
-*   `/smooth`: Toggles the adaptive smooth streaming mode.
+*   `/smooth`: Toggles the adaptive smooth streaming mode (ON by default).
 *   `/verbose`: Toggles verbose logging of request parameters.
 *   `/debug`: Toggles raw protocol-level debugging for network streams.
 

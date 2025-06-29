@@ -706,5 +706,5 @@ class RuntimeConfig(BaseModel):
     rich_text: bool = True
     log_file: str | None = None
     confirm_tool_use: bool = False
-    smooth_stream: bool = False
+    smooth_stream: bool = True
     custom_pricing_file: str | None = Field(None, alias="custom-pricing-file")

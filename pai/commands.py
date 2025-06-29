@@ -90,7 +90,8 @@ class HelpCommand(Command):
   /timeout <seconds>     - Change request timeout (e.g., /timeout 120)
   /mode                  - Toggle between chat and completion mode (clears history)
   /multiline             - Toggle multi-line input mode (use Esc+Enter to submit)
-  /stream, /verbose, /debug, /rich, /smooth, /tools, /confirm - Toggle flags on/off
+  /stream, /verbose, /debug, /rich, /smooth, /tools - Toggle various session flags
+  /confirm on|off        - Require user confirmation before executing a tool
   --- Chat Mode Only ---
   /system <text>         - Replace system prompt stack with this text
   /system show           - Show the current system prompt stack

@@ -17,7 +17,7 @@ To load all available tools and enable the tool-use capability, you **must** sta
 
 ```bash
 # This loads tools from custom_tools/ and enables the /tools command
-pai --chat --endpoint openai --model gpt-4o --tools
+uv run pai --chat --endpoint openai --model gpt-4o --tools
 ```
 
 ## Step 2: Your First Tool Call (Simple Task)
@@ -85,7 +85,7 @@ What if your model doesn't support native tool calling (like OpenAI's API)? Poly
 In this mode, `pai` includes a text-based list of available tools directly in the system prompt. It instructs the model to respond with a special XML tag (`<tool_call>...`) when it wants to use a tool. `pai` then parses this text, runs the tool, and feeds the result back to the model.
 
 **How to use it:**
-1.  Start with `--tools` to load the tools: `pai --chat --endpoint <your-endpoint> --tools`
+1.  Start with `--tools` to load the tools: `uv run pai --chat --endpoint <your-endpoint> --tools`
 2.  Type `/legacy_agent`. This loads a special prompt and disables native tool calling.
 3.  Give the AI a task.
 

@@ -26,13 +26,6 @@ The easiest way to trigger a tool is to ask a question that directly maps to a t
 
 **User Prompt:**
 > What is the weather in Paris?
-
-    uv sync -U
-    =======
-    uv sync -U
-    >>>>>>> REPLACE
-    ´´´´
-    ```
 *   **Tool Result:** A JSON object: `{"file_path": "README.md", "status": "success", ...}`
 
 **AI's Final Response:**

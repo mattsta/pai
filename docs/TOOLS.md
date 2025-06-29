@@ -120,12 +120,6 @@ Tools for generating code and other structured text.
 
 *   `generate_python_class(class_name: str, fields: str)`: Generates a Python dataclass definition.
 
-content_to_replace_with
-=======
-content_to_replace_with
->>>>>>> REPLACE
-´´´´
-
 - The `[language]` is optional (e.g., `python`).
 - The `path/to/file.ext` must be the full, correct path relative to the project root.
 - The `<<<<<<< SEARCH` block must contain text that **exactly** matches a section of the target file.

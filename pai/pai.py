@@ -93,6 +93,14 @@ class CommandCompleter(Completer):
 class InteractiveUI:
     """Encapsulates all logic for the text user interface."""
 
+    _ORCHESTRATOR_MAP = {
+        UIMode.ARENA: ArenaOrchestrator,
+        UIMode.LEGACY_AGENT: LegacyAgentOrchestrator,
+        UIMode.CHAT: DefaultOrchestrator,
+        UIMode.NATIVE_AGENT: DefaultOrchestrator,
+        UIMode.COMPLETION: DefaultOrchestrator,
+    }
+
     def __init__(self, client: "PolyglotClient", runtime_config: RuntimeConfig):
         self.client = client
         self.runtime_config = runtime_config
@@ -389,12 +397,10 @@ class InteractiveUI:
 
     def _get_orchestrator(self) -> BaseOrchestrator | None:
         """Selects the appropriate orchestrator based on the current UI mode."""
-        if self.state.mode == UIMode.ARENA:
-            return ArenaOrchestrator(self)
-        if self.state.mode == UIMode.LEGACY_AGENT:
-            return LegacyAgentOrchestrator(self)
-        # Default for CHAT, COMPLETION, NATIVE_AGENT
-        return DefaultOrchestrator(self)
+        orchestrator_class = self._ORCHESTRATOR_MAP.get(self.state.mode)
+        if orchestrator_class:
+            return orchestrator_class(self)
+        return None
 
     async def _confirm_tool_call(self, tool_name: str, args: dict) -> bool:
         """Asks the user for confirmation to run a tool."""

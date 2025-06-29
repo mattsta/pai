@@ -20,9 +20,6 @@ EDIT_BLOCK_REGEX = re.compile(
     r">>>>>>> REPLACE\n"
     r"````",  # Closing fence
     re.DOTALL,
-)
-
-
     content_to_replace_with
     =======
     content_to_replace_with

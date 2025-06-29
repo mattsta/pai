@@ -153,10 +153,6 @@ A structured tool for making HTTP requests to web APIs. This is a safer and more
 
 **Example Usage:** `"make a GET request to https://api.github.com/zen to get a random github zen quote"`
 
-### Code Editing Tools (`code_editor.py`)
-
-This powerful tool allows the AI to edit files by submitting a script of changes. It is the foundation for agentic software development tasks.
-
 content_to_replace_with
 =======
 content_to_replace_with

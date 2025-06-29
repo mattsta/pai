@@ -9,7 +9,7 @@ from prompt_toolkit.formatted_text import HTML
 
 from ..log_utils import save_conversation_formats
 from ..models import ChatRequest, Turn
-from ..tools import execute_tool
+from ..tools import ToolArgumentError, ToolError, ToolNotFound, execute_tool
 from .base import BaseOrchestrator
 
 
@@ -61,8 +61,6 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                     else:
                         tool_name = name_match.group(1).strip()
                         tool_args_str = args_match.group(1).strip()
-                        from ..tools import ToolArgumentError, ToolError, ToolNotFound
-
                         try:
                             tool_args = json.loads(tool_args_str)
                             if confirmer and not await confirmer(tool_name, tool_args):

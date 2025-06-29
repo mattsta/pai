@@ -246,10 +246,10 @@ class ToggleConfirmCommand(Command):
         return "confirm"
 
     def execute(self, app: "Application", param: str | None = None):
-        if param not in ["on", "off"]:
+        if not param or param.lower() not in ["on", "off"]:
             self.ui.pt_printer("❌ Usage: /confirm on|off")
             return
-        self.ui.set_confirm_tool_use(param == "on")
+        self.ui.set_confirm_tool_use(param.lower() == "on")
 
 
 class ToggleToolsCommand(Command):

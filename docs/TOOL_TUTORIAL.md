@@ -44,8 +44,6 @@ For a complex task like editing a file, simply having the tool *capability* is n
 **User Prompt 1: Enable Agent Behavior**
 The `/agent` command is a shortcut that loads the `prompts/code_editor.md` system prompt. This prompt tells the AI to act like a methodical software engineer.
 
-> /agent
-
     uv sync -U
     =======
     uv sync -U

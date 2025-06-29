@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 
 from ..models import ChatRequest, RequestCost
-from ..tools import execute_tool
+from ..tools import ToolArgumentError, ToolError, ToolNotFound, execute_tool
 from ..utils import estimate_tokens
 
 # MODIFIED: Now uses the clean context object.
@@ -56,8 +56,6 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
         async def _execute_with_confirmation(name: str, args: dict) -> Any:
             """Helper to wrap tool execution with an optional confirmation step."""
             nonlocal tools_used_count
-            from ..tools import ToolArgumentError, ToolError, ToolNotFound
-
             if context.confirmer:
                 should_run = await context.confirmer(name, args)
                 if not should_run:

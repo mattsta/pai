@@ -3,7 +3,7 @@ import asyncio
 from typing import Any
 
 from ..models import ChatRequest, CompletionRequest, RequestCost
-from ..tools import execute_tool
+from ..tools import ToolArgumentError, ToolError, ToolNotFound, execute_tool
 from ..utils import estimate_tokens
 from .base_adapter import BaseProtocolAdapter, ProtocolContext
 
@@ -35,8 +35,6 @@ class AnthropicAdapter(BaseProtocolAdapter):
 
         async def _execute_with_confirmation(name: str, args: dict) -> Any:
             nonlocal tools_used_count
-            from ..tools import ToolArgumentError, ToolError, ToolNotFound
-
             if context.confirmer:
                 should_run = await context.confirmer(name, args)
                 if not should_run:

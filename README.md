@@ -109,28 +109,28 @@ This installs the `pai` command and its dependencies in editable mode, allowing 
 
 **Start in Interactive Mode (Default: OpenAI)**
 ```bash
-pai --chat
+uv run pai --chat
 ```
 
 **Using a Profile**
 You can define preset configurations in `pai.toml` and use them with the `--profile` flag. This is great for switching between common setups.
 ```bash
-pai --profile research_haiku --chat
+uv run pai --profile research_haiku --chat
 ```
 
 **Run a Single, Non-Interactive Prompt**
 ```bash
 # This will stream the response by default.
-pai --endpoint openai --prompt "Explain quantum computing in one sentence."
+uv run pai --endpoint openai --prompt "Explain quantum computing in one sentence."
 
 # Use --no-stream to get the full response at once.
-pai --endpoint openai --prompt "Explain quantum computing in one sentence." --no-stream
+uv run pai --endpoint openai --prompt "Explain quantum computing in one sentence." --no-stream
 ```
 
 **Using Tools**
 To load and enable tools, you must start `pai` with the `--tools` flag. This gives the AI the *capability* to see and use tools.
 ```bash
-pai --chat --endpoint openai --model gpt-4o --tools
+uv run pai --chat --endpoint openai --model gpt-4o --tools
 ```
 For complex tasks, you can then switch into "agent mode" to give the AI a better reasoning framework for using those tools.
 ```

@@ -17,7 +17,7 @@ To load all available tools and enable the tool-use capability, you **must** sta
 
 ```bash
 # This loads tools from custom_tools/ and enables the /tools command
-pai --chat --endpoint openai --model gpt-4o --tools
+uv run pai --chat --endpoint openai --model gpt-4o --tools
 ```
 
 ## Step 2: Your First Tool Call (Simple Task)

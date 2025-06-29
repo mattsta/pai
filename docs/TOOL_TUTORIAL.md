@@ -59,8 +59,6 @@ Now that the AI has both the capability (`--tools`) and the behavior (`/agent`),
 2.  **Model Executes `read_file`:** It requests to run `read_file(path="README.md")`.
 3.  **`pai` Executes and Reports:** The tool runs, and its output (the content of the README) is sent back to the model.
 4.  **Model Formulates the Edit:** Now, with the exact text, the model constructs a `SEARCH/REPLACE` block.
-5.  **Model Executes `apply_search_replace`:** The model requests to run the edit tool with the following script:
-
     uv sync -U
     =======
     uv sync -U

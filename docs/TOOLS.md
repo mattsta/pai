@@ -157,8 +157,6 @@ A structured tool for making HTTP requests to web APIs. This is a safer and more
 
 This powerful tool allows the AI to edit files by submitting a script of changes. It is the foundation for agentic software development tasks.
 
-*   `apply_search_replace(edit_script: str)`: Parses and applies one or more `SEARCH/REPLACE` blocks.
-
 content_to_replace_with
 =======
 content_to_replace_with

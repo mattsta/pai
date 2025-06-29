@@ -23,8 +23,6 @@ EDIT_BLOCK_REGEX = re.compile(
 )
 
 
-@tool
-def apply_search_replace(edit_script: str) -> str:
     content_to_replace_with
     =======
     content_to_replace_with

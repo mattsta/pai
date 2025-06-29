@@ -179,33 +179,33 @@ class InteractiveUI:
             return "Chat"
         return "Completion"
 
+    def _get_prompt_text(self) -> HTML:
+        """Generates the HTML for the input prompt."""
+        # If we are in arena mode, but there is no active generation task,
+        # it means we are waiting for the very first prompt from the user.
+        if (
+            self.state.mode == UIMode.ARENA
+            and self.state.arena
+            and not self.generation_in_progress.is_set()
+        ):
+            initiator = self.state.arena.arena_config.get_initiator()
+            # Use a specific prompt for the arena's first turn
+            return HTML(f"<style fg='ansigreen'>⚔️  Prompt for {initiator.name}:</style> ")
+        return HTML(
+            f"<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> "
+        )
+
     def _create_application(self) -> Application:
         """Constructs the prompt_toolkit Application object."""
-
-        # This is the main input bar at the bottom of the screen.
-        def get_prompt_text() -> HTML:
-            # If we are in arena mode, but there is no active generation task,
-            # it means we are waiting for the very first prompt from the user.
-            if (
-                self.state.mode == UIMode.ARENA
-                and self.state.arena
-                and not self.generation_in_progress.is_set()
-            ):
-                initiator = self.state.arena.arena_config.get_initiator()
-                # Use a specific prompt for the arena's first turn
-                return HTML(
-                    f"<style fg='ansigreen'>⚔️  Prompt for {initiator.name}:</style> "
-                )
-            return HTML(
-                f"<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> "
-            )
 
         prompt_ui = VSplit(
             [
                 Window(
-                    FormattedTextControl(get_prompt_text),
+                    FormattedTextControl(self._get_prompt_text),
                     # The width must calculate the length of the *unformatted* string.
-                    width=lambda: len(re.sub("<[^<]+?>", "", get_prompt_text().value))
+                    width=lambda: len(
+                        re.sub("<[^<]+?>", "", self._get_prompt_text().value)
+                    )
                     + 1,
                 ),
                 Window(BufferControl(buffer=self.input_buffer)),

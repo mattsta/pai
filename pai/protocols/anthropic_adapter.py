@@ -255,12 +255,6 @@ class AnthropicAdapter(BaseProtocolAdapter):
                     request_stats.tokens_sent = tokens_sent
                     context.stats.add_completed_request(request_stats)
                 raise ConnectionError(f"Anthropic request failed: {e!r}") from e
-            finally:
-                context.http_session.headers = {
-                    "Authorization": f"Bearer {context.config.api_key}",
-                    "Content-Type": "application/json",
-                    "User-Agent": "PolyglotAI/0.1.0",
-                }
 
         return {
             "text": "[Agent Error] Agent reached maximum iterations.",

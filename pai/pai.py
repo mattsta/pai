@@ -914,7 +914,7 @@ def run(
     ),
 ):
     """Main application entrypoint."""
-    print("🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶")
+    print("🪶 Polyglot AI: A Universal CLI for Any AI Provider 🪶")
 
     toml_config = load_toml_config(config)
 

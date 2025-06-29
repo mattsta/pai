@@ -2,7 +2,7 @@
 
 **A Universal Command-Line Interface for Interacting with Any AI Provider.**
 
-Polyglot AI is an interactive, provider-agnostic CLI designed for developers, researchers, and AI enthusiasts. It provides a single, unified interface to test, debug, and converse with a multitude of AI models from different providers with a plug-and-play architecture to easily add more.
+Polyglot AI is an interactive, provider-agnostic CLI for developers, researchers, and AI enthusiasts. It provides a single, unified interface to test, debug, and converse with AI models from any provider, featuring a plug-and-play architecture for easy extension.
 
 
 ### Sample Output
@@ -10,7 +10,7 @@ Polyglot AI is an interactive, provider-agnostic CLI designed for developers, re
 ```
 $ uv run pai --chat --endpoint featherless --model THUDM/GLM-4-32B-0414 --tools
 
-🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶
+🪶 Polyglot AI: A Universal CLI for Any AI Provider 🪶
 🔎 Loading protocol adapters from entry point group 'polyglot_ai.protocols'...
   ✅ Loaded adapter 'anthropic' from 'pai.protocols.anthropic_adapter'
   ✅ Loaded adapter 'legacy_completion' from 'pai.protocols.legacy_completion_adapter'
@@ -72,23 +72,24 @@ Type '/help' for commands, '/quit' to exit.
 
 #### 2. Project Structure
 
-Clone or download the repository. The core structure is:
+The project is organized to separate concerns, making it modular and easy to navigate.
 
 ```
-/pai/
-|-- pai.py                # The main script and orchestrator
-|-- protocols/
-|   |-- base_adapter.py
-|   |-- openai_chat_adapter.py
-|   |-- ...
-|-- templates/
-|   |-- conversation.html
-|   |-- gptwink_format.html
-|-- tools.py
-/sessions/                # Auto-generated for session logs
-/docs/                    # Detailed documentation
-pai.toml                  # Project configuration (endpoints, tools, profiles, arenas)
-pyproject.toml            # Project dependencies and definition
+/pai/                     # Core application source code
+|-- pai.py                # Main application entrypoint and TUI
+|-- client.py             # Central client controller
+|-- models.py             # Core data models (Conversation, Turn, etc.)
+|-- protocols/            # Provider-specific communication logic (adapters)
+|-- orchestration/        # Business logic for different modes (chat, agent, arena)
+|-- commands.py           # Implementation of all /slash commands
+|-- tools.py              # Core tool system and @tool decorator
+/custom_tools/            # Default directory for user-extendable tools
+/prompts/                 # Default directory for system prompts
+/docs/                    # Detailed documentation and guides
+/sessions/                # Auto-generated session logs (git-ignored)
+/saved_sessions/          # User-saved sessions (git-ignored)
+pai.toml                  # Main configuration for endpoints, profiles, tools, etc.
+pyproject.toml            # Project definition and dependencies
 ```
 
 #### 3. API Key Configuration

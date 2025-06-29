@@ -326,42 +326,6 @@ class RequestStats:
     # Internal state for live calculations
     _first_token_time: float | None = None
 
-@dataclass
-class TieredCost:
-    """Represents a single tier in a tiered pricing model."""
-
-    up_to: int  # The upper bound of the token count for this tier (exclusive). -1 for infinity.
-    cost: float  # The cost per million tokens for this tier.
-
-
-@dataclass
-class TimeWindowPricing:
-    """Encapsulates all pricing information for a specific time window."""
-
-    start_hour: int  # The start hour of the window (0-23).
-    end_hour: int  # The end hour of the window (0-23).
-    input_cost: float = 0.0  # Flat input cost per million tokens.
-    output_cost: float = 0.0  # Flat output cost per million tokens.
-    input_tiers: list[TieredCost] = field(default_factory=list)
-    output_tiers: list[TieredCost] = field(default_factory=list)
-
-
-@dataclass
-class ModelPricing:
-    """Unified model for pricing, supporting flat, tiered, and time-based rates."""
-
-    # "Anytime" flat rates (used if no time windows match or are defined)
-    input_cost_per_token: float = 0.0
-    output_cost_per_token: float = 0.0
-    # "Anytime" tiered rates
-    tiered_input_costs: list[TieredCost] = field(default_factory=list)
-    tiered_output_costs: list[TieredCost] = field(default_factory=list)
-    # Time-window specific rates
-    time_windows: list[TimeWindowPricing] = field(default_factory=list)
-    # LiteLLM specific batch pricing (for compatibility)
-    input_cost_per_token_batches: float = 0.0
-    output_cost_per_token_batches: float = 0.0
-
     def record_first_token(self):
         """Call this when the first token is received to capture TTFT."""
         if self._first_token_time is None:
@@ -403,6 +367,42 @@ class ModelPricing:
         if self.response_time and self.response_time > 0:
             return self.tokens_received / self.response_time
         return 0.0
+
+@dataclass
+class TieredCost:
+    """Represents a single tier in a tiered pricing model."""
+
+    up_to: int  # The upper bound of the token count for this tier (exclusive). -1 for infinity.
+    cost: float  # The cost per million tokens for this tier.
+
+
+@dataclass
+class TimeWindowPricing:
+    """Encapsulates all pricing information for a specific time window."""
+
+    start_hour: int  # The start hour of the window (0-23).
+    end_hour: int  # The end hour of the window (0-23).
+    input_cost: float = 0.0  # Flat input cost per million tokens.
+    output_cost: float = 0.0  # Flat output cost per million tokens.
+    input_tiers: list[TieredCost] = field(default_factory=list)
+    output_tiers: list[TieredCost] = field(default_factory=list)
+
+
+@dataclass
+class ModelPricing:
+    """Unified model for pricing, supporting flat, tiered, and time-based rates."""
+
+    # "Anytime" flat rates (used if no time windows match or are defined)
+    input_cost_per_token: float = 0.0
+    output_cost_per_token: float = 0.0
+    # "Anytime" tiered rates
+    tiered_input_costs: list[TieredCost] = field(default_factory=list)
+    tiered_output_costs: list[TieredCost] = field(default_factory=list)
+    # Time-window specific rates
+    time_windows: list[TimeWindowPricing] = field(default_factory=list)
+    # LiteLLM specific batch pricing (for compatibility)
+    input_cost_per_token_batches: float = 0.0
+    output_cost_per_token_batches: float = 0.0
 
 
 @dataclass

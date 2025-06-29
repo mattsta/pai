@@ -52,8 +52,6 @@ The `/agent` command is a shortcut that loads the `prompts/code_editor.md` syste
 **User Prompt 2: Start the Task**
 Now that the AI has both the capability (`--tools`) and the behavior (`/agent`), you can give it a high-level goal. Assume `README.md` contains the typo `uv cync -U` instead of the correct `uv sync -U`.
 
-> There's a typo in the README.md file. Please fix `uv cync -U` to `uv sync -U`.
-
     uv sync -U
     =======
     uv sync -U

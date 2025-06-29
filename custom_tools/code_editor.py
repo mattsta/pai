@@ -3,8 +3,6 @@ import json
 import pathlib
 import re
 
-from pai.tools import tool
-
     content_to_replace_with
     =======
     content_to_replace_with

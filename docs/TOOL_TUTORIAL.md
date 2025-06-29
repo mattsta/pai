@@ -46,9 +46,6 @@ The `/agent` command is a shortcut that loads the `prompts/code_editor.md` syste
 
 > /agent
 
-**AI Response:**
-> 🤖 Native Agent mode enabled (loaded 'code_editor' prompt).
-
     uv sync -U
     =======
     uv sync -U

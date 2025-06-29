@@ -58,12 +58,15 @@ class PolyglotClient:
                 f"❌ Error: Endpoint '{name}' not found in configuration file."
             )
             return
-        api_key = os.getenv(endpoint_data.api_key_env)
-        if not api_key:
-            self.display._print(
-                f"❌ Error: API key for '{name}' not found. Set {endpoint_data.api_key_env}."
-            )
-            return
+        api_key = None
+        if endpoint_data.api_key_env:
+            api_key = os.getenv(endpoint_data.api_key_env)
+            if not api_key:
+                self.display._print(
+                    f"❌ Error: API key environment variable '{endpoint_data.api_key_env}' is set in config but not found in environment."
+                )
+                return
+
         self.config.name = endpoint_data.name
         self.config.base_url = endpoint_data.base_url
         self.config.api_key = api_key
@@ -73,11 +76,13 @@ class PolyglotClient:
         )
         # Configure the httpx client for the selected endpoint
         self.http_session.base_url = self.config.base_url
-        self.http_session.headers = {
-            "Authorization": f"Bearer {self.config.api_key}",
+        headers = {
             "Content-Type": "application/json",
             "User-Agent": "PolyglotAI/0.1.0",
         }
+        if self.config.api_key:
+            headers["Authorization"] = f"Bearer {self.config.api_key}"
+        self.http_session.headers = headers
         msg = f"✅ Switched to endpoint: {self.config.name}"
         self.display._print(msg)
         logging.info(msg)

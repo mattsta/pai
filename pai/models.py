@@ -694,7 +694,7 @@ class TomlToolConfig(BaseModel):
 class TomlEndpoint(BaseModel):
     name: str
     base_url: str
-    api_key_env: str
+    api_key_env: str | None = None
     chat_adapter: str | None = None
     completion_adapter: str | None = None
     timeout: int = 180

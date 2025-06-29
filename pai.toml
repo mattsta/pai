@@ -54,14 +54,14 @@ chat_adapter = "anthropic"
 # An example for a local model server
 name = "local-lm-studio"
 base_url = "http://localhost:1234/v1"
-api_key_env = "LM_STUDIO_API_KEY" # Often not needed, can be set to "local"
+# api_key_env is not needed for most local servers. Set it if required.
+# api_key_env = "LM_STUDIO_API_KEY"
 chat_adapter = "openai_chat"
 completion_adapter = "legacy_completion"
 
 [[endpoints]]
 name = "ollama"
 base_url = "http://localhost:11434/api"
-api_key_env = "OLLAMA_API_KEY" # Not used by Ollama, but framework expects it. Can be set to "ollama".
 chat_adapter = "ollama"
 
 [tool_config]

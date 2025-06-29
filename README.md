@@ -8,7 +8,7 @@ Polyglot AI is an interactive, provider-agnostic CLI designed for developers, re
 ### Sample Output
 
 ```
-$ pai --chat --endpoint openai --model gpt-4o --tools
+$ uv run pai --chat --endpoint featherless --model THUDM/GLM-4-32B-0414 --tools
 
 🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶
 🔎 Loading protocol adapters from entry point group 'polyglot_ai.protocols'...
@@ -24,8 +24,8 @@ $ pai --chat --endpoint openai --model gpt-4o --tools
   ✅ Loaded custom tool module: code_editor.py
   ✅ Loaded custom tool module: file_system.py
   ✅ Loaded custom tool module: code_generator.py
-✅ Switched to endpoint: openai
-🎯 Chat Mode | Endpoint: openai | Model: gpt-4o
+✅ Switched to endpoint: featherless
+🎯 Chat Mode | Endpoint: featherless | Model: THUDM/GLM-4-32B-0414
 💾 Session logs will be saved to: sessions/2025-06-28_09-34-42-interactive
 Type '/help' for commands, '/quit' to exit.
 ------------------------------------------------------------

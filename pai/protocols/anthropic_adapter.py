@@ -1,5 +1,5 @@
-import json
 import asyncio
+import json
 from typing import Any
 
 import httpx
@@ -132,7 +132,9 @@ class AnthropicAdapter(BaseProtocolAdapter):
                             }
                             for tool_block, result in zip(tool_use_blocks, results)
                         ]
-                        messages.append({"role": "user", "content": tool_results_content})
+                        messages.append(
+                            {"role": "user", "content": tool_results_content}
+                        )
                         continue  # Next agent iteration
 
                     text = "".join(
@@ -181,7 +183,9 @@ class AnthropicAdapter(BaseProtocolAdapter):
 
                                 if event_type == "message_start":
                                     if stats := context.display.current_request_stats:
-                                        usage = chunk.get("message", {}).get("usage", {})
+                                        usage = chunk.get("message", {}).get(
+                                            "usage", {}
+                                        )
                                         input_tokens = usage.get(
                                             "input_tokens", tokens_sent
                                         )

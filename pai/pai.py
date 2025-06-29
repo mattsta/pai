@@ -895,9 +895,7 @@ def run(
         help="Path to a file for writing debug and verbose logs.",
         show_default=False,
     ),
-    config: str = typer.Option(
-        "pai.toml", help="Path to the TOML configuration file."
-    ),
+    config: str = typer.Option("pai.toml", help="Path to the TOML configuration file."),
     custom_pricing_file: str | None = typer.Option(
         None,
         "--custom-pricing-file",

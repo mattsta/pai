@@ -4,9 +4,9 @@ from typing import Any
 import httpx
 
 from ..models import ChatRequest, RequestCost
+from ..tools import ToolArgumentError, ToolError, ToolNotFound, execute_tool
 from ..utils import estimate_tokens
 from .base_adapter import BaseProtocolAdapter, ProtocolContext
-from ..tools import ToolArgumentError, ToolError, ToolNotFound, execute_tool
 
 
 class OllamaAdapter(BaseProtocolAdapter):
@@ -55,9 +55,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                 payload["stream"] = False
 
             final_request_payload = payload
-            tokens_sent = sum(
-                estimate_tokens(m.get("content", "")) for m in messages
-            )
+            tokens_sent = sum(estimate_tokens(m.get("content", "")) for m in messages)
 
             try:
                 context.display.start_response(
@@ -105,9 +103,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                                 result = f"Error: Model provided invalid JSON arguments for tool '{name}': {e}"
                                 context.display._print(f"  - ❌ Tool Error: {result}")
 
-                            messages.append(
-                                {"role": "tool", "content": str(result)}
-                            )
+                            messages.append({"role": "tool", "content": str(result)})
                         continue  # Next agent iteration
 
                     final_text = message.get("content", "")
@@ -217,4 +213,3 @@ class OllamaAdapter(BaseProtocolAdapter):
             "tools_used": tools_used_count,
             "agent_loops": max_iterations,
         }
-

@@ -36,9 +36,7 @@ async def read_file(path: str) -> str:
     if not is_safe_path(path):
         return "Error: Path is outside the allowed workspace."
     try:
-        return await asyncio.to_thread(
-            (WORKSPACE / path).read_text, encoding="utf-8"
-        )
+        return await asyncio.to_thread((WORKSPACE / path).read_text, encoding="utf-8")
     except FileNotFoundError:
         return f"Error: File not found at '{path}'"
     except Exception as e:

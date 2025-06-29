@@ -764,7 +764,7 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
                 for tool_dir in tool_dirs:
                     load_tools_from_directory(tool_dir, printer=typer.echo)
         else:
-            typer.echo("  (No 'tool_config' section in polyglot.toml)")
+            typer.echo("  (No 'tool_config' section in pai.toml)")
 
     # Validate arena configurations
     for arena_name, arena_config in toml_config.arenas.items():

@@ -24,8 +24,8 @@ $ uv run pai --chat --endpoint openai --model gpt-4o --tools
   ✅ Loaded custom tool module: code_editor.py
   ✅ Loaded custom tool module: file_system.py
   ✅ Loaded custom tool module: code_generator.py
-✅ Switched to endpoint: featherless
-🎯 Chat Mode | Endpoint: featherless | Model: THUDM/GLM-4-32B-0414
+✅ Switched to endpoint: openai
+🎯 Chat Mode | Endpoint: openai | Model: gpt-4o
 💾 Session logs will be saved to: sessions/2025-06-28_09-34-42-interactive
 Type '/help' for commands, '/quit' to exit.
 ------------------------------------------------------------

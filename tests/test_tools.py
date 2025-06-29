@@ -68,37 +68,37 @@ def test_tool_decorator_registers_and_creates_schema():
     assert schema == expected_schema
 
 
-def test_execute_tool_success_with_defaults():
+async def test_execute_tool_success_with_defaults():
     """Test successful execution of a tool using default values."""
-    result = tools.execute_tool("sample_tool", {"name": "test"})
+    result = await tools.execute_tool("sample_tool", {"name": "test"})
     assert result == {"name": "test", "value": 10, "option": "a"}
 
 
-def test_execute_tool_success_with_all_args():
+async def test_execute_tool_success_with_all_args():
     """Test successful execution with all arguments provided, including an enum."""
-    result = tools.execute_tool(
+    result = await tools.execute_tool(
         "sample_tool", {"name": "full", "value": 99, "option": "b"}
     )
     assert result == {"name": "full", "value": 99, "option": "b"}
 
 
-def test_execute_tool_not_found():
+async def test_execute_tool_not_found():
     """Test that executing a non-existent tool raises ToolNotFound."""
     with pytest.raises(tools.ToolNotFound, match="Tool 'non_existent_tool' not found"):
-        tools.execute_tool("non_existent_tool", {})
+        await tools.execute_tool("non_existent_tool", {})
 
 
-def test_execute_tool_invalid_enum_value():
+async def test_execute_tool_invalid_enum_value():
     """Test that an invalid enum value raises ToolArgumentError."""
     with pytest.raises(tools.ToolArgumentError, match="'c' is not a valid SampleEnum"):
-        tools.execute_tool("sample_tool", {"name": "test", "option": "c"})
+        await tools.execute_tool("sample_tool", {"name": "test", "option": "c"})
 
 
-def test_execute_tool_missing_required_arg():
+async def test_execute_tool_missing_required_arg():
     """Test that a missing required argument raises ToolArgumentError."""
     with pytest.raises(tools.ToolArgumentError, match="Missing or invalid arguments"):
         # The 'name' argument is required and has no default value.
-        tools.execute_tool("sample_tool", {})
+        await tools.execute_tool("sample_tool", {})
 
 
 def test_get_tool_manifest():

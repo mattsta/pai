@@ -151,8 +151,6 @@ A structured tool for making HTTP requests to web APIs. This is a safer and more
 
 *   `make_http_request(url: str, method: HttpMethod, ...)`: Makes an HTTP request and returns a JSON object with the status code, headers, and body.
 
-**Example Usage:** `"make a GET request to https://api.github.com/zen to get a random github zen quote"`
-
 content_to_replace_with
 =======
 content_to_replace_with

@@ -689,7 +689,7 @@ class RuntimeConfig(BaseModel):
 
     model_config = ConfigDict(frozen=False)  # Allows mutation by commands
 
-    config: str = "polyglot.toml"
+    config: str = "pai.toml"
     profile: str | None = None
     endpoint: str = "openai"
     model: str | None = None

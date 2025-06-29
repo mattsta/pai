@@ -55,7 +55,7 @@ Type '/help' for commands, '/quit' to exit.
 *   **Universal Provider Support:** Seamlessly switch between different AI providers and profiles in a single session using `/switch` and `/profile`.
 *   **Advanced Interactive TUI:** A rich, terminal-based chat experience built on `prompt-toolkit`, featuring persistent and searchable command history, multiline input, and a live status toolbar that provides real-time feedback on cost, performance, and agent status.
 *   **Deep Introspection & Debugging:** A first-class, verbose debug mode (`--debug`) to inspect raw API traffic, and a powerful `/stats` command to see detailed performance metrics for every request.
-*   **Customizable Pricing Engine:** While default pricing is fetched automatically, you can provide a custom TOML file to override costs, define pricing for local models, and even specify complex tiered or time-based pricing rules. See the [Custom Pricing Guide](./docs/PRICING.md) for details.
+*   **Customizable Pricing Engine:** While default pricing is fetched automatically, you can provide a custom YAML or TOML file to override costs, define pricing for local models, and even specify complex tiered or time-based pricing rules. See the [Custom Pricing Guide](./docs/PRICING.md) for details.
 *   **Powerful Agentic Tool-Use:** An extensible system allowing models to use local Python functions as tools. Supports native tool-calling APIs (OpenAI, etc.) and provides a legacy agent mode for models that lack this capability.
     *   **To create tools:** See the [Tool System Guide](./docs/TOOLS.md).
     *   **For a walkthrough:** Check out the [Tool Usage Tutorial](./docs/TOOL_TUTORIAL.md).
@@ -103,9 +103,9 @@ export OPENAI_API_KEY="sk-your-openai-key"
 
 **Install the package in editable mode:**
 ```bash
-uv sync -U
+uv pip install -e .
 ```
-This will install the `pai` command.
+This installs the `pai` command and its dependencies in editable mode, allowing you to make changes to the source code that are immediately reflected.
 
 **Start in Interactive Mode (Default: OpenAI)**
 ```bash

@@ -159,7 +159,6 @@ This powerful tool allows the AI to edit files by submitting a script of changes
 
 *   `apply_search_replace(edit_script: str)`: Parses and applies one or more `SEARCH/REPLACE` blocks.
 
-**`SEARCH/REPLACE` Block Rules:**
 content_to_replace_with
 =======
 content_to_replace_with

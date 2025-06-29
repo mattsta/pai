@@ -30,7 +30,9 @@ class PolyglotClient:
         toml_config: PolyglotConfig,
         http_session: httpx.AsyncClient,
         pricing_service: PricingService,
+        version: str,
     ):
+        self.version = version
         self.toml_config = toml_config
         self.config = EndpointConfig()
         self.stats = SessionStats()
@@ -76,9 +78,10 @@ class PolyglotClient:
         )
         # Configure the httpx client for the selected endpoint
         self.http_session.base_url = self.config.base_url
+        user_agent = endpoint_data.user_agent or f"PolyglotAI/{self.version}"
         headers = {
             "Content-Type": "application/json",
-            "User-Agent": "PolyglotAI/0.1.0",
+            "User-Agent": user_agent,
         }
         if self.config.api_key:
             headers["Authorization"] = f"Bearer {self.config.api_key}"

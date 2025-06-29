@@ -5,6 +5,7 @@ and fixing the circular import error.
 """
 
 import asyncio
+import importlib.metadata
 import json
 import logging
 import pathlib
@@ -708,6 +709,16 @@ app = typer.Typer(
 )
 
 
+def get_version_string() -> str:
+    """Gets the version of the PAI package, or a dev string."""
+    try:
+        # This will work when the package is installed
+        return importlib.metadata.version("pai")
+    except importlib.metadata.PackageNotFoundError:
+        # Fallback for when running from source without installation
+        return f"dev-{datetime.now().strftime('%Y%m%d')}"
+
+
 def load_toml_config(path: str) -> PolyglotConfig:
     """Loads and validates the TOML configuration file."""
     try:
@@ -780,8 +791,13 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
         await pricing_service.load_pricing_data(custom_file_path=custom_pricing_path)
 
         try:
+            version_str = get_version_string()
             client = PolyglotClient(
-                runtime_config, toml_config, http_session, pricing_service
+                runtime_config,
+                toml_config,
+                http_session,
+                pricing_service,
+                version=version_str,
             )
             if runtime_config.prompt:
                 # Non-interactive mode

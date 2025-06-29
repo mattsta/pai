@@ -13,6 +13,7 @@
 name = "featherless"
 base_url = "https://api.featherless.ai/v1"
 api_key_env = "FEATHERLESS_API_KEY" # Environment variable for the API key
+user_agent = "MyCustomPaiClient/1.0" # Optional: Override the default User-Agent
 # The adapter to use for the /chat/completions endpoint
 chat_adapter = "openai_chat"
 # The adapter to use for the legacy /completions endpoint

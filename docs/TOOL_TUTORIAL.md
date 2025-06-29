@@ -27,8 +27,6 @@ The easiest way to trigger a tool is to ask a question that directly maps to a t
 **User Prompt:**
 > What is the weather in Paris?
 
-**What Happens Next (The Agent Loop):**
-1.  **Model Recognizes Intent:** Your prompt is sent to the AI. The AI also receives the list of available tools and their descriptions, including `get_current_weather`. The model sees that "what is the weather" is a very close match for the tool's purpose.
     uv sync -U
     =======
     uv sync -U

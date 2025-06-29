@@ -54,7 +54,6 @@ Now that the AI has both the capability (`--tools`) and the behavior (`/agent`),
 
 > There's a typo in the README.md file. Please fix `uv cync -U` to `uv sync -U`.
 
-**What Happens Next (A More Detailed Agent Loop):**
     uv sync -U
     =======
     uv sync -U

@@ -5,8 +5,6 @@ import re
 
 from pai.tools import tool
 
-from .file_system import WORKSPACE, is_safe_path
-
     content_to_replace_with
     =======
     content_to_replace_with

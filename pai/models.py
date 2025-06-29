@@ -675,7 +675,7 @@ class TomlEndpoint(BaseModel):
 
 
 class PolyglotConfig(BaseModel):
-    """Represents the structure of the polyglot.toml file."""
+    """Represents the structure of the pai.toml file."""
 
     custom_pricing_file: str | None = Field(None, alias="custom-pricing-file")
     endpoints: list[TomlEndpoint] = Field(default_factory=list)

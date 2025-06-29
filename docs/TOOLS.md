@@ -145,10 +145,6 @@ A set of powerful tools for code navigation and exploration, which depend on `fd
 
 **Example Usage:** `"find all python files, then search for 'ProtocolContext' in the 'pai' directory, then show me lines 1-10 of 'pai/protocols/base_adapter.py'"`
 
-### HTTP Client Tools (`http_client.py`)
-
-A structured tool for making HTTP requests to web APIs. This is a safer and more powerful alternative to a simple URL fetcher.
-
 content_to_replace_with
 =======
 content_to_replace_with

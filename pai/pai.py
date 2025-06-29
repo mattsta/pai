@@ -422,182 +422,170 @@ class InteractiveUI:
         except (EOFError, KeyboardInterrupt):
             return False
 
+    def _get_toolbar_line1_text(self) -> str:
+        """Generates the first line of the toolbar (context)."""
+        prompt_count = len(self.conversation.get_system_prompts())
+        mode_str = escape(self._get_mode_display_name())
+        if prompt_count > 1:
+            mode_str += f" <style fg='ansicyan'>Sys[{prompt_count}]</style>"
+
+        if self.state.mode == UIMode.ARENA and self.state.arena:
+            p_configs = self.state.arena.arena_config.participants
+            p_details = " vs ".join(
+                [
+                    f"{p.name} ({p.model})"
+                    for p_id, p in p_configs.items()
+                    if p_id != "judge"
+                ]
+            )
+            judge_str = " w/ Judge" if self.state.arena.arena_config.judge else ""
+            arena_name_esc = escape(self.state.arena.arena_config.name)
+            p_details_esc = escape(p_details)
+            return f"<style fg='ansiyellow'><b>⚔️ ARENA: {arena_name_esc}{judge_str}</b></style> | {p_details_esc}"
+        else:
+            endpoint_esc = escape(self.client.config.name)
+            model_esc = escape(self.client.config.model_name)
+            return f"<b>{endpoint_esc.upper()}:{model_esc}</b> | <b>Mode:</b> {mode_str}"
+
+    def _get_toolbar_line2_text(self) -> str:
+        """Generates the second line of the toolbar (performance stats)."""
+        display = self.client.display
+        session_stats = self.client.stats
+        live_stats = display.current_request_stats
+        parts = []
+
+        status_esc = escape(display.status)
+        parts.append(f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>")
+
+        if live_stats and display.status in ["Waiting...", "Streaming"]:
+            live_tps = live_stats.live_tok_per_sec
+            live_tokens = live_stats.tokens_received
+            status_color = (
+                "ansigreen" if display.status == "Streaming" else "ansiyellow"
+            )
+            live_stats_str = f"<b>Live:</b> {live_tokens:4d} tk @ {live_tps:5.1f} tk/s"
+            parts.append(f"<style fg='{status_color}'>{live_stats_str}</style>")
+        else:
+            last_req = session_stats.last_request_stats
+            if last_req:
+                last_tps = f"{last_req.final_tok_per_sec:5.1f} tk/s"
+                last_tokens = f"{last_req.tokens_received:4d} tk"
+                parts.append(f"<b>Last:</b> {last_tokens}, {last_tps}")
+                reason = escape(last_req.finish_reason or "N/A")
+                parts.append(f"<style fg='ansiyellow'><b>Stop:</b> {reason}</style>")
+
+                mean_d_str = "--.-ms"
+                if j_stats := last_req.jitter_stats:
+                    if j_stats.mean_delta != "N/A":
+                        try:
+                            mean_d = float(j_stats.mean_delta)
+                            mean_d_str = f"{mean_d:4.1f}ms"
+                        except ValueError:
+                            pass
+                parts.append(f"<style fg='grey'><b>Avg Δ:</b> {mean_d_str}</style>")
+
+        session_tokens = self.conversation.session_token_count
+        total_time = session_stats.total_response_time
+        total_received = session_stats.total_tokens_received
+        total_cost = session_stats.total_cost
+
+        if live_stats and display.status in ["Waiting...", "Streaming"]:
+            session_tokens += live_stats.tokens_sent + live_stats.tokens_received
+            total_time += live_stats.current_duration
+            total_received += live_stats.tokens_received
+            if live_stats.cost:
+                total_cost += live_stats.cost.total_cost
+
+        session_tps = total_received / max(total_time, 1)
+
+        parts.extend(
+            [
+                f"<b>Cost:</b> ${total_cost:.4f}",
+                f"<b>Total:</b> {session_tokens:5d} tk",
+                f"<b>Avg:</b> {session_tps:5.1f} tk/s",
+            ]
+        )
+        return " | ".join(parts)
+
+    def _get_toolbar_line3_text(self) -> str:
+        """Generates the third line of the toolbar (toggles)."""
+        on = "<style fg='ansigreen'>ON</style>"
+        off = "<style fg='default'>OFF</style>"
+        core_toggles = [
+            f"Stream: {on if self.runtime_config.stream else off}",
+            f"Rich: {on if self.runtime_config.rich_text else off}",
+            f"Smooth: {on if self.runtime_config.smooth_stream else off}",
+            f"Multiline: {on if self.state.multiline_input else off}",
+        ]
+        return f"<b>Toggles</b> | {' | '.join(core_toggles)}"
+
+    def _get_toolbar_line4_text(self) -> str:
+        """Generates the fourth line of the toolbar (dynamic content)."""
+        display = self.client.display
+        is_agent_mode = self.state.mode in [
+            UIMode.NATIVE_AGENT,
+            UIMode.LEGACY_AGENT,
+        ]
+        is_smoothing_active = (
+            self.runtime_config.smooth_stream and display.status == "Streaming"
+        )
+
+        if is_smoothing_active and (s_stats := display.smoothing_stats):
+            parts = []
+            if s_stats.stream_finished and s_stats.queue_size > 0:
+                parts.append(
+                    "<style fg='ansimagenta'><b>[Rendering Queue...]</b></style>"
+                )
+            parts.append(f"Queue: {s_stats.queue_size:4d}")
+            if s_stats.smoothing_aborted:
+                parts.append("Drain: LIVE")
+            else:
+                parts.append(f"Drain: {s_stats.buffer_drain_time_s:4.1f}s")
+
+            if not s_stats.stream_finished:
+                try:
+                    min_d = float(s_stats.min_delta)
+                    mean_d = float(s_stats.mean_delta)
+                    med_d = float(s_stats.median_delta)
+                    max_d = float(s_stats.max_delta)
+                    parts.append(
+                        f"Δ (min/mean/med/max ms): {min_d:4.1f}/{mean_d:4.1f}/{med_d:4.1f}/{max_d:4.1f}"
+                    )
+                except ValueError:
+                    parts.append("Δ (min/mean/med/max ms): --.-/--.-/--.-/--.-")
+                parts.append(f"G/B: {s_stats.gaps:2d}/{s_stats.bursts:3d}")
+            else:
+                parts.append("Δ (min/mean/med/max ms): --.-/--.-/--.-/--.-")
+                parts.append("G/B: --/---")
+            return f"<b>Smooth Stats</b> | {' | '.join(parts)}"
+
+        if is_agent_mode:
+            parts = [
+                f"Loops: {self.state.agent_loops}",
+                f"Tools Used: {self.state.tools_used}",
+            ]
+            return f"<style fg='ansimagenta'><b>Agent Stats</b> | {' | '.join(parts)}</style>"
+
+        on = "<style fg='ansigreen'>ON</style>"
+        off = "<style fg='default'>OFF</style>"
+        yellow_on = "<style fg='ansiyellow'>ON</style>"
+        agent_toggles = [
+            f"Tools: {on if self.client.tools_enabled else off}",
+            f"Confirm: {yellow_on if self.runtime_config.confirm_tool_use else off}",
+            f"Debug: {yellow_on if display.debug_mode else off}",
+            f"Verbose: {yellow_on if self.runtime_config.verbose else off}",
+        ]
+        log_part = f"Log: {escape(str(self.session_dir))}"
+        agent_part = f"<b>Agent Toggles</b> | {' | '.join(agent_toggles)}"
+        return f"{log_part}    {agent_part}"
+
     def _get_toolbar_text(self) -> HTML:
         """Generates the HTML for the multi-line bottom toolbar."""
         try:
-            client, session_dir = self.client, self.session_dir
-            endpoint, model = client.config.name, client.config.model_name
-            session_stats, display = client.stats, client.display
-            live_stats = display.current_request_stats
-
-            # Escape any potentially problematic strings before embedding in HTML
-            endpoint_esc = escape(endpoint)
-            model_esc = escape(model)
-            session_dir_esc = escape(str(session_dir))
-
-            # --- Line 1: Main Context (Endpoint, Model, Mode) ---
-            mode_str = escape(self._get_mode_display_name())
-            prompt_count = len(self.conversation.get_system_prompts())
-            if prompt_count > 1:
-                mode_str += f" <style fg='ansicyan'>Sys[{prompt_count}]</style>"
-
-            if self.state.mode == UIMode.ARENA and self.state.arena:
-                p_configs = self.state.arena.arena_config.participants
-                p_details = " vs ".join(
-                    [
-                        f"{p.name} ({p.model})"
-                        for p_id, p in p_configs.items()
-                        if p_id != "judge"
-                    ]
-                )
-                judge_str = " w/ Judge" if self.state.arena.arena_config.judge else ""
-                arena_name_esc = escape(self.state.arena.arena_config.name)
-                p_details_esc = escape(p_details)
-                line1 = f"<style fg='ansiyellow'><b>⚔️ ARENA: {arena_name_esc}{judge_str}</b></style> | {p_details_esc}"
-            else:
-                line1 = f"<b>{endpoint_esc.upper()}:{model_esc}</b> | <b>Mode:</b> {mode_str}"
-
-            # --- Line 2: Performance Stats ---
-            line2_parts = []
-            status_esc = escape(display.status)
-            line2_parts.append(
-                f"<style fg='ansimagenta'><b>Status: {status_esc}</b></style>"
-            )
-
-            if live_stats and display.status in ["Waiting...", "Streaming"]:
-                live_tps = live_stats.live_tok_per_sec
-                live_tokens = live_stats.tokens_received
-                status_color = (
-                    "ansigreen" if display.status == "Streaming" else "ansiyellow"
-                )
-                live_stats_str = (
-                    f"<b>Live:</b> {live_tokens:4d} tk @ {live_tps:5.1f} tk/s"
-                )
-                line2_parts.append(
-                    f"<style fg='{status_color}'>{live_stats_str}</style>"
-                )
-            else:
-                last_req = session_stats.last_request_stats
-                if last_req:
-                    last_tps = f"{last_req.final_tok_per_sec:5.1f} tk/s"
-                    last_tokens = f"{last_req.tokens_received:4d} tk"
-                    line2_parts.append(f"<b>Last:</b> {last_tokens}, {last_tps}")
-                    reason = escape(last_req.finish_reason or "N/A")
-                    line2_parts.append(
-                        f"<style fg='ansiyellow'><b>Stop:</b> {reason}</style>"
-                    )
-
-                    mean_d_str = "--.-ms"
-                    if j_stats := last_req.jitter_stats:
-                        if j_stats.mean_delta != "N/A":
-                            try:
-                                mean_d = float(j_stats.mean_delta)
-                                mean_d_str = f"{mean_d:4.1f}ms"
-                            except ValueError:
-                                pass  # Keep placeholder on error
-
-                    line2_parts.append(
-                        f"<style fg='grey'><b>Avg Δ:</b> {mean_d_str}</style>"
-                    )
-
-            session_tokens = self.conversation.session_token_count
-            total_time = session_stats.total_response_time
-            total_received = session_stats.total_tokens_received
-            total_cost = session_stats.total_cost
-
-            # Add live data during streaming for a real-time view
-            if live_stats and display.status in ["Waiting...", "Streaming"]:
-                session_tokens += live_stats.tokens_sent + live_stats.tokens_received
-                total_time += live_stats.current_duration
-                total_received += live_stats.tokens_received
-                if live_stats.cost:
-                    # Live cost is partially supported (e.g., Anthropic input cost)
-                    total_cost += live_stats.cost.total_cost
-
-            session_tps = total_received / max(total_time, 1)
-
-            cost_str = f"<b>Cost:</b> ${total_cost:.4f}"
-            session_tokens_str = f"<b>Total:</b> {session_tokens:5d} tk"
-            session_tps_str = f"<b>Avg:</b> {session_tps:5.1f} tk/s"
-            line2_parts.extend([cost_str, session_tokens_str, session_tps_str])
-            line2 = " | ".join(line2_parts)
-
-            # --- Line 3: Toggles ---
-            on = "<style fg='ansigreen'>ON</style>"
-            off = "<style fg='default'>OFF</style>"
-
-            core_toggles = [
-                f"Stream: {on if self.runtime_config.stream else off}",
-                f"Rich: {on if self.runtime_config.rich_text else off}",
-                f"Smooth: {on if self.runtime_config.smooth_stream else off}",
-                f"Multiline: {on if self.state.multiline_input else off}",
-            ]
-            line3 = f"<b>Toggles</b> | {' | '.join(core_toggles)}"
-
-            # --- Line 4: Dynamic Content ---
-            line4 = ""  # Default to empty
-            is_agent_mode = self.state.mode in [
-                UIMode.NATIVE_AGENT,
-                UIMode.LEGACY_AGENT,
-            ]
-            is_smoothing_active = (
-                self.runtime_config.smooth_stream and display.status == "Streaming"
-            )
-
-            if is_smoothing_active and (s_stats := display.smoothing_stats):
-                parts = []
-                is_rendering = s_stats.stream_finished and s_stats.queue_size > 0
-
-                if is_rendering:
-                    parts.append(
-                        "<style fg='ansimagenta'><b>[Rendering Queue...]</b></style>"
-                    )
-                q_size = s_stats.queue_size
-                parts.append(f"Queue: {q_size:4d}")
-                if s_stats.smoothing_aborted:
-                    parts.append("Drain: LIVE")
-                else:
-                    drain_time = s_stats.buffer_drain_time_s
-                    parts.append(f"Drain: {drain_time:4.1f}s")
-                if not s_stats.stream_finished:
-                    try:
-                        min_d = float(s_stats.min_delta)
-                        mean_d = float(s_stats.mean_delta)
-                        med_d = float(s_stats.median_delta)
-                        max_d = float(s_stats.max_delta)
-                        parts.append(
-                            f"Δ (min/mean/med/max ms): {min_d:4.1f}/{mean_d:4.1f}/{med_d:4.1f}/{max_d:4.1f}"
-                        )
-                    except ValueError:
-                        # Handle the "N/A" case if stats aren't ready
-                        parts.append("Δ (min/mean/med/max ms): --.-/--.-/--.-/--.-")
-
-                    gaps = s_stats.gaps
-                    bursts = s_stats.bursts
-                    parts.append(f"G/B: {gaps:2d}/{bursts:3d}")
-                else:
-                    # Keep layout stable by showing placeholders
-                    parts.append("Δ (min/mean/med/max ms): --.-/--.-/--.-/--.-")
-                    parts.append("G/B: --/---")
-                line4 = f"<b>Smooth Stats</b> | {' | '.join(parts)}"
-            elif is_agent_mode:
-                parts = [
-                    f"Loops: {self.state.agent_loops}",
-                    f"Tools Used: {self.state.tools_used}",
-                ]
-                line4 = f"<style fg='ansimagenta'><b>Agent Stats</b> | {' | '.join(parts)}</style>"
-            else:
-                yellow_on = "<style fg='ansiyellow'>ON</style>"
-                agent_toggles = [
-                    f"Tools: {on if client.tools_enabled else off}",
-                    f"Confirm: {yellow_on if self.runtime_config.confirm_tool_use else off}",
-                    f"Debug: {yellow_on if display.debug_mode else off}",
-                    f"Verbose: {yellow_on if self.runtime_config.verbose else off}",
-                ]
-                log_part = f"Log: {session_dir_esc}"
-                agent_part = f"<b>Agent Toggles</b> | {' | '.join(agent_toggles)}"
-                line4 = f"{log_part}    {agent_part}"
-
+            line1 = self._get_toolbar_line1_text()
+            line2 = self._get_toolbar_line2_text()
+            line3 = self._get_toolbar_line3_text()
+            line4 = self._get_toolbar_line4_text()
             return HTML(f"{line1}\n{line2}\n{line3}\n{line4}")
         except Exception as e:
             # If any rendering fails, return a safe, minimal toolbar to prevent crashing.

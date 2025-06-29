@@ -135,16 +135,6 @@ These tools allow the AI to interact with your local filesystem. For security, t
 
 **Example Usage:** `"write a file named 'hello.txt' with 'hello world', then read it, then delete it."`
 
-### Developer Tools (`developer_tools.py`)
-
-A set of powerful tools for code navigation and exploration, which depend on `fd` and `ripgrep`. If these are not installed, the tools will return an error.
-
-*   `find_files(pattern: str, search_path: str = ".")`: Finds files by name using a glob pattern. Returns a JSON list of paths.
-*   `search_code(pattern: str, search_path: str = ".")`: Searches for a regex pattern within files and returns a structured JSON output of matches.
-*   `read_file_lines(path: str, start_line: int, end_line: int)`: Reads a specific range of lines from a file, which is useful for inspecting the context around a `search_code` result.
-
-**Example Usage:** `"find all python files, then search for 'ProtocolContext' in the 'pai' directory, then show me lines 1-10 of 'pai/protocols/base_adapter.py'"`
-
 content_to_replace_with
 =======
 content_to_replace_with

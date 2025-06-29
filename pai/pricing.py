@@ -99,36 +99,34 @@ class PricingService:
         # --- Step 2: Load Custom Pricing Data ---
         if custom_file_path:
             path = pathlib.Path(custom_file_path)
-            if not path.is_file():
+            if path.is_file():
+                try:
+                    content = path.read_text("utf-8")
+                    custom_data = None
+                    if path.suffix.lower() == ".toml":
+                        custom_data = toml.loads(content)
+                    elif path.suffix.lower() in [".yaml", ".yml"]:
+                        custom_data = yaml.safe_load(content)
+                    else:
+                        print(
+                            "Warning: Unsupported custom pricing file format: "
+                            f"'{path.suffix}'. Please use .toml or .yaml/.yml."
+                        )
+
+                    if custom_data:
+                        self._custom_pricing_data = TomlCustomPricing.model_validate(
+                            custom_data
+                        )
+                        print(f"Loaded custom pricing from '{custom_file_path}'")
+
+                except (toml.TomlDecodeError, yaml.YAMLError, Exception) as e:
+                    print(
+                        "Warning: Could not parse custom pricing file "
+                        f"'{custom_file_path}': {e}"
+                    )
+            else:
                 print(
                     f"Warning: Custom pricing file not found at '{custom_file_path}'"
-                )
-                return
-
-            try:
-                custom_data = None
-                content = path.read_text("utf-8")
-                if path.suffix.lower() == ".toml":
-                    custom_data = toml.loads(content)
-                elif path.suffix.lower() in [".yaml", ".yml"]:
-                    custom_data = yaml.safe_load(content)
-                else:
-                    print(
-                        "Warning: Unsupported custom pricing file format: "
-                        f"'{path.suffix}'. Please use .toml or .yaml/.yml."
-                    )
-                    return
-
-                if custom_data:
-                    self._custom_pricing_data = TomlCustomPricing.model_validate(
-                        custom_data
-                    )
-                    print(f"Loaded custom pricing from '{custom_file_path}'")
-
-            except (toml.TomlDecodeError, yaml.YAMLError, Exception) as e:
-                print(
-                    "Warning: Could not parse custom pricing file "
-                    f"'{custom_file_path}': {e}"
                 )
 
     def _merge_pricing(

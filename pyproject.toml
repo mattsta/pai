@@ -41,6 +41,7 @@ ollama = "pai.protocols.ollama_adapter:OllamaAdapter"
 [project.optional-dependencies]
 dev = [
     "pytest>=8.4.0",
+    "pytest-anyio",
 ]
 
 [tool.hatch.build.targets.wheel]

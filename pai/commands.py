@@ -103,7 +103,7 @@ class HelpCommand(Command):
   /save <name>           - Save the current chat session to a file
   /load <name>           - Load a chat session from a file
   /prompts               - List available, loadable system prompts
-  /prompt <name>         - Load a system prompt from file (clears history)
+  /prompt <name>         - Add a system prompt from file to the current stack
   /agent                 - Start agent mode for OpenAI-compatible tool-use
   /legacy_agent          - Start agent mode for models without native tool-use
   --- Arena Mode Commands ---
@@ -490,7 +490,7 @@ class ArenaCommand(Command):
         arena_config = arenas_config.get(arena_name)
 
         if not arena_config:
-            self.ui.pt_printer(f"❌ Arena '{arena_name}' not found in polyglot.toml.")
+            self.ui.pt_printer(f"❌ Arena '{arena_name}' not found in pai.toml.")
             return
 
         participant_configs = arena_config.participants
@@ -726,12 +726,12 @@ class LoadCommand(Command):
             # Print last few messages to give context
             history = self.ui.conversation.get_history()
             if history:
-                self.ui.pt_printer("\n--- Last message in loaded history ---")
-                last_msg = history[-1]
-                self.ui.pt_printer(
-                    f"[{last_msg['role']}]> {last_msg['content'][:200]}..."
-                )
-                self.ui.pt_printer("------------------------------------")
+                self.ui.pt_printer("\n--- Context from loaded history ---")
+                for msg in history[-2:]:
+                    content = msg.get("content", "") or ""
+                    if content:
+                        self.ui.pt_printer(f"[{msg['role']}]> {content[:200]}...")
+                self.ui.pt_printer("---------------------------------")
 
         except (TypeError, Exception) as e:
             self.ui.pt_printer(f"❌ Error loading session: {e}")

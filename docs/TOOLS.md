@@ -72,7 +72,7 @@ You don't need to edit the core `pai` codebase to add new tools. You can place y
 3.  **Configure `polyglot.toml`:** Open your `polyglot.toml` file and add a `[tool_config]` section pointing to your directory.
 
     ```toml
-    # In polyglot.toml
+    # In pai.toml
 
     [tool_config]
     # A list of directories to scan for custom tool modules.

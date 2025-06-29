@@ -8,12 +8,12 @@ This feature allows for precise cost tracking in any environment.
 
 You can specify a custom pricing file in two ways. The file can be in **YAML** (recommended) or **TOML** format.
 
-### 1. In `polyglot.toml` (Recommended)
+### 1. In `pai.toml` (Recommended)
 
-Add the `custom-pricing-file` key to the top level of your `polyglot.toml` configuration file. The path can be absolute or relative to the location of `polyglot.toml`.
+Add the `custom-pricing-file` key to the top level of your `pai.toml` configuration file. The path can be absolute or relative to the location of `pai.toml`.
 
 ```toml
-# polyglot.toml - using a YAML file
+# pai.toml - using a YAML file
 custom-pricing-file = "custom_prices.yaml"
 
 # Or using a TOML file
@@ -25,7 +25,7 @@ custom-pricing-file = "custom_prices.yaml"
 
 ### 2. Using a CLI Flag
 
-You can specify the path to a pricing file at runtime using the `--custom-pricing-file` flag. This flag will **override** any path set in `polyglot.toml`.
+You can specify the path to a pricing file at runtime using the `--custom-pricing-file` flag. This flag will **override** any path set in `pai.toml`.
 
 ```bash
 pai --chat --custom-pricing-file /path/to/my/prices.yaml

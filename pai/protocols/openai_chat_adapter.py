@@ -25,6 +25,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
     ) -> dict[str, Any]:
         messages = list(request.messages)
         max_iterations = 5
+        tools_used_count = 0
 
         async def _execute_and_format_tool_call(tool_call: dict) -> dict:
             """Executes a single tool call and formats the result."""
@@ -54,6 +55,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
         async def _execute_with_confirmation(name: str, args: dict) -> Any:
             """Helper to wrap tool execution with an optional confirmation step."""
+            nonlocal tools_used_count
             from ..tools import ToolArgumentError, ToolError, ToolNotFound
 
             if context.confirmer:
@@ -65,25 +67,15 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     f"  - Executing: {name}({json.dumps(args, indent=2)})"
                 )
             try:
-                # This is where a tool is actually run. This is a bit of a hack
-                # to reach back to the UI state. A better solution might involve
-                # passing a callback through the context.
-                if self.ui:
-                    self.ui.state.tools_used += 1
-                return execute_tool(name, args)
+                result = execute_tool(name, args)
+                tools_used_count += 1
+                return result
             except (ToolNotFound, ToolArgumentError, ToolError) as e:
                 context.display._print(f"  - ❌ Tool Error: {e}")
                 return f"Error: {e}"
 
-        # This adapter needs access to the UI state to increment counters.
-        # This is a bit of a hack. A cleaner way would be a callback via context.
-        self.ui = context.display.ui if hasattr(context.display, "ui") else None
-
         for iteration in range(max_iterations):
-            if self.ui:
-                self.ui.state.agent_loops = iteration + 1
             finish_reason = None
-            # MODIFIED: Access all state via the context object.
             url = f"{context.config.base_url}/chat/completions"
             # The request object now correctly includes tools in its dictionary representation.
             # We just need to ensure the messages for the current agentic loop are set.
@@ -156,6 +148,8 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         "request": final_request_payload,
                         "response": response_data,
                         "text": context.display.current_response,
+                        "tools_used": tools_used_count,
+                        "agent_loops": iteration + 1,
                     }
 
                 # Streaming logic starts here
@@ -266,6 +260,8 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     "request": final_request_payload,
                     "response": response_data,
                     "text": context.display.current_response,
+                    "tools_used": tools_used_count,
+                    "agent_loops": iteration + 1,
                 }
             except httpx.HTTPStatusError as e:
                 request_stats = await context.display.finish_response(success=False)
@@ -288,4 +284,8 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     context.stats.add_completed_request(request_stats)
                 raise ConnectionError(f"Request failed: {e!r}")
 
-        return {"text": "[Agent Error] Agent reached maximum iterations."}
+        return {
+            "text": "[Agent Error] Agent reached maximum iterations.",
+            "tools_used": tools_used_count,
+            "agent_loops": max_iterations,
+        }

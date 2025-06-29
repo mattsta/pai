@@ -731,6 +731,11 @@ def load_toml_config(path: str) -> PolyglotConfig:
             data = toml.load(f)
             return PolyglotConfig.model_validate(data)
     except FileNotFoundError:
+        # Provide a helpful message if the old config file name is found.
+        if path == "pai.toml" and pathlib.Path("polyglot.toml").exists():
+            sys.exit(
+                "❌ FATAL: Config file 'polyglot.toml' found. Please rename it to 'pai.toml'."
+            )
         sys.exit(f"❌ FATAL: Config file not found at '{path}'")
     except Exception as e:
         sys.exit(f"❌ FATAL: Could not parse '{path}': {e}")
@@ -891,7 +896,7 @@ def run(
         show_default=False,
     ),
     config: str = typer.Option(
-        "polyglot.toml", help="Path to the TOML configuration file."
+        "pai.toml", help="Path to the TOML configuration file."
     ),
     custom_pricing_file: str | None = typer.Option(
         None,

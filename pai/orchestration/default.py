@@ -53,6 +53,11 @@ class DefaultOrchestrator(BaseOrchestrator):
                     request, self.runtime_config.verbose, confirmer=confirmer
                 )
 
+                # The orchestrator is responsible for updating agent stats on the UI state.
+                self.state.tools_used += result.get("tools_used", 0)
+                if (loops := result.get("agent_loops")) is not None:
+                    self.state.agent_loops = loops
+
                 if self.state.mode != UIMode.COMPLETION and result:
                     turn = Turn(
                         request_data=result.get("request", {}),

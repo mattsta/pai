@@ -87,7 +87,7 @@ Clone or download the repository. The core structure is:
 |-- tools.py
 /sessions/                # Auto-generated for session logs
 /docs/                    # Detailed documentation
-polyglot.toml             # Endpoint configuration
+pai.toml                  # Endpoint configuration
 pyproject.toml            # Project dependencies and definition
 ```
 
@@ -113,7 +113,7 @@ uv run pai --chat
 ```
 
 **Using a Profile**
-You can define preset configurations in `polyglot.toml` and use them with the `--profile` flag. This is great for switching between common setups.
+You can define preset configurations in `pai.toml` and use them with the `--profile` flag. This is great for switching between common setups.
 ```bash
 uv run pai --profile research_haiku --chat
 ```
@@ -175,7 +175,7 @@ Once in interactive mode, use `/` commands to control the session:
 *   `/load <name>`: Loads a chat session from a file.
 
 **Multi-Model Arena:**
-*   `/arena <name> [turns]`: Starts a multi-model arena conversation defined in `polyglot.toml`.
+*   `/arena <name> [turns]`: Starts a multi-model arena conversation defined in `pai.toml`.
 *   `/pause`: Pauses the arena conversation after the current model's turn.
 *   `/resume`: Resumes a paused arena.
 *   `/say <message>`: While paused, interjects with a message to steer the conversation.

@@ -55,7 +55,10 @@ def find_files(pattern: str, search_path: str = ".") -> str:
         search_path (str): The directory to start searching from, relative to the project root.
     """
     if not is_safe_path(search_path):
-        result = {"status": "failure", "reason": "Search path is outside the allowed workspace."}
+        result = {
+            "status": "failure",
+            "reason": "Search path is outside the allowed workspace.",
+        }
         return json.dumps(result, indent=2)
 
     command = ["--json", "--glob", pattern, search_path]
@@ -66,10 +69,15 @@ def find_files(pattern: str, search_path: str = ".") -> str:
     else:
         try:
             # fd --json outputs a stream of objects, so we wrap in an array.
-            file_list = [json.loads(line) for line in output.strip().split("\n") if line]
+            file_list = [
+                json.loads(line) for line in output.strip().split("\n") if line
+            ]
             result = {"status": "success", "result": file_list}
         except json.JSONDecodeError:
-            result = {"status": "failure", "reason": "Failed to parse 'fd' output as JSON."}
+            result = {
+                "status": "failure",
+                "reason": "Failed to parse 'fd' output as JSON.",
+            }
 
     return json.dumps(result, indent=2)
 
@@ -85,7 +93,10 @@ def search_code(pattern: str, search_path: str = ".") -> str:
         search_path (str): The file or directory to search within.
     """
     if not is_safe_path(search_path):
-        result = {"status": "failure", "reason": "Search path is outside the allowed workspace."}
+        result = {
+            "status": "failure",
+            "reason": "Search path is outside the allowed workspace.",
+        }
         return json.dumps(result, indent=2)
 
     command = ["--json", pattern, search_path]
@@ -118,10 +129,16 @@ def read_file_lines(path: str, start_line: int, end_line: int) -> str:
         end_line (int): The ending line number to read (inclusive).
     """
     if not is_safe_path(path):
-        result = {"status": "failure", "reason": "Path is outside the allowed workspace."}
+        result = {
+            "status": "failure",
+            "reason": "Path is outside the allowed workspace.",
+        }
         return json.dumps(result, indent=2)
     if start_line <= 0 or end_line < start_line:
-        result = {"status": "failure", "reason": "Invalid line range. Start must be > 0 and end >= start."}
+        result = {
+            "status": "failure",
+            "reason": "Invalid line range. Start must be > 0 and end >= start.",
+        }
         return json.dumps(result, indent=2)
 
     try:
@@ -132,7 +149,10 @@ def read_file_lines(path: str, start_line: int, end_line: int) -> str:
         end_index = end_line
 
         if start_index >= len(lines):
-            result = {"status": "failure", "reason": "Start line is after the end of the file."}
+            result = {
+                "status": "failure",
+                "reason": "Start line is after the end of the file.",
+            }
         else:
             selected_lines = lines[start_index:end_index]
 
@@ -141,7 +161,7 @@ def read_file_lines(path: str, start_line: int, end_line: int) -> str:
                 f"{i + start_line}: {line.rstrip()}"
                 for i, line in enumerate(selected_lines)
             ]
-            
+
             content = "\n".join(output_lines)
             if not content:
                 content = f"Note: No lines found in range {start_line}-{end_line} for file '{path}'."

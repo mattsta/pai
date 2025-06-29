@@ -104,9 +104,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                             f"\n🔧 [Agent Action] Model requested {len(tool_calls)} tool calls..."
                         )
                         messages.append(message)  # Add assistant's tool call request
-                        tasks = [
-                            _execute_and_format_tool_call(tc) for tc in tool_calls
-                        ]
+                        tasks = [_execute_and_format_tool_call(tc) for tc in tool_calls]
                         tool_results = await asyncio.gather(*tasks)
                         messages.extend(tool_results)
                         continue  # Next agent iteration

@@ -44,7 +44,9 @@ packages = ["pai/"]
 requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
 
-[project.optional-dependencies]
+# Note: this [dependency-groups] block IS THE CORRECT BLOCK FOR DEV DEPENDENCIES.
+#       DO NOT REMOVE OR RENAME THIS BLOCK.
+[dependency-groups]
 dev = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.0.0",

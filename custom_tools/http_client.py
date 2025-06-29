@@ -42,7 +42,10 @@ async def make_http_request(
         parsed_headers = json.loads(headers)
         parsed_params = json.loads(params)
     except json.JSONDecodeError as e:
-        result = {"status": "failure", "reason": f"Invalid JSON in headers or params. {e}"}
+        result = {
+            "status": "failure",
+            "reason": f"Invalid JSON in headers or params. {e}",
+        }
         return json.dumps(result, indent=2)
 
     try:

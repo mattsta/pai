@@ -168,7 +168,9 @@ def test_serialization_deserialization(conversation: Conversation):
     conversation.add_system_prompt("System prompt")
     turn = Turn(
         request_data={"messages": [{"role": "user", "content": "Test"}]},
-        response_data={"choices": [{"message": {"role": "assistant", "content": "OK"}}]},
+        response_data={
+            "choices": [{"message": {"role": "assistant", "content": "OK"}}]
+        },
         assistant_message="OK",
         participant_name="test_participant",
         model_name="test_model",

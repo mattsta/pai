@@ -32,7 +32,9 @@ def generate_python_class(
             name = name.strip()
             type_hint = type_hint.strip()
             if not name.isidentifier():
-                raise ValueError(f"Field name '{name}' is not a valid Python identifier.")
+                raise ValueError(
+                    f"Field name '{name}' is not a valid Python identifier."
+                )
             field_lines.append(f"    {name}: {type_hint}")
 
         if include_init:
@@ -50,5 +52,5 @@ def generate_python_class(
         result = {"status": "failure", "reason": f"Invalid input: {e}"}
     except Exception as e:
         result = {"status": "failure", "reason": f"An unexpected error occurred: {e}"}
-    
+
     return json.dumps(result, indent=2)

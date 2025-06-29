@@ -190,7 +190,9 @@ class InteractiveUI:
         ):
             initiator = self.state.arena.arena_config.get_initiator()
             # Use a specific prompt for the arena's first turn
-            return HTML(f"<style fg='ansigreen'>⚔️  Prompt for {initiator.name}:</style> ")
+            return HTML(
+                f"<style fg='ansigreen'>⚔️  Prompt for {initiator.name}:</style> "
+            )
         return HTML(
             f"<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> "
         )
@@ -448,7 +450,9 @@ class InteractiveUI:
         else:
             endpoint_esc = escape(self.client.config.name)
             model_esc = escape(self.client.config.model_name)
-            return f"<b>{endpoint_esc.upper()}:{model_esc}</b> | <b>Mode:</b> {mode_str}"
+            return (
+                f"<b>{endpoint_esc.upper()}:{model_esc}</b> | <b>Mode:</b> {mode_str}"
+            )
 
     def _get_toolbar_line2_text(self) -> str:
         """Generates the second line of the toolbar (performance stats)."""

@@ -3,10 +3,17 @@
 <div class="user">
 {{ message.role }}> {{ message.content.strip() }}
 </div>
-{% elif message.role == 'assistant' and message.content %}
+{% elif message.role == 'assistant' %}
 <div class="agent">
-assistant> {{ message.content.strip() }}
+assistant>{%- if message.content %} {{ message.content.strip() }}{% endif %}
+{%- if message.tool_calls %}
+TOOL_CALLS:
+{{ message.tool_calls | prettyjson }}
+{%- endif %}
+</div>
+{% elif message.role == 'tool' and message.content %}
+<div class="user">
+tool> {{ message.content.strip() }}
 </div>
 {%- endif %}
-
 {% endfor %}

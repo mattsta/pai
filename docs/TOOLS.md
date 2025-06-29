@@ -122,25 +122,6 @@ Tools for generating code and other structured text.
 
 **Example Usage:** `"generate a python dataclass named 'Book' with fields: title: str, author: str, and published_year: int"`
 
-### Code Editing Tools (`code_editor.py`)
-
-This is one of the most powerful tools, allowing the AI to edit code by providing `SEARCH/REPLACE` blocks.
-
-*   `apply_search_replace(edit_script: str)`: Parses and applies one or more `SEARCH/REPLACE` blocks. The edit script must follow a strict format:
-
-    ```
-    ´´´´[language]
-    path/to/file.ext
-    <<<<<<< SEARCH
-    content_to_find
-
-*   `read_file(path: str)`: Reads the content of a file.
-*   `list_directory(path: str = ".")`: Lists files and folders in a directory.
-*   `write_file(path: str, content: str = "")`: Writes content to a file, creating it if needed or overwriting it.
-*   `append_to_file(path: str, content: str)`: Appends text to an existing file.
-*   `delete_file(path: str)`: Deletes a single file.
-*   `delete_directory(path: str)`: Recursively deletes a directory and all its contents. Use with caution.
-
 content_to_replace_with
 =======
 content_to_replace_with

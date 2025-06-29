@@ -31,11 +31,11 @@ async def apply_search_replace(edit_script: str) -> str:
     Each block must strictly follow the format (without the || which stops other editors from breaking here):
     ||````[language]
     ||path/to/file.ext
-    ||<<<<<<< S·E·A·R·C·H
+    ||<<<<<<< SEARCH
     ||content_to_find
     ||=======
     ||content_to_replace_with
-    ||>>>>>>> R·E·P·L·A·C·E
+    ||>>>>>>> REPLACE
     ||````
 
     The tool processes each block sequentially and returns a single JSON object.

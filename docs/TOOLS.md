@@ -149,8 +149,6 @@ A set of powerful tools for code navigation and exploration, which depend on `fd
 
 A structured tool for making HTTP requests to web APIs. This is a safer and more powerful alternative to a simple URL fetcher.
 
-*   `make_http_request(url: str, method: HttpMethod, ...)`: Makes an HTTP request and returns a JSON object with the status code, headers, and body.
-
 content_to_replace_with
 =======
 content_to_replace_with

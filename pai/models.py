@@ -206,43 +206,69 @@ class Conversation:
 
     def get_rich_history_for_template(self) -> list[dict[str, Any]]:
         """
-        Generates a enriched history list suitable for detailed HTML logging.
-        It reconstructs the message flow from turns, adding participant info.
+        Generates an enriched history list suitable for detailed HTML logging.
+        It correctly renders multi-step agentic turns and arena conversations.
         """
-        # Start with all system prompts from the stack.
         history = [
             {"role": "system", "content": prompt} for prompt in self._system_prompts
         ]
 
-        # Create a stable mapping of participant names to a unique index for color-coding.
         participant_names = sorted(
             list(set(t.participant_name for t in self.turns if t.participant_name))
         )
         participant_index_map = {name: i for i, name in enumerate(participant_names)}
 
         for turn in self.turns:
-            # Add the user message that initiated this turn
-            for msg in turn.request_data.get("messages", []):
-                # Avoid duplicating the system prompt or prior turns' messages.
-                if msg["role"] == "user":
-                    history.append(msg)
-                    break  # Assume one user message per turn start
+            # For agentic turns, the full message history is in request_data.
+            # For simple turns, it's just the user prompt.
+            turn_messages = [
+                m
+                for m in turn.request_data.get("messages", [])
+                if m["role"] != "system"
+            ]
 
-            # Add the assistant's response for this turn, with participant info
-            p_name = turn.participant_name
-            assistant_msg = {
-                "role": "assistant",
-                "content": turn.assistant_message,
-                "participant_name": p_name,
-                "model_name": turn.model_name,
-                "participant_index": participant_index_map.get(p_name),
-            }
-            # Add tool calls from the response if they exist
-            if turn.response_data.get("choices"):
-                response_message = turn.response_data["choices"][0].get("message", {})
-                if "tool_calls" in response_message:
-                    assistant_msg["tool_calls"] = response_message["tool_calls"]
-            history.append(assistant_msg)
+            # The final response from the model is in response_data.
+            # We need to append it to the history unless it's already there
+            # (which can happen in agentic loops).
+            if choices := turn.response_data.get("choices"):
+                if message := choices[0].get("message"):
+                    # For Anthropic, content is a list, not a string. Normalize it.
+                    if isinstance(message.get("content"), list):
+                        # The final text content is already in turn.assistant_message
+                        message["content"] = turn.assistant_message
+
+                    if not turn_messages or turn_messages[-1] != message:
+                        turn_messages.append(message)
+
+            # Process all messages for this turn, adding arena metadata where needed.
+            for msg in turn_messages:
+                # The template needs to handle various message structures.
+                # We normalize the 'tool' role to have a 'name' if possible.
+                if msg["role"] == "tool" and "name" not in msg:
+                    # Find the corresponding tool_call to get the name.
+                    tool_call_id = msg.get("tool_call_id")
+                    if tool_call_id:
+                        for prev_msg in reversed(turn_messages):
+                            if prev_msg["role"] == "assistant":
+                                for tc in prev_msg.get("tool_calls", []):
+                                    if tc["id"] == tool_call_id:
+                                        msg["name"] = tc["function"]["name"]
+                                        break
+                                if msg.get("name"):
+                                    break
+
+                p_name = turn.participant_name
+                # Add participant info only to assistant messages in arena mode.
+                if msg["role"] == "assistant" and p_name:
+                    msg_for_template = msg.copy()
+                    msg_for_template["participant_name"] = p_name
+                    msg_for_template["model_name"] = turn.model_name
+                    msg_for_template["participant_index"] = participant_index_map.get(
+                        p_name
+                    )
+                    history.append(msg_for_template)
+                else:
+                    history.append(msg)
 
         return history
 

@@ -6,16 +6,19 @@
 # See docs/PRICING.md for details.
 # custom-pricing-file = "custom_prices.yaml"
 
-[[endpoints]]
-name = "featherless"
-base_url = "https://api.featherless.ai/v1"
-api_key_env = "FEATHERLESS_API_KEY" # Environment variable for the API key
-# The adapter to use for the /chat/completions endpoint
-chat_adapter = "openai_chat"
-# The adapter to use for the legacy /completions endpoint
-completion_adapter = "legacy_completion"
-# Timeout for requests to this endpoint, in seconds.
-timeout = 180
+# Add a new [[endpoints]] block for each provider you want to use.
+# You can copy and paste an existing block to get started.
+
+# [[endpoints]]
+# name = "featherless"
+# base_url = "https://api.featherless.ai/v1"
+# api_key_env = "FEATHERLESS_API_KEY" # Environment variable for the API key
+# # The adapter to use for the /chat/completions endpoint
+# chat_adapter = "openai_chat"
+# # The adapter to use for the legacy /completions endpoint
+# completion_adapter = "legacy_completion"
+# # Timeout for requests to this endpoint, in seconds.
+# timeout = 180
 
 [[endpoints]]
 name = "openai"

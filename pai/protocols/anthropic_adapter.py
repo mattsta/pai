@@ -155,6 +155,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
                         request_stats.finish_reason = response_data.get("stop_reason")
                         context.stats.add_completed_request(request_stats)
 
+                    final_request_payload["messages"] = messages
                     return {
                         "text": context.display.current_response,
                         "request": final_request_payload,
@@ -225,6 +226,8 @@ class AnthropicAdapter(BaseProtocolAdapter):
                         )
                     request_stats.finish_reason = finish_reason
                     context.stats.add_completed_request(request_stats)
+
+                final_request_payload["messages"] = messages
                 return {
                     "text": context.display.current_response,
                     "request": final_request_payload,

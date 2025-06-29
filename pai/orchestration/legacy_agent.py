@@ -83,8 +83,12 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                 else:
                     if used_tools_in_loop:
                         self.pt_printer(HTML("\n✅ Agent formulated a response."))
+
+                    # Create a final request object for logging that contains the full history.
+                    final_request_for_log = result.get("request", {})
+                    final_request_for_log["messages"] = messages
                     turn = Turn(
-                        request_data=result.get("request", {}),
+                        request_data=final_request_for_log,
                         response_data=result.get("response", {}),
                         assistant_message=assistant_response,
                     )

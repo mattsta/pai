@@ -127,6 +127,8 @@ class OllamaAdapter(BaseProtocolAdapter):
                                 output_tokens=request_stats.tokens_received,
                             )
                         context.stats.add_completed_request(request_stats)
+
+                    final_request_payload["messages"] = messages
                     return {
                         "request": final_request_payload,
                         "response": response_data,
@@ -189,6 +191,8 @@ class OllamaAdapter(BaseProtocolAdapter):
                             output_tokens=request_stats.tokens_received,
                         )
                     context.stats.add_completed_request(request_stats)
+
+                payload["messages"] = messages
                 return {
                     "request": payload,
                     "response": final_response_object,

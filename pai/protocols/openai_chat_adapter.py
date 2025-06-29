@@ -142,6 +142,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         request_stats.finish_reason = finish_reason
                         context.stats.add_completed_request(request_stats)
 
+                    final_request_payload["messages"] = messages
                     return {
                         "request": final_request_payload,
                         "response": response_data,
@@ -254,6 +255,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     },
                 }
 
+                final_request_payload["messages"] = messages
                 return {
                     "request": final_request_payload,
                     "response": response_data,

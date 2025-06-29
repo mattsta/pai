@@ -3,6 +3,7 @@ Command parsing and execution for the interactive UI. This module uses a
 class-based approach where each command is a self-contained object.
 """
 
+import inspect
 import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
@@ -796,45 +797,15 @@ class CommandHandler:
         return sorted([f"/{name}" for name in self.commands.keys()])
 
     def _register_commands(self):
-        """Initializes and registers all Command subclasses."""
-        command_classes = [
-            HelpCommand,
-            QuitCommand,
-            StatsCommand,
-            EndpointsCommand,
-            SwitchCommand,
-            ModelCommand,
-            TempCommand,
-            TokensCommand,
-            TimeoutCommand,
-            ToggleStreamCommand,
-            ToggleVerboseCommand,
-            ToggleDebugCommand,
-            ToggleRichTextCommand,
-            ToggleSmoothStreamCommand,
-            ToggleConfirmCommand,
-            ToggleToolsCommand,
-            HistoryCommand,
-            ClearCommand,
-            SystemCommand,
-            PromptsCommand,
-            PromptCommand,
-            AgentCommand,
-            LegacyAgentCommand,
-            ArenaCommand,
-            PauseCommand,
-            ResumeCommand,
-            SayCommand,
-            SaveCommand,
-            LoadCommand,
-            ToggleModeCommand,
-            ToggleMultilineCommand,
-        ]
-        for cmd_class in command_classes:
-            instance = cmd_class(self.ui)
-            self.commands[instance.name] = instance
-            for alias in instance.aliases:
-                self.commands[alias] = instance
+        """Initializes and registers all Command subclasses automatically."""
+        # This will find all concrete subclasses of Command defined in this module.
+        for cmd_class in Command.__subclasses__():
+            # Skip abstract base classes if any were defined to inherit from Command
+            if not inspect.isabstract(cmd_class):
+                instance = cmd_class(self.ui)
+                self.commands[instance.name] = instance
+                for alias in instance.aliases:
+                    self.commands[alias] = instance
 
     def handle(self, text: str, app: "Application"):
         """Parses the command text and calls the appropriate handler."""

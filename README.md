@@ -102,11 +102,12 @@ export OPENAI_API_KEY="sk-your-openai-key"
 
 #### 4. Running the Framework
 
-**Install the package in editable mode:**
+**Install dependencies and run:**
 ```bash
-uv pip install -e .
+pip install uv -U
+uv sync -U
 ```
-This installs the `pai` command and its dependencies in editable mode, allowing you to make changes to the source code that are immediately reflected.
+This prepares a `pai` command and its dependencies locally.
 
 **Start in Interactive Mode (Default: OpenAI)**
 ```bash

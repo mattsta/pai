@@ -14,5 +14,9 @@ wheels/
 .ruff_cache/
 .hatch/
 
+# IDE files
+.idea/
+.vscode/
+
 sessions/
 saved_sessions/

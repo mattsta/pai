@@ -15,27 +15,10 @@ def pricing_service():
 
 
 @pytest.fixture
-def custom_pricing_filepath(tmp_path: pathlib.Path) -> str:
-    """Creates a temporary custom pricing YAML file and returns its path."""
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    yaml_file = data_dir / "custom_prices.yaml"
-    # This content is a simplified version of the main test data file.
-    yaml_file.write_text(
-        """
-pricing:
-  openai:
-    "gpt-4o":
-      input_cost: 100.0
-      output_cost: 200.0
-  test-provider:
-    "flat-model":
-      input_cost: 1.0
-      output_cost: 2.0
-""",
-        encoding="utf-8",
-    )
-    return str(yaml_file)
+def custom_pricing_filepath() -> str:
+    """Returns the path to the test custom pricing YAML file."""
+    # Assumes tests are run from the project root.
+    return "tests/data/custom_prices.yaml"
 
 
 async def test_load_and_merge_custom_pricing(

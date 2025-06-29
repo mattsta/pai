@@ -28,15 +28,15 @@ EDIT_BLOCK_REGEX = re.compile(
 async def apply_search_replace(edit_script: str) -> str:
     """Parses a script containing one or more SEARCH/REPLACE blocks and applies the edits.
 
-    Each block must strictly follow the format:
-    ````[language]
-    path/to/file.ext
-    <<<<<<< S·E·A·R·C·H
-    content_to_find
-    =======
-    content_to_replace_with
-    >>>>>>> R·E·P·L·A·C·E
-    ````
+    Each block must strictly follow the format (without the || which stops other editors from breaking here):
+    ||````[language]
+    ||path/to/file.ext
+    ||<<<<<<< S·E·A·R·C·H
+    ||content_to_find
+    ||=======
+    ||content_to_replace_with
+    ||>>>>>>> R·E·P·L·A·C·E
+    ||````
 
     The tool processes each block sequentially and returns a JSON array of results,
     detailing the success or failure of each operation. For new files, the SEARCH

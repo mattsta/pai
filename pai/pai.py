@@ -359,12 +359,8 @@ class InteractiveUI:
         if stripped_input:
             buffer.reset(append_to_history=True)
         else:
+            # Just reset the buffer. The Application's layout will redraw the prompt.
             buffer.reset()
-            self.pt_printer(
-                HTML(
-                    f"<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> "
-                )
-            )
             return
 
         # Print the user's input to the log area.

@@ -16,11 +16,12 @@ def json_to_yaml(json_string: str) -> str:
     """
     try:
         data = json.loads(json_string)
-        return yaml.dump(data, sort_keys=False)
+        result = {"status": "success", "result": yaml.dump(data, sort_keys=False)}
     except json.JSONDecodeError as e:
-        return f"Error: Invalid JSON provided. {e}"
+        result = {"status": "failure", "reason": f"Invalid JSON provided. {e}"}
     except Exception as e:
-        return f"An unexpected error occurred: {e}"
+        result = {"status": "failure", "reason": f"An unexpected error occurred: {e}"}
+    return json.dumps(result, indent=2)
 
 
 @tool
@@ -33,11 +34,12 @@ def yaml_to_json(yaml_string: str) -> str:
     try:
         # Use safe_load to prevent arbitrary code execution from malicious YAML
         data = yaml.safe_load(yaml_string)
-        return json.dumps(data, indent=2)
+        result = {"status": "success", "result": data}
     except yaml.YAMLError as e:
-        return f"Error: Invalid YAML provided. {e}"
+        result = {"status": "failure", "reason": f"Invalid YAML provided. {e}"}
     except Exception as e:
-        return f"An unexpected error occurred: {e}"
+        result = {"status": "failure", "reason": f"An unexpected error occurred: {e}"}
+    return json.dumps(result, indent=2)
 
 
 @tool
@@ -55,8 +57,9 @@ def csv_to_json(csv_data: str, delimiter: str = ",") -> str:
         csv_file = io.StringIO(csv_data)
         # Use DictReader to automatically use the first row as keys
         reader = csv.DictReader(csv_file, delimiter=delimiter)
-        return json.dumps(list(reader), indent=2)
+        result = {"status": "success", "result": list(reader)}
     except csv.Error as e:
-        return f"Error: Invalid CSV data provided. {e}"
+        result = {"status": "failure", "reason": f"Invalid CSV data provided. {e}"}
     except Exception as e:
-        return f"An unexpected error occurred: {e}"
+        result = {"status": "failure", "reason": f"An unexpected error occurred: {e}"}
+    return json.dumps(result, indent=2)

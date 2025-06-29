@@ -132,7 +132,6 @@ class OllamaAdapter(BaseProtocolAdapter):
 
                 # Streaming
                 final_response_object = {}
-                accumulated_tool_calls = []
                 async with context.http_session.stream(
                     "POST", url, json=payload, timeout=context.config.timeout
                 ) as response:

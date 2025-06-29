@@ -77,7 +77,7 @@ class ArenaOrchestrator(BaseOrchestrator):
                 self.conversation.add_turn(turn, stats)
                 participant.conversation.add_turn(turn, stats)
                 save_conversation_formats(
-                    self.conversation, self.session_dir, self.pt_printer
+                    self.conversation, self.log_dir, self.pt_printer
                 )
                 state.last_message = assistant_message
                 state.current_speech += 1
@@ -153,5 +153,5 @@ class ArenaOrchestrator(BaseOrchestrator):
         )
         self.conversation.add_turn(turn, self.client.stats.last_request_stats)
         save_conversation_formats(
-            self.conversation, self.session_dir, printer=self.pt_printer
+            self.conversation, self.log_dir, printer=self.pt_printer
         )

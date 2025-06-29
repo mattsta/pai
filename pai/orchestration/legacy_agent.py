@@ -96,7 +96,7 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                         turn, self.client.stats.last_request_stats
                     )
                     save_conversation_formats(
-                        self.conversation, self.session_dir, printer=self.pt_printer
+                        self.conversation, self.log_dir, printer=self.pt_printer
                     )
                     break
             else:

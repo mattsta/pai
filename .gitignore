@@ -18,5 +18,5 @@ wheels/
 .idea/
 .vscode/
 
-sessions/
-saved_sessions/
+logs/
+session_snapshots/

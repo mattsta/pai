@@ -8,7 +8,7 @@ One of the core features of `pai` is its automatic, comprehensive session loggin
 
 ### How it Works
 
-1.  **Session Start:** When you launch `pai` in interactive mode, it immediately creates a new, unique directory in `sessions/`. The directory name is timestamped to make it easy to find later (e.g., `sessions/2025-06-25_10-30-00-interactive/`).
+1.  **Session Start:** When you launch `pai` in interactive mode, it immediately creates a new, unique directory in `logs/`. The directory name is timestamped to make it easy to find later (e.g., `logs/2025-06-25_10-30-00-interactive/`).
 
 2.  **During the Session:** After every single turn—that is, after you send a prompt and the AI returns a complete response—the framework automatically writes and updates log files within that session's directory.
 
@@ -23,7 +23,7 @@ One of the core features of `pai` is its automatic, comprehensive session loggin
 
 ### Maintaining Logs
 
-The `sessions/` directory can grow over time. Maintenance is currently a manual process. You can safely delete any old session folders from the `sessions/` directory to free up space.
+The `logs/` directory can grow over time. Maintenance is currently a manual process. You can safely delete any old log folders from the `logs/` directory to free up space.
 
 ## Customizing Log Output
 

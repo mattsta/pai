@@ -681,13 +681,13 @@ class SaveCommand(Command):
             self.ui.pt_printer("❌ /save is only available in chat mode.")
             return
 
-        session_path = self.ui.saved_sessions_dir / f"{param}.json"
+        snapshot_path = self.ui.snapshots_dir / f"{param}.json"
         try:
-            with open(session_path, "w", encoding="utf-8") as f:
+            with open(snapshot_path, "w", encoding="utf-8") as f:
                 json.dump(self.ui.conversation.to_json(), f, indent=2)
-            self.ui.pt_printer(f"💾 Session saved to '{session_path}'")
+            self.ui.pt_printer(f"💾 Session snapshot saved to '{snapshot_path}'")
         except Exception as e:
-            self.ui.pt_printer(f"❌ Error saving session: {e}")
+            self.ui.pt_printer(f"❌ Error saving session snapshot: {e}")
 
 
 class LoadCommand(Command):
@@ -700,11 +700,11 @@ class LoadCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        json_path = self.ui.saved_sessions_dir / f"{param}.json"
-        pickle_path = self.ui.saved_sessions_dir / f"{param}.pkl"
+        json_path = self.ui.snapshots_dir / f"{param}.json"
+        pickle_path = self.ui.snapshots_dir / f"{param}.pkl"
 
         if not json_path.exists() and not pickle_path.exists():
-            self.ui.pt_printer(f"❌ Session file not found for '{param}'.")
+            self.ui.pt_printer(f"❌ Session snapshot not found for '{param}'.")
             return
 
         try:
@@ -713,12 +713,14 @@ class LoadCommand(Command):
                 with open(json_path, encoding="utf-8") as f:
                     data = json.load(f)
                     loaded_conversation = Conversation.from_json(data)
-                self.ui.pt_printer(f"🔄 Session loaded from JSON file: '{json_path}'.")
+                self.ui.pt_printer(
+                    f"🔄 Session snapshot loaded from JSON file: '{json_path}'."
+                )
             elif pickle_path.exists():
                 import pickle
 
                 self.ui.pt_printer(
-                    "Legacy .pkl file found. Loading and converting to JSON."
+                    "Legacy .pkl snapshot found. Loading and converting to JSON."
                 )
                 with open(pickle_path, "rb") as f:
                     loaded_conversation = pickle.load(f)

@@ -114,16 +114,16 @@ class InteractiveUI:
             self.conversation.set_system_prompt(self.runtime_config.system)
 
         # Setup directories
-        self.session_dir = pathlib.Path("sessions") / datetime.now().strftime(
+        self.log_dir = pathlib.Path("logs") / datetime.now().strftime(
             "%Y-%m-%d_%H-%M-%S-interactive"
         )
-        self.session_dir.mkdir(parents=True, exist_ok=True)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
         pai_user_dir = pathlib.Path.home() / ".pai"
         pai_user_dir.mkdir(exist_ok=True)
         self.prompts_dir = pathlib.Path("prompts")
         self.prompts_dir.mkdir(exist_ok=True)
-        self.saved_sessions_dir = pathlib.Path("saved_sessions")
-        self.saved_sessions_dir.mkdir(exist_ok=True)
+        self.snapshots_dir = pathlib.Path("session_snapshots")
+        self.snapshots_dir.mkdir(exist_ok=True)
 
         # Setup UI components
         self.pt_printer = print_formatted_text
@@ -582,7 +582,7 @@ class InteractiveUI:
             f"Debug: {yellow_on if display.debug_mode else off}",
             f"Verbose: {yellow_on if self.runtime_config.verbose else off}",
         ]
-        log_part = f"Log: {escape(str(self.session_dir))}"
+        log_part = f"Log: {escape(str(self.log_dir))}"
         agent_part = f"<b>Agent Toggles</b> | {' | '.join(agent_toggles)}"
         return f"{log_part}    {agent_part}"
 
@@ -692,7 +692,7 @@ class InteractiveUI:
         self.pt_printer(
             f"🎯 {self._get_mode_display_name()} Mode | Endpoint: {self.client.config.name} | Model: {self.client.config.model_name}"
         )
-        self.pt_printer(f"💾 Session logs will be saved to: {self.session_dir}")
+        self.pt_printer(f"💾 Session logs will be saved to: {self.log_dir}")
         self.pt_printer("Type '/help' for commands, '/quit' to exit.")
         self.pt_printer("-" * 60)
 

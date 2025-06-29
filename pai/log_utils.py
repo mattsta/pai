@@ -62,7 +62,7 @@ def closing(stats: "SessionStats", printer: Callable = print):
 
 
 def save_conversation_formats(
-    conversation: "Conversation", session_dir: pathlib.Path, printer: Callable = print
+    conversation: "Conversation", log_dir: pathlib.Path, printer: Callable = print
 ):
     """Serializes a conversation to multiple HTML formats using Jinja2 templates."""
     try:
@@ -90,7 +90,7 @@ def save_conversation_formats(
                 final_html = template.render(
                     conversation_id=conversation.conversation_id, history=history
                 )
-                output_path = session_dir / output_filename
+                output_path = log_dir / output_filename
                 output_path.write_text(final_html, encoding="utf-8")
             except Exception as e:
                 printer(
@@ -103,7 +103,7 @@ def save_conversation_formats(
         # As a global fallback, just write the raw turn data as JSON.
         try:
             all_turns = [turn.to_dict() for turn in conversation.turns]
-            fallback_path = session_dir / "conversation_fallback.json"
+            fallback_path = log_dir / "conversation_fallback.json"
             fallback_path.write_text(json.dumps(all_turns, indent=2), encoding="utf-8")
             printer(f"  -> Fallback data saved to {fallback_path}")
         except Exception as fallback_e:

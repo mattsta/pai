@@ -67,13 +67,13 @@ class DefaultOrchestrator(BaseOrchestrator):
                     request_stats = self.client.stats.last_request_stats
                     self.conversation.add_turn(turn, request_stats)
                     try:
-                        turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
+                        turn_file = self.log_dir / f"{turn.turn_id}-turn.json"
                         turn_file.write_text(
                             json.dumps(turn.to_dict(), indent=2), encoding="utf-8"
                         )
                         save_conversation_formats(
                             self.conversation,
-                            self.session_dir,
+                            self.log_dir,
                             printer=self.pt_printer,
                         )
                     except Exception as e:
@@ -120,10 +120,10 @@ class DefaultOrchestrator(BaseOrchestrator):
         )
         self.conversation.add_turn(turn)
         try:
-            turn_file = self.session_dir / f"{turn.turn_id}-turn.json"
+            turn_file = self.log_dir / f"{turn.turn_id}-turn.json"
             turn_file.write_text(json.dumps(turn.to_dict(), indent=2), encoding="utf-8")
             save_conversation_formats(
-                self.conversation, self.session_dir, printer=self.pt_printer
+                self.conversation, self.log_dir, printer=self.pt_printer
             )
         except Exception as e:
             self.pt_printer(f"\n⚠️  Warning: Could not save cancelled session turn: {e}")

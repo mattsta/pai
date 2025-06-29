@@ -18,7 +18,7 @@ class BaseOrchestrator(ABC):
         self.pt_printer = ui.pt_printer
         self.runtime_config = ui.runtime_config
         self.conversation = ui.conversation
-        self.session_dir = ui.session_dir
+        self.log_dir = ui.log_dir
 
     @abstractmethod
     async def run(self, user_input: str | None = None) -> Any:

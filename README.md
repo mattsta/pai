@@ -59,7 +59,7 @@ Type '/help' for commands, '/quit' to exit.
 *   **Powerful Agentic Tool-Use:** An extensible system allowing models to use local Python functions as tools. Supports native tool-calling APIs (OpenAI, etc.) and provides a legacy agent mode for models that lack this capability.
     *   **To create tools:** See the [Tool System Guide](./docs/TOOLS.md).
     *   **For a walkthrough:** Check out the [Tool Usage Tutorial](./docs/TOOL_TUTORIAL.md).
-*   **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in `sessions/`. Each turn is saved as structured JSON, and the entire conversation is rendered into multiple browseable HTML formats.
+*   **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in `logs/`. Each turn is saved as structured JSON, and the entire conversation is rendered into multiple browseable HTML formats.
 *   **Extensible by Design:** Add new providers via a simple plugin system. Add new tools by dropping Python files into a directory. No core code modification needed.
 *   **Multi-Model Arena:** Pit models against each other in a conversational arena, with an optional judge model to provide a final verdict.
 
@@ -86,8 +86,8 @@ The project is organized to separate concerns, making it modular and easy to nav
 /custom_tools/            # Default directory for user-extendable tools
 /prompts/                 # Default directory for system prompts
 /docs/                    # Detailed documentation and guides
-/sessions/                # Auto-generated session logs (git-ignored)
-/saved_sessions/          # User-saved sessions (git-ignored)
+/logs/                    # Auto-generated session logs (git-ignored)
+/session_snapshots/       # User-saved session snapshots (git-ignored)
 pai.toml                  # Main configuration for endpoints, profiles, tools, etc.
 pyproject.toml            # Project definition and dependencies
 ```
@@ -172,8 +172,8 @@ Once in interactive mode, use `/` commands to control the session:
 *   `/prompt <name>`: Loads a prompt from the `prompts/` directory and adds it to the system prompt stack.
 *   `/clear`: Clears the current conversation history.
 *   `/history`: Shows the raw message history for the current conversation.
-*   `/save <name>`: Saves the current chat session to a file in `saved_sessions/`.
-*   `/load <name>`: Loads a chat session from a file.
+*   `/save <name>`: Saves the current chat session snapshot to a file in `session_snapshots/`.
+*   `/load <name>`: Loads a chat session snapshot from a file.
 
 **Multi-Model Arena:**
 *   `/arena <name> [turns]`: Starts a multi-model arena conversation defined in `pai.toml`.

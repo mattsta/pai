@@ -1,3 +1,4 @@
+import asyncio
 import json
 import pathlib
 
@@ -26,7 +27,7 @@ def is_safe_path(path_str: str) -> bool:
 
 
 @tool
-def read_file(path: str) -> str:
+async def read_file(path: str) -> str:
     """Reads the entire content of a text file.
 
     Args:
@@ -35,7 +36,9 @@ def read_file(path: str) -> str:
     if not is_safe_path(path):
         return "Error: Path is outside the allowed workspace."
     try:
-        return (WORKSPACE / path).read_text(encoding="utf-8")
+        return await asyncio.to_thread(
+            (WORKSPACE / path).read_text, encoding="utf-8"
+        )
     except FileNotFoundError:
         return f"Error: File not found at '{path}'"
     except Exception as e:
@@ -43,7 +46,7 @@ def read_file(path: str) -> str:
 
 
 @tool
-def list_directory(path: str = ".") -> str:
+async def list_directory(path: str = ".") -> str:
     """Lists the files and directories at the given path.
 
     Returns a JSON string containing a list of entries.
@@ -55,7 +58,7 @@ def list_directory(path: str = ".") -> str:
         return "Error: Path is outside the allowed workspace."
     try:
         full_path = (WORKSPACE / path).resolve()
-        entries = [e.name for e in full_path.iterdir()]
+        entries = await asyncio.to_thread(lambda: [e.name for e in full_path.iterdir()])
         if not entries:
             return "[]"  # Return empty JSON array
         return json.dumps(entries)
@@ -66,7 +69,7 @@ def list_directory(path: str = ".") -> str:
 
 
 @tool
-def write_file(path: str, content: str = "") -> str:
+async def write_file(path: str, content: str = "") -> str:
     """Writes content to a file, creating it if it doesn't exist or overwriting it if it does.
 
     Args:
@@ -77,15 +80,15 @@ def write_file(path: str, content: str = "") -> str:
         return "Error: Path is outside the allowed workspace."
     try:
         p = WORKSPACE / path
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content, encoding="utf-8")
+        await asyncio.to_thread(p.parent.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(p.write_text, content, encoding="utf-8")
         return f"File '{path}' written successfully."
     except Exception as e:
         return f"Error writing file '{path}': {e}"
 
 
 @tool
-def append_to_file(path: str, content: str) -> str:
+async def append_to_file(path: str, content: str) -> str:
     """Appends content to the end of an existing file.
 
     Args:
@@ -94,9 +97,13 @@ def append_to_file(path: str, content: str) -> str:
     """
     if not is_safe_path(path):
         return "Error: Path is outside the allowed workspace."
-    try:
+
+    def _do_append():
         with open(WORKSPACE / path, "a", encoding="utf-8") as f:
             f.write(content)
+
+    try:
+        await asyncio.to_thread(_do_append)
         return f"Content appended to '{path}' successfully."
     except FileNotFoundError:
         return f"Error: File not found at '{path}'"
@@ -105,7 +112,7 @@ def append_to_file(path: str, content: str) -> str:
 
 
 @tool
-def delete_file(path: str) -> str:
+async def delete_file(path: str) -> str:
     """Deletes a single file from the filesystem.
 
     Args:
@@ -115,17 +122,18 @@ def delete_file(path: str) -> str:
         return "Error: Path is outside the allowed workspace."
     try:
         file_path = (WORKSPACE / path).resolve()
-        if not file_path.is_file():
+        is_file = await asyncio.to_thread(file_path.is_file)
+        if not is_file:
             return f"Error: Not a file or not found at '{path}'"
 
-        file_path.unlink()
+        await asyncio.to_thread(file_path.unlink)
         return f"File '{path}' deleted successfully."
     except Exception as e:
         return f"Error deleting file '{path}': {e}"
 
 
 @tool
-def delete_directory(path: str) -> str:
+async def delete_directory(path: str) -> str:
     """Deletes a directory and all its contents recursively. DANGEROUS.
 
     Args:
@@ -141,10 +149,11 @@ def delete_directory(path: str) -> str:
         return "Error: Cannot delete the root workspace directory."
 
     try:
-        if not dir_path.is_dir():
+        is_dir = await asyncio.to_thread(dir_path.is_dir)
+        if not is_dir:
             return f"Error: Not a directory or not found at '{path}'"
 
-        shutil.rmtree(dir_path)
+        await asyncio.to_thread(shutil.rmtree, dir_path)
         return f"Directory '{path}' deleted successfully."
     except Exception as e:
         return f"Error deleting directory '{path}': {e}"

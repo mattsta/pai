@@ -1,3 +1,4 @@
+import asyncio
 import difflib
 import json
 import pathlib
@@ -24,7 +25,7 @@ EDIT_BLOCK_REGEX = re.compile(
 
 
 @tool
-def apply_search_replace(edit_script: str) -> str:
+async def apply_search_replace(edit_script: str) -> str:
     """Parses a script containing one or more SEARCH/REPLACE blocks and applies the edits.
 
     Each block must strictly follow the format:
@@ -73,24 +74,30 @@ def apply_search_replace(edit_script: str) -> str:
 
             # Handle new file creation
             if not search_block:
-                if full_path.exists():
+                if await asyncio.to_thread(full_path.exists):
                     operation_result["status"] = "failure"
                     operation_result["reason"] = (
                         "File already exists. Cannot create a new file with an empty "
                         "SEARCH block if the file is not new."
                     )
                 else:
-                    full_path.parent.mkdir(parents=True, exist_ok=True)
-                    full_path.write_text(replace_block, encoding="utf-8")
+                    await asyncio.to_thread(
+                        full_path.parent.mkdir, parents=True, exist_ok=True
+                    )
+                    await asyncio.to_thread(
+                        full_path.write_text, replace_block, encoding="utf-8"
+                    )
                     operation_result["status"] = "success"
                     operation_result["reason"] = f"Created new file: {file_path}"
             # Handle file editing
             else:
-                if not full_path.is_file():
+                if not await asyncio.to_thread(full_path.is_file):
                     operation_result["status"] = "failure"
                     operation_result["reason"] = f"File not found at '{file_path}'."
                 else:
-                    original_content = full_path.read_text(encoding="utf-8")
+                    original_content = await asyncio.to_thread(
+                        full_path.read_text, encoding="utf-8"
+                    )
                     # Normalize line endings for robust matching
                     normalized_content = original_content.replace("\r\n", "\n")
                     normalized_search = search_block.replace("\r\n", "\n")
@@ -124,7 +131,9 @@ def apply_search_replace(edit_script: str) -> str:
                         else:
                             final_content = normalized_new_content
 
-                        full_path.write_text(final_content, encoding="utf-8")
+                        await asyncio.to_thread(
+                            full_path.write_text, final_content, encoding="utf-8"
+                        )
                         operation_result["status"] = "success"
                         operation_result["reason"] = f"Applied edit to {file_path}"
 

@@ -26,10 +26,43 @@ The easiest way to trigger a tool is to ask a question that directly maps to a t
 
 **User Prompt:**
 > What is the weather in Paris?
-*   **Tool Result:** A JSON object: `{"file_path": "README.md", "status": "success", ...}`
+
+**What Happens Next (The Agent Loop):**
+1.  **Model Recognizes Intent:** Your prompt is sent to the AI. The AI also receives the list of available tools and their descriptions, including `get_current_weather`. The model sees that "what is the weather" is a very close match for the tool's purpose.
+2.  **Model Requests Tool Call:** The model doesn't answer you directly. Instead, it sends back a special `tool_calls` message to `pai`, asking to run `get_current_weather(location="Paris")`.
+3.  **`pai` Executes the Tool:** The `pai` framework executes the local Python function and captures its output as a JSON string (e.g., `'{"status":"success","result":{"location":"Paris", ...}}'`).
+4.  **`pai` Reports Back to Model:** `pai` sends the raw JSON string result back to the model in a new message. The conversation history now includes your prompt, the model's request to call the tool, and the tool's string output.
+5.  **Model Generates Final Answer:** The model, now equipped with the weather data, parses the JSON string and generates a final, user-friendly response based on the tool's output.
+
+*   **Tool Result:** A JSON string from the tool: `'{"status": "success", "result": {"location": "Paris", "temperature": "22", "condition": "Sunny"}}'`
 
 **AI's Final Response:**
-> I have applied the edit to `README.md`. The tool reported success. The typo should now be fixed.
+> The current weather in Paris is 22°C and Sunny.
+
+## Step 3: A Complex Task (Agentic Behavior)
+
+For more complex tasks, you need to guide the AI with a system prompt that encourages agentic behavior.
+
+**1. Enable Agent Mode:**
+```
+/agent
+```
+This loads the `prompts/code_editor.md` system prompt, which instructs the model to think step-by-step and use tools to accomplish its goals.
+
+**2. Give the AI a Task:**
+> Please find the `get_current_weather` function and tell me what file it is in.
+
+**What Happens Next (Multi-Step Agent Loop):**
+The AI will now follow a multi-step reasoning process:
+
+*   **Thought:** "The user wants me to find a function. The `search_code` tool is perfect for this."
+*   **Action:** It calls `search_code(pattern="def get_current_weather")`.
+*   **Observation:** The tool returns a JSON object showing a match in `pai/tools.py`.
+*   **Thought:** "I have found the file. Now I can answer the user's question."
+*   **Final Answer:** It formulates a final response based on the tool's output.
+
+**AI's Final Response:**
+> The `get_current_weather` function is located in the file `pai/tools.py`.
 
 This multi-step process—exploring, investigating, and acting—is the foundation of agentic behavior in Polyglot AI. By giving the AI the right tools and guiding it, you can accomplish complex tasks.
 

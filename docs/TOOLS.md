@@ -69,7 +69,7 @@ You don't need to edit the core `pai` codebase to add new tools. You can place y
 
 1.  **Create a Directory:** Create a directory for your custom tools (e.g., `custom_tools/`).
 2.  **Add Tool Files:** Place your Python files containing `@tool`-decorated functions inside this directory.
-3.  **Configure `polyglot.toml`:** Open your `polyglot.toml` file and add a `[tool_config]` section pointing to your directory.
+3.  **Configure `pai.toml`:** Open your `pai.toml` file and add a `[tool_config]` section pointing to your directory.
 
     ```toml
     # In pai.toml
@@ -162,9 +162,6 @@ This powerful tool allows the AI to edit files by submitting a script of changes
 **`SEARCH/REPLACE` Block Rules:**
 The `edit_script` must contain one or more blocks with the following strict format:
 
-´´´´[language]
-path/to/file.ext
-<<<<<<< SEARCH
 content_to_replace_with
 =======
 content_to_replace_with

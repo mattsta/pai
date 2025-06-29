@@ -1,6 +1,6 @@
 [project]
 name = "pai"
-version = "0.1.0"
+version = "0.3.0"
 description = "Polyglot AI is an interactive, provider-agnostic CLI for interacting with any AI model."
 readme = "README.md"
 requires-python = ">=3.12"

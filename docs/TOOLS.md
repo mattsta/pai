@@ -120,8 +120,6 @@ Tools for generating code and other structured text.
 
 *   `generate_python_class(class_name: str, fields: str)`: Generates a Python dataclass definition.
 
-**Example Usage:** `"generate a python dataclass named 'Book' with fields: title: str, author: str, and published_year: int"`
-
 content_to_replace_with
 =======
 content_to_replace_with

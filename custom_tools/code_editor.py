@@ -26,8 +26,6 @@ EDIT_BLOCK_REGEX = re.compile(
 @tool
 def apply_search_replace(edit_script: str) -> str:
     """
-    Parses a script containing one or more SEARCH/REPLACE blocks and applies the edits.
-
     content_to_replace_with
     =======
     content_to_replace_with

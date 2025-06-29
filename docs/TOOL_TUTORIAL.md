@@ -50,7 +50,7 @@ The `/agent` command is a shortcut that loads the `prompts/code_editor.md` syste
 > 🤖 Native Agent mode enabled (loaded 'code_editor' prompt).
 
 **User Prompt 2: Start the Task**
-Now that the AI has both the capability (`--tools`) and the behavior (`/agent`), you can give it a high-level goal. Assume there is a typo in `README.md` where `uv sync -U` is written as `uv cync -U`.
+Now that the AI has both the capability (`--tools`) and the behavior (`/agent`), you can give it a high-level goal. Assume `README.md` contains the typo `uv cync -U` instead of the correct `uv sync -U`.
 
 > There's a typo in the README.md file. Please fix `uv cync -U` to `uv sync -U`.
 
@@ -61,7 +61,6 @@ Now that the AI has both the capability (`--tools`) and the behavior (`/agent`),
 4.  **Model Formulates the Edit:** Now, with the exact text, the model constructs a `SEARCH/REPLACE` block.
 5.  **Model Executes `apply_search_replace`:** The model requests to run the edit tool with the following script:
 
-    ```
     uv sync -U
     =======
     uv sync -U

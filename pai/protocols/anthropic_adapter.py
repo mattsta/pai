@@ -1,9 +1,6 @@
 import json
-from typing import Any
-
-import httpx
-
 import asyncio
+from typing import Any
 
 from ..models import ChatRequest, CompletionRequest, RequestCost
 from ..tools import execute_tool

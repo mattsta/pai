@@ -728,9 +728,9 @@ class LoadCommand(Command):
             if history:
                 self.ui.pt_printer("\n--- Context from loaded history ---")
                 for msg in history[-2:]:
-                    content = msg.get("content", "") or ""
+                    content = msg.get("content") or ""
                     if content:
-                        self.ui.pt_printer(f"[{msg['role']}]> {content[:200]}...")
+                        self.ui.pt_printer(f"[{msg['role']}]> {str(content)[:200]}...")
                 self.ui.pt_printer("---------------------------------")
 
         except (TypeError, Exception) as e:

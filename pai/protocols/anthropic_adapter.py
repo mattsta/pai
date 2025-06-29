@@ -119,19 +119,23 @@ class AnthropicAdapter(BaseProtocolAdapter):
                         context.display._print(
                             f"\n🔧 [Agent Action] Model requested {len(tool_use_blocks)} tool calls..."
                         )
-                        tool_results = []
-                        for tool_block in tool_use_blocks:
-                            result = await _execute_with_confirmation(
+                        tasks = [
+                            _execute_with_confirmation(
                                 tool_block["name"], tool_block["input"]
                             )
-                            tool_results.append(
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": tool_block["id"],
-                                    "content": str(result),
-                                }
-                            )
-                        messages.append({"role": "user", "content": tool_results})
+                            for tool_block in tool_use_blocks
+                        ]
+                        results = await asyncio.gather(*tasks)
+
+                        tool_results_content = [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_block["id"],
+                                "content": str(result),
+                            }
+                            for tool_block, result in zip(tool_use_blocks, results)
+                        ]
+                        messages.append({"role": "user", "content": tool_results_content})
                         continue  # Next agent iteration
 
                     text = "".join(
@@ -139,8 +143,18 @@ class AnthropicAdapter(BaseProtocolAdapter):
                     )
                     await context.display.show_parsed_chunk(response_data, text)
                     request_stats = await context.display.finish_response(success=True)
-                    # ... update stats ...
-                    context.stats.add_completed_request(request_stats)
+                    if request_stats:
+                        usage = response_data.get("usage", {})
+                        input_tokens = usage.get("input_tokens", tokens_sent)
+                        output_tokens = usage.get("output_tokens", 0)
+                        request_stats.tokens_sent = input_tokens
+                        request_stats.tokens_received = output_tokens
+                        if request_stats.cost:
+                            request_stats.cost.update(
+                                input_tokens=input_tokens, output_tokens=output_tokens
+                            )
+                        request_stats.finish_reason = response_data.get("stop_reason")
+                        context.stats.add_completed_request(request_stats)
 
                     return {
                         "text": context.display.current_response,
@@ -151,19 +165,65 @@ class AnthropicAdapter(BaseProtocolAdapter):
                     }
 
                 # --- STREAMING (TEXT-ONLY) PATH ---
-                # NOTE: Streaming tool use is complex and not implemented here.
-                # The adapter will stream text responses but fall back to non-streaming
-                # if tool use is detected during the stream.
                 finish_reason = None
                 final_usage = {}
                 async with http_session.stream(
                     "POST", url, json=payload, timeout=context.config.timeout
                 ) as response:
                     response.raise_for_status()
-                    # ... (original streaming logic remains here) ...
+                    async for line in response.aiter_lines():
+                        if not line:
+                            continue
+                        line_str = line.strip()
+                        context.display.show_raw_line(line_str)
+                        if line_str.startswith("data:"):
+                            chunk_str = line_str[6:]
+                            try:
+                                chunk = json.loads(chunk_str)
+                                event_type = chunk.get("type")
+
+                                if event_type == "message_start":
+                                    if stats := context.display.current_request_stats:
+                                        usage = chunk.get("message", {}).get("usage", {})
+                                        input_tokens = usage.get(
+                                            "input_tokens", tokens_sent
+                                        )
+                                        stats.tokens_sent = input_tokens
+                                        if stats.cost:
+                                            stats.cost.update(input_tokens=input_tokens)
+                                elif event_type == "content_block_delta":
+                                    chunk_text = chunk.get("delta", {}).get("text", "")
+                                    await context.display.show_parsed_chunk(
+                                        chunk, chunk_text
+                                    )
+                                elif event_type == "message_delta":
+                                    delta = chunk.get("delta", {})
+                                    finish_reason = delta.get("stop_reason")
+                                    # Anthropic streaming tool use is complex. If detected, we note it.
+                                    if finish_reason == "tool_use":
+                                        context.display._print(
+                                            "\n⚠️  Tool use detected in stream. Please use non-streaming mode (`/stream off`) for agentic tasks with Anthropic."
+                                        )
+                                    final_usage = chunk.get("usage", {})
+                            except (json.JSONDecodeError, IndexError) as e:
+                                if context.display.debug_mode:
+                                    context.display._print(
+                                        f"⚠️  Stream parse error: {e} on line: {chunk_str!r}"
+                                    )
+
                 request_stats = await context.display.finish_response(success=True)
-                # ... (original stats handling for streaming) ...
-                context.stats.add_completed_request(request_stats)
+                if request_stats:
+                    output_tokens = final_usage.get(
+                        "output_tokens", request_stats.tokens_received
+                    )
+                    request_stats.tokens_received = output_tokens
+                    if request_stats.cost:
+                        request_stats.cost.update(
+                            input_tokens=request_stats.tokens_sent,
+                            output_tokens=output_tokens,
+                        )
+                    request_stats.finish_reason = finish_reason
+                    context.stats.add_completed_request(request_stats)
                 return {
                     "text": context.display.current_response,
                     "request": final_request_payload,
@@ -173,15 +233,26 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 }
 
             except httpx.HTTPStatusError as e:
-                # ... (original error handling) ...
-                raise ConnectionError(
-                    f"Request failed with status {e.response.status_code}: {e.response.text}"
-                ) from e
+                request_stats = await context.display.finish_response(success=False)
+                if request_stats:
+                    request_stats.tokens_sent = tokens_sent
+                    context.stats.add_completed_request(request_stats)
+                if e.response.status_code in [401, 403]:
+                    raise ConnectionError(
+                        f"Authentication failed for endpoint '{context.config.name}'. Please check your API key."
+                    ) from e
+                else:
+                    raise ConnectionError(
+                        f"Request failed with status {e.response.status_code}: {e.response.text}"
+                    ) from e
             except Exception as e:
-                # ... (original error handling) ...
+                request_stats = await context.display.finish_response(success=False)
+                if request_stats:
+                    request_stats.tokens_sent = tokens_sent
+                    context.stats.add_completed_request(request_stats)
                 raise ConnectionError(f"Anthropic request failed: {e!r}") from e
             finally:
-                http_session.headers = {
+                context.http_session.headers = {
                     "Authorization": f"Bearer {context.config.api_key}",
                     "Content-Type": "application/json",
                     "User-Agent": "PolyglotAI/0.1.0",
@@ -192,28 +263,3 @@ class AnthropicAdapter(BaseProtocolAdapter):
             "tools_used": tools_used_count,
             "agent_loops": max_iterations,
         }
-            request_stats = await context.display.finish_response(success=False)
-            if request_stats:
-                request_stats.tokens_sent = tokens_sent
-                context.stats.add_completed_request(request_stats)
-            if e.response.status_code in [401, 403]:
-                raise ConnectionError(
-                    f"Authentication failed for endpoint '{context.config.name}'. Please check your API key."
-                ) from e
-            else:
-                raise ConnectionError(
-                    f"Request failed with status {e.response.status_code}: {e.response.text}"
-                ) from e
-        except Exception as e:
-            request_stats = await context.display.finish_response(success=False)
-            if request_stats:
-                request_stats.tokens_sent = tokens_sent
-                context.stats.add_completed_request(request_stats)
-            raise ConnectionError(f"Anthropic request failed: {e!r}") from e
-        finally:
-            # Restore original headers
-            context.http_session.headers = {
-                "Authorization": f"Bearer {context.config.api_key}",
-                "Content-Type": "application/json",
-                "User-Agent": "PolyglotAI/0.1.0",
-            }

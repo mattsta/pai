@@ -108,7 +108,17 @@ class OllamaAdapter(BaseProtocolAdapter):
                     await context.display.show_parsed_chunk(response_data, final_text)
                     request_stats = await context.display.finish_response(success=True)
                     if request_stats:
-                        # Update stats...
+                        request_stats.tokens_sent = response_data.get(
+                            "prompt_eval_count", tokens_sent
+                        )
+                        request_stats.tokens_received = response_data.get(
+                            "eval_count", 0
+                        )
+                        if request_stats.cost:
+                            request_stats.cost.update(
+                                input_tokens=request_stats.tokens_sent,
+                                output_tokens=request_stats.tokens_received,
+                            )
                         context.stats.add_completed_request(request_stats)
                     return {
                         "request": final_request_payload,
@@ -157,8 +167,22 @@ class OllamaAdapter(BaseProtocolAdapter):
                             continue
 
                 request_stats = await context.display.finish_response(success=True)
-                # ... update stats ...
-                context.stats.add_completed_request(request_stats)
+                if request_stats:
+                    request_stats.tokens_sent = final_response_object.get(
+                        "prompt_eval_count", tokens_sent
+                    )
+                    request_stats.tokens_received = final_response_object.get(
+                        "eval_count", request_stats.tokens_received
+                    )
+                    request_stats.finish_reason = final_response_object.get(
+                        "done_reason", "stop"
+                    )
+                    if request_stats.cost:
+                        request_stats.cost.update(
+                            input_tokens=request_stats.tokens_sent,
+                            output_tokens=request_stats.tokens_received,
+                        )
+                    context.stats.add_completed_request(request_stats)
                 return {
                     "request": payload,
                     "response": final_response_object,
@@ -168,12 +192,18 @@ class OllamaAdapter(BaseProtocolAdapter):
                 }
 
             except httpx.HTTPStatusError as e:
-                # ... error handling ...
+                request_stats = await context.display.finish_response(success=False)
+                if request_stats:
+                    request_stats.tokens_sent = tokens_sent
+                    context.stats.add_completed_request(request_stats)
                 raise ConnectionError(
                     f"Request failed with status {e.response.status_code}: {e.response.text}"
                 ) from e
             except Exception as e:
-                # ... error handling ...
+                request_stats = await context.display.finish_response(success=False)
+                if request_stats:
+                    request_stats.tokens_sent = tokens_sent
+                    context.stats.add_completed_request(request_stats)
                 raise ConnectionError(f"Ollama request failed: {e!r}") from e
 
         return {
@@ -182,95 +212,3 @@ class OllamaAdapter(BaseProtocolAdapter):
             "agent_loops": max_iterations,
         }
 
-    async def _handle_streaming_response(self, context, payload, tokens_sent):
-        final_response_object = {}
-        async with context.http_session.stream(
-            "POST",
-            f"{context.config.base_url}/chat",
-            json=payload,
-            timeout=context.config.timeout,
-        ) as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                if not line:
-                    continue
-                context.display.show_raw_line(line)
-                try:
-                    chunk_data = json.loads(line)
-                    if chunk_data.get("done"):
-                        final_response_object = chunk_data
-                        break
-                    message_chunk = chunk_data.get("message", {})
-                    if content := message_chunk.get("content"):
-                        await context.display.show_parsed_chunk(chunk_data, content)
-                except json.JSONDecodeError:
-                    if context.display.debug_mode:
-                        context.display._print(
-                            f"⚠️  Stream parse error on line: {line!r}"
-                        )
-                    continue
-        request_stats = await context.display.finish_response(success=True)
-        if request_stats:
-            request_stats.tokens_sent = final_response_object.get(
-                "prompt_eval_count", tokens_sent
-            )
-            request_stats.tokens_received = final_response_object.get(
-                "eval_count", request_stats.tokens_received
-            )
-            request_stats.finish_reason = final_response_object.get(
-                "done_reason", "stop"
-            )
-            if request_stats.cost:
-                request_stats.cost.update(
-                    input_tokens=request_stats.tokens_sent,
-                    output_tokens=request_stats.tokens_received,
-                )
-            context.stats.add_completed_request(request_stats)
-        return final_response_object
-
-    async def _handle_non_streaming_response(self, context, payload, tokens_sent):
-        response = await context.http_session.post(
-            f"{context.config.base_url}/chat",
-            json=payload,
-            timeout=context.config.timeout,
-        )
-        response.raise_for_status()
-        response_data = response.json()
-        message = response_data.get("message", {})
-        final_text = message.get("content", "")
-        await context.display.show_parsed_chunk(response_data, final_text)
-        request_stats = await context.display.finish_response(success=True)
-        if request_stats:
-            request_stats.tokens_sent = response_data.get(
-                "prompt_eval_count", tokens_sent
-            )
-            request_stats.tokens_received = response_data.get(
-                "eval_count", request_stats.tokens_received
-            )
-            if request_stats.cost:
-                request_stats.cost.update(
-                    input_tokens=request_stats.tokens_sent,
-                    output_tokens=request_stats.tokens_received,
-                )
-            context.stats.add_completed_request(request_stats)
-        return response_data, message
-
-    except httpx.HTTPStatusError as e:
-            request_stats = await context.display.finish_response(success=False)
-            if request_stats:
-                request_stats.tokens_sent = tokens_sent
-                context.stats.add_completed_request(request_stats)
-            if e.response.status_code in [401, 403]:
-                raise ConnectionError(
-                    f"Authentication failed for endpoint '{context.config.name}'. Please check your API key."
-                ) from e
-            else:
-                raise ConnectionError(
-                    f"Request failed with status {e.response.status_code}: {e.response.text}"
-                ) from e
-        except Exception as e:
-            request_stats = await context.display.finish_response(success=False)
-            if request_stats:
-                request_stats.tokens_sent = tokens_sent
-                context.stats.add_completed_request(request_stats)
-            raise ConnectionError(f"Ollama request failed: {e!r}") from e

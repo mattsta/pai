@@ -1,3 +1,4 @@
+import asyncio
 import enum
 import importlib
 import inspect
@@ -149,7 +150,8 @@ async def execute_tool(name: str, args: dict) -> Any:
             # Let Python handle missing args with default values
         if inspect.iscoroutinefunction(func):
             return await func(**converted_args)
-        return func(**converted_args)
+        # Run synchronous functions in a separate thread to avoid blocking the event loop.
+        return await asyncio.to_thread(func, **converted_args)
     except ValueError as e:
         # Specifically for enum conversion errors
         raise ToolArgumentError(f"Invalid argument value for tool '{name}': {e}") from e

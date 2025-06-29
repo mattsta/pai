@@ -48,48 +48,55 @@ class PricingService:
         Fetches and caches pricing data from LiteLLM. Optionally loads a custom
         pricing file to override or supplement the base pricing.
         """
-        # 1. Try loading from cache first if it's fresh
+        # --- Step 1: Load Base Pricing Data ---
+        loaded_from_cache = False
         if self._cache_file_path.exists():
             file_mod_time = datetime.fromtimestamp(self._cache_file_path.stat().st_mtime)
             if datetime.now() - file_mod_time < timedelta(days=CACHE_EXPIRATION_DAYS):
                 try:
-                    with open(self._cache_file_path, 'r', encoding='utf-8') as f:
+                    with open(self._cache_file_path, "r", encoding="utf-8") as f:
                         self._pricing_data = json.load(f)
                     print(f"Loaded pricing data from cache: {self._cache_file_path}")
-                    return
+                    loaded_from_cache = True
                 except json.JSONDecodeError as e:
                     print(f"Warning: Corrupted pricing cache file, re-downloading: {e}")
-                    self._pricing_data = None # Invalidate cache
+                    self._pricing_data = None  # Invalidate cache
 
-        # 2. If cache is stale or corrupted, try fetching from URL
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(self.url, timeout=10.0)
-                response.raise_for_status() # Raise an exception for 4xx or 5xx responses
-                self._pricing_data = response.json()
-                # Save to cache
-                with open(self._cache_file_path, 'w', encoding='utf-8') as f:
-                    json.dump(self._pricing_data, f)
-                print(f"Successfully fetched and cached pricing data to {self._cache_file_path}")
-        except httpx.RequestError as e:
-            print(f"Warning: Could not fetch pricing data from {self.url}: {e}")
-            # 3. If fetching fails, try loading from potentially old cache as fallback
-            if self._cache_file_path.exists():
-                try:
-                    with open(self._cache_file_path, 'r', encoding='utf-8') as f:
-                        self._pricing_data = json.load(f)
-                    print(f"Loaded stale pricing data from cache as fallback: {self._cache_file_path}")
-                except json.JSONDecodeError as e:
-                    print(f"Error: Could not load pricing data from cache (corrupted fallback): {e}")
+        if not loaded_from_cache:
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(self.url, timeout=10.0)
+                    response.raise_for_status()
+                    self._pricing_data = response.json()
+                    with open(self._cache_file_path, "w", encoding="utf-8") as f:
+                        json.dump(self._pricing_data, f)
+                    print(
+                        "Successfully fetched and cached pricing data to "
+                        f"{self._cache_file_path}"
+                    )
+            except httpx.RequestError as e:
+                print(f"Warning: Could not fetch pricing data from {self.url}: {e}")
+                if self._cache_file_path.exists():
+                    try:
+                        with open(self._cache_file_path, "r", encoding="utf-8") as f:
+                            self._pricing_data = json.load(f)
+                        print(
+                            "Loaded stale pricing data from cache as fallback: "
+                            f"{self._cache_file_path}"
+                        )
+                    except json.JSONDecodeError as e:
+                        print(
+                            "Error: Could not load pricing data from cache (corrupted fallback): {e}"
+                        )
+                        self._pricing_data = {}
+                else:
+                    print("Error: No pricing data available (no network and no cache).")
                     self._pricing_data = {}
-            else:
-                print("Error: No pricing data available (no network and no cache).")
+            except json.JSONDecodeError as e:
+                print(f"Error: Could not parse pricing data from {self.url}: {e}")
                 self._pricing_data = {}
-        except json.JSONDecodeError as e:
-            print(f"Error: Could not parse pricing data from {self.url}: {e}")
-            self._pricing_data = {}
 
-        # 4. Load custom pricing file if provided
+        # --- Step 2: Load Custom Pricing Data ---
         if custom_file_path:
             path = pathlib.Path(custom_file_path)
             if not path.is_file():
@@ -107,7 +114,8 @@ class PricingService:
                     custom_data = yaml.safe_load(content)
                 else:
                     print(
-                        f"Warning: Unsupported custom pricing file format: '{path.suffix}'. Please use .toml or .yaml/.yml."
+                        "Warning: Unsupported custom pricing file format: "
+                        f"'{path.suffix}'. Please use .toml or .yaml/.yml."
                     )
                     return
 
@@ -119,7 +127,8 @@ class PricingService:
 
             except (toml.TomlDecodeError, yaml.YAMLError, Exception) as e:
                 print(
-                    f"Warning: Could not parse custom pricing file '{custom_file_path}': {e}"
+                    "Warning: Could not parse custom pricing file "
+                    f"'{custom_file_path}': {e}"
                 )
 
     def _merge_pricing(

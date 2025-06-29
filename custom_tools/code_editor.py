@@ -10,16 +10,6 @@ from .file_system import WORKSPACE, is_safe_path
 # The regex to parse a single SEARCH/REPLACE block from a script.
 # It captures the file path, search content, and replace content.
 # The re.DOTALL flag allows '.' to match newlines, which is crucial for multiline blocks.
-EDIT_BLOCK_REGEX = re.compile(
-    r"````(?:[a-zA-Z]+)?\n"  # Optional language hint (non-capturing)
-    r"(.+?)\n"  # Capture group 1: File path
-    r"<<<<<<< SEARCH\n"
-    r"(.*?)"  # Capture group 2: Search content
-    r"=======\n"
-    r"(.*?)"  # Capture group 3: Replace content
-    r">>>>>>> REPLACE\n"
-    r"````",  # Closing fence
-    re.DOTALL,
     content_to_replace_with
     =======
     content_to_replace_with

@@ -58,12 +58,20 @@ class DefaultOrchestrator(BaseOrchestrator):
                 if (loops := result.get("agent_loops")) is not None:
                     self.state.agent_loops = loops
 
-                if self.state.mode != UIMode.COMPLETION and result:
+                if result:
                     turn = Turn(
                         request_data=result.get("request", {}),
                         response_data=result.get("response", {}),
                         assistant_message=result.get("text", ""),
                     )
+
+                    # For completion mode, we need to add a "user" message to the
+                    # conversation explicitly, since it's not part of the request payload.
+                    if self.state.mode == UIMode.COMPLETION:
+                        # This feels a bit hacky. Maybe add_turn should handle it.
+                        # It's better to modify add_turn.
+                        pass # No, I will modify add_turn. The request_data has the prompt.
+
                     request_stats = self.client.stats.last_request_stats
                     self.conversation.add_turn(turn, request_stats)
                     try:

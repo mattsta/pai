@@ -164,17 +164,29 @@ class Conversation:
     def add_turn(self, turn: Turn, request_stats: Optional["RequestStats"] = None):
         """Adds a completed turn and updates the message history."""
         self.turns.append(turn)
-        # Set the message history from the request, excluding the system prompt.
-        self._messages = [
-            m for m in turn.request_data.get("messages", []) if m["role"] != "system"
-        ]
-        # Append the final assistant message object from the response data. This
-        # is more robust as it includes tool calls, not just text content.
-        if choices := turn.response_data.get("choices"):
-            if message := choices[0].get("message"):
-                # Ensure we don't add an empty assistant message if one already exists
-                if message.get("content") or message.get("tool_calls"):
-                    self._messages.append(message)
+
+        # For CHAT mode, we rebuild the message history from the turn data
+        # to ensure it's always in sync with what the model saw.
+        if "messages" in turn.request_data:
+            # Set the message history from the request, excluding the system prompt.
+            self._messages = [
+                m
+                for m in turn.request_data.get("messages", [])
+                if m["role"] != "system"
+            ]
+            # Append the final assistant message object from the response data.
+            if choices := turn.response_data.get("choices"):
+                if message := choices[0].get("message"):
+                    if message.get("content") or message.get("tool_calls"):
+                        self._messages.append(message)
+        # For COMPLETION mode, we just append the prompt/response pair.
+        elif "prompt" in turn.request_data:
+            self._messages.append(
+                {"role": "user", "content": turn.request_data["prompt"]}
+            )
+            self._messages.append(
+                {"role": "assistant", "content": turn.assistant_message}
+            )
 
         # The old token counting is replaced by a full recalculation.
         self._recalculate_token_count()

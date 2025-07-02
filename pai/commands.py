@@ -281,10 +281,7 @@ class HistoryCommand(Command):
         return "history"
 
     def execute(self, app: "Application", param: str | None = None):
-        if self.ui.state.mode != UIMode.COMPLETION:
-            self.ui.pt_printer(json.dumps(self.ui.conversation.get_history(), indent=2))
-        else:
-            self.ui.pt_printer("❌ /history is only available in chat mode.")
+        self.ui.pt_printer(json.dumps(self.ui.conversation.get_history(), indent=2))
 
 
 class ClearCommand(Command):
@@ -811,7 +808,8 @@ class CommandHandler:
 
     def handle(self, text: str, app: "Application"):
         """Parses the command text and calls the appropriate handler."""
-        parts = text[1:].split(" ", 1)
+        command_body = text.lstrip("/")
+        parts = command_body.split(" ", 1)
         cmd_name, param = parts[0].lower(), parts[1] if len(parts) > 1 else None
 
         command = self.commands.get(cmd_name)

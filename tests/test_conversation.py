@@ -189,3 +189,49 @@ def test_serialization_deserialization(conversation: Conversation):
         == conversation.turns[0].participant_name
     )
     assert new_conversation.session_token_count == conversation.session_token_count
+
+
+def test_add_completion_turn(conversation: Conversation):
+    """Test adding a turn from completion mode."""
+    turn = Turn(
+        request_data={
+            "prompt": "Here is a completion prompt.",
+            "model": "test-model",
+        },
+        response_data={},  # Not used by the history logic for completion mode
+        assistant_message="Here is the completion result.",
+    )
+    conversation.add_turn(turn)
+
+    assert len(conversation.turns) == 1
+    messages = conversation.get_history()
+    assert len(messages) == 2
+    assert messages[0] == {"role": "user", "content": "Here is a completion prompt."}
+    assert messages[1] == {
+        "role": "assistant",
+        "content": "Here is the completion result.",
+    }
+    assert conversation.session_token_count > 0
+
+
+def test_add_completion_turn(conversation: Conversation):
+    """Test adding a turn from completion mode."""
+    turn = Turn(
+        request_data={
+            "prompt": "Here is a completion prompt.",
+            "model": "test-model",
+        },
+        response_data={},  # Not used by the history logic for completion mode
+        assistant_message="Here is the completion result.",
+    )
+    conversation.add_turn(turn)
+
+    assert len(conversation.turns) == 1
+    messages = conversation.get_history()
+    assert len(messages) == 2
+    assert messages[0] == {"role": "user", "content": "Here is a completion prompt."}
+    assert messages[1] == {
+        "role": "assistant",
+        "content": "Here is the completion result.",
+    }
+    assert conversation.session_token_count > 0

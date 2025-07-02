@@ -143,7 +143,6 @@ class InteractiveUI:
             multiline=Condition(lambda: self.state.multiline_input),
             history=self.history,
             completer=command_completer,
-            complete_while_typing=True,
             enable_history_search=True,
             accept_handler=self._on_buffer_accepted,
         )

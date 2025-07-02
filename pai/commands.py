@@ -3,6 +3,7 @@ Command parsing and execution for the interactive UI. This module uses a
 class-based approach where each command is a self-contained object.
 """
 
+import asyncio
 import inspect
 import json
 from abc import ABC, abstractmethod
@@ -88,6 +89,7 @@ class HelpCommand(Command):
   /endpoints             - List available provider endpoints
   /switch <name>         - Switch to a different provider endpoint
   /model <name>          - Set the model for the current session
+  /models [refresh]      - List available models from the current provider (uses cache)
   /temp <value>          - Set the generation temperature (0.0-2.0)
   /tokens <num>          - Set the max tokens for the response
   /timeout <seconds>     - Set the network request timeout
@@ -151,6 +153,38 @@ class SwitchCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         self.ui.client.switch_endpoint(param.strip())
+
+
+class ModelsCommand(Command):
+    @property
+    def name(self):
+        return "models"
+
+    def execute(self, app: "Application", param: str | None = None):
+        """Fetches and displays available models for the current endpoint."""
+        force_refresh = param is not None and param.strip().lower() == "refresh"
+
+        async def _fetch_and_print_models():
+            """The async part of the command's execution."""
+            if force_refresh:
+                self.ui.pt_printer(
+                    f"⏳ Fetching models for '{self.ui.client.config.name}' from API..."
+                )
+            else:
+                self.ui.pt_printer(
+                    f"⏳ Loading models for '{self.ui.client.config.name}' from cache or API..."
+                )
+
+            models = await self.ui.client.list_models(force_refresh=force_refresh)
+            if models:
+                self.ui.pt_printer("\nAvailable Models:")
+                for m in models:
+                    self.ui.pt_printer(f"  - {m}")
+            else:
+                self.ui.pt_printer("\nNo available models found.")
+
+        # Create a task to run the async code without blocking the UI's event loop.
+        asyncio.create_task(_fetch_and_print_models())
 
 
 class ModelCommand(Command):

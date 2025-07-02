@@ -1,5 +1,7 @@
+import json
 import logging
 import os
+import pathlib
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -24,6 +26,12 @@ class APIError(Exception):
 
 
 class PolyglotClient:
+    def _get_cache_dir(self) -> pathlib.Path:
+        """Returns the appropriate cache directory for the OS."""
+        cache_dir = pathlib.Path.home() / ".cache" / "pai"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir
+
     def __init__(
         self,
         runtime_config: RuntimeConfig,
@@ -42,6 +50,8 @@ class PolyglotClient:
             smooth_stream_mode=runtime_config.smooth_stream,
         )
         self.http_session = http_session
+        self._cache_dir = self._get_cache_dir()
+        self._models_cache_path = self._cache_dir / "models_cache.json"
         self.tools_enabled = runtime_config.tools
         self.pricing_service = pricing_service
         self.switch_endpoint(runtime_config.endpoint)
@@ -108,6 +118,42 @@ class PolyglotClient:
             msg = f"✅ Request timeout set to: {timeout}s"
             self.display._print(msg)
             logging.info(msg)
+
+    async def list_models(self, force_refresh: bool = False) -> list[str]:
+        """
+        Fetches the list of available models from the provider, using a cache.
+        Returns an empty list on failure, printing an error message.
+        """
+        cache: dict[str, list[str]] = {}
+        if self._models_cache_path.exists():
+            try:
+                with open(self._models_cache_path, "r", encoding="utf-8") as f:
+                    cache = json.load(f)
+            except json.JSONDecodeError:
+                pass  # Ignore corrupted cache, it will be overwritten
+
+        endpoint_name = self.config.name
+        if not force_refresh and endpoint_name in cache:
+            return cache[endpoint_name]
+
+        try:
+            # Most providers use /v1/models, which is 'models' relative to base_url
+            response = await self.http_session.get("models")
+            response.raise_for_status()
+            data = response.json()
+            model_list = sorted([item["id"] for item in data.get("data", [])])
+
+            cache[endpoint_name] = model_list
+            with open(self._models_cache_path, "w", encoding="utf-8") as f:
+                json.dump(cache, f, indent=2)
+
+            return model_list
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            self.display._print(f"❌ Error fetching models: {e}")
+            return []
+        except (KeyError, TypeError, json.JSONDecodeError):
+            self.display._print("❌ Error parsing models response. Unexpected format.")
+            return []
 
     async def generate(
         self,

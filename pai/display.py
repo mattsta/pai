@@ -324,6 +324,11 @@ class StreamingDisplay:
         #    The placeholders themselves won't be escaped.
         escaped_text = escape(text_no_code)
 
+        # For Markdown, a single newline is treated as a space. To force a hard
+        # line break, we must replace newlines with two spaces followed by a newline.
+        # This is done here, before code blocks are restored, so it doesn't affect their content.
+        escaped_text = escaped_text.replace("\n", "  \n")
+
         # 4. Restore the code blocks.
         for i, block in enumerate(code_blocks):
             placeholder = f"__PAI_CODE_BLOCK_PLACEHOLDER_{i}__"
@@ -411,9 +416,7 @@ class StreamingDisplay:
             if self.rich_text_mode:
                 # Escape HTML tags but preserve markdown code blocks to prevent
                 # the renderer from consuming them.
-                final_text = self._escape_html_in_markdown(
-                    self.current_response.strip()
-                )
+                final_text = self._escape_html_in_markdown(self.current_response)
                 # Render final output as Markdown inside a panel for clarity
                 panel_to_print = Panel(
                     Markdown(final_text, code_theme="monokai"),

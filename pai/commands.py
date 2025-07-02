@@ -150,7 +150,7 @@ class SwitchCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.client.switch_endpoint(param)
+        self.ui.client.switch_endpoint(param.strip())
 
 
 class ModelCommand(Command):
@@ -163,7 +163,7 @@ class ModelCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.client.set_model(param)
+        self.ui.client.set_model(param.strip())
 
 
 class TempCommand(Command):
@@ -176,7 +176,7 @@ class TempCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.set_temperature(param)
+        self.ui.set_temperature(param.strip())
 
 
 class TokensCommand(Command):
@@ -189,7 +189,7 @@ class TokensCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.set_max_tokens(param)
+        self.ui.set_max_tokens(param.strip())
 
 
 class TimeoutCommand(Command):
@@ -203,7 +203,7 @@ class TimeoutCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         try:
-            timeout_val = int(param)
+            timeout_val = int(param.strip())
             self.ui.client.set_timeout(timeout_val)
         except (ValueError, TypeError):
             self.ui.pt_printer("❌ Invalid value. Please provide an integer.")
@@ -260,10 +260,10 @@ class ToggleConfirmCommand(Command):
         return "confirm"
 
     def execute(self, app: "Application", param: str | None = None):
-        if not param or param.lower() not in ["on", "off"]:
+        if not param or param.strip().lower() not in ["on", "off"]:
             self.ui.pt_printer("❌ Usage: /confirm on|off")
             return
-        self.ui.set_confirm_tool_use(param.lower() == "on")
+        self.ui.set_confirm_tool_use(param.strip().lower() == "on")
 
 
 class ToggleToolsCommand(Command):
@@ -308,7 +308,7 @@ class SystemCommand(Command):
             self.ui.pt_printer("❌ /system is only available in chat mode.")
             return
 
-        parts = param.strip().split(" ", 1)
+        parts = param.lstrip().split(" ", 1)
         subcommand = parts[0].lower()
         text = parts[1] if len(parts) > 1 else None
 
@@ -382,18 +382,19 @@ class PromptCommand(Command):
             self.ui.pt_printer("❌ /prompt is only available in chat mode.")
             return
 
-        prompt_path = self.ui.prompts_dir / f"{param}.md"
+        clean_param = param.strip()
+        prompt_path = self.ui.prompts_dir / f"{clean_param}.md"
         if not prompt_path.exists():
-            prompt_path = self.ui.prompts_dir / f"{param}.txt"
+            prompt_path = self.ui.prompts_dir / f"{clean_param}.txt"
 
         if prompt_path.exists() and prompt_path.is_file():
             content = prompt_path.read_text(encoding="utf-8")
             # Loading a prompt now *adds* it to the stack instead of replacing.
             self.ui.conversation.add_system_prompt(content)
-            self.ui.pt_printer(f"🤖 Added system prompt from '{param}' to stack.")
+            self.ui.pt_printer(f"🤖 Added system prompt from '{clean_param}' to stack.")
         else:
             self.ui.pt_printer(
-                f"❌ Prompt '{param}' not found in '{self.ui.prompts_dir}'."
+                f"❌ Prompt '{clean_param}' not found in '{self.ui.prompts_dir}'."
             )
 
 
@@ -675,7 +676,7 @@ class SaveCommand(Command):
             self.ui.pt_printer("❌ /save is only available in chat mode.")
             return
 
-        snapshot_path = self.ui.snapshots_dir / f"{param}.json"
+        snapshot_path = self.ui.snapshots_dir / f"{param.strip()}.json"
         try:
             with open(snapshot_path, "w", encoding="utf-8") as f:
                 json.dump(self.ui.conversation.to_json(), f, indent=2)
@@ -694,11 +695,12 @@ class LoadCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        json_path = self.ui.snapshots_dir / f"{param}.json"
-        pickle_path = self.ui.snapshots_dir / f"{param}.pkl"
+        clean_param = param.strip()
+        json_path = self.ui.snapshots_dir / f"{clean_param}.json"
+        pickle_path = self.ui.snapshots_dir / f"{clean_param}.pkl"
 
         if not json_path.exists() and not pickle_path.exists():
-            self.ui.pt_printer(f"❌ Session snapshot not found for '{param}'.")
+            self.ui.pt_printer(f"❌ Session snapshot not found for '{clean_param}'.")
             return
 
         try:

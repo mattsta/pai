@@ -364,15 +364,14 @@ class InteractiveUI:
             return
 
         user_input = buffer.text
-        stripped_input = user_input.strip()
 
-        # Always add non-empty input to history manually for consistent behavior.
-        if stripped_input:
-            buffer.reset(append_to_history=True)
-        else:
-            # Just reset the buffer. The Application's layout will redraw the prompt.
+        # If input is only whitespace, ignore it.
+        if not user_input.strip():
             buffer.reset()
             return
+
+        # Always add non-empty input to history manually for consistent behavior.
+        buffer.reset(append_to_history=True)
 
         # Print the user's input to the log area.
         self.pt_printer(
@@ -381,8 +380,9 @@ class InteractiveUI:
             )
         )
 
-        if stripped_input.startswith("/"):
-            self.command_handler.handle(stripped_input, self.app)
+        lstripped_input = user_input.lstrip()
+        if lstripped_input.startswith("/"):
+            self.command_handler.handle(lstripped_input, self.app)
         else:
             # Handle plain text input by dispatching to an orchestrator.
             orchestrator = self._get_orchestrator()
@@ -391,7 +391,7 @@ class InteractiveUI:
                 # The orchestrator is responsible for its own cleanup,
                 # including managing self.generation_task.
                 self.generation_task = asyncio.create_task(
-                    orchestrator.run(stripped_input)
+                    orchestrator.run(user_input)
                 )
 
     # Business logic for chat, agent, and arena modes has been extracted

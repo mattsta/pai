@@ -290,11 +290,8 @@ class ClearCommand(Command):
         return "clear"
 
     def execute(self, app: "Application", param: str | None = None):
-        if self.ui.state.mode != UIMode.COMPLETION:
-            self.ui.conversation.clear()
-            self.ui.pt_printer("🧹 History cleared.")
-        else:
-            self.ui.pt_printer("❌ /clear is only available in chat mode.")
+        self.ui.conversation.clear()
+        self.ui.pt_printer("🧹 History cleared.")
 
 
 class SystemCommand(Command):

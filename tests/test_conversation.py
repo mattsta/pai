@@ -192,7 +192,7 @@ def test_serialization_deserialization(conversation: Conversation):
 
 
 def test_add_completion_turn(conversation: Conversation):
-    """Test adding a turn from completion mode."""
+    """Test adding a single turn from completion mode."""
     turn = Turn(
         request_data={
             "prompt": "Here is a completion prompt.",
@@ -214,24 +214,28 @@ def test_add_completion_turn(conversation: Conversation):
     assert conversation.session_token_count > 0
 
 
-def test_add_completion_turn(conversation: Conversation):
-    """Test adding a turn from completion mode."""
-    turn = Turn(
-        request_data={
-            "prompt": "Here is a completion prompt.",
-            "model": "test-model",
-        },
-        response_data={},  # Not used by the history logic for completion mode
-        assistant_message="Here is the completion result.",
+def test_completion_history_is_not_cumulative(conversation: Conversation):
+    """Test that message history in completion mode is not cumulative."""
+    # First turn
+    turn1 = Turn(
+        request_data={"prompt": "Prompt 1"},
+        response_data={},
+        assistant_message="Response 1",
     )
-    conversation.add_turn(turn)
+    conversation.add_turn(turn1)
+    messages1 = conversation.get_history()
+    assert len(messages1) == 2
+    assert messages1[0]["content"] == "Prompt 1"
+    assert messages1[1]["content"] == "Response 1"
 
-    assert len(conversation.turns) == 1
-    messages = conversation.get_history()
-    assert len(messages) == 2
-    assert messages[0] == {"role": "user", "content": "Here is a completion prompt."}
-    assert messages[1] == {
-        "role": "assistant",
-        "content": "Here is the completion result.",
-    }
-    assert conversation.session_token_count > 0
+    # Second turn replaces the history of the first turn.
+    turn2 = Turn(
+        request_data={"prompt": "Prompt 2"},
+        response_data={},
+        assistant_message="Response 2",
+    )
+    conversation.add_turn(turn2)
+    messages2 = conversation.get_history()
+    assert len(messages2) == 2
+    assert messages2[0]["content"] == "Prompt 2"
+    assert messages2[1]["content"] == "Response 2"

@@ -179,14 +179,13 @@ class Conversation:
                 if message := choices[0].get("message"):
                     if message.get("content") or message.get("tool_calls"):
                         self._messages.append(message)
-        # For COMPLETION mode, we just append the prompt/response pair.
+        # For COMPLETION mode, the history is not cumulative. We replace the
+        # message log with just the last prompt/response pair.
         elif "prompt" in turn.request_data:
-            self._messages.append(
-                {"role": "user", "content": turn.request_data["prompt"]}
-            )
-            self._messages.append(
-                {"role": "assistant", "content": turn.assistant_message}
-            )
+            self._messages = [
+                {"role": "user", "content": turn.request_data["prompt"]},
+                {"role": "assistant", "content": turn.assistant_message},
+            ]
 
         # The old token counting is replaced by a full recalculation.
         self._recalculate_token_count()

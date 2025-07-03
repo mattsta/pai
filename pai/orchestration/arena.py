@@ -57,6 +57,7 @@ class ArenaOrchestrator(BaseOrchestrator):
         # The `run` method is called once to start the arena.
         # It's the coroutine for the main generation task.
         # We set the initial message and start the orchestration loop.
+        self.state.arena.initial_prompt = user_input
         self.state.arena.last_message = user_input
         self.ui.arena_paused_event.set()  # Start in a running state.
 
@@ -131,7 +132,7 @@ class ArenaOrchestrator(BaseOrchestrator):
                 self.conversation.add_turn(turn, stats)
                 participant.conversation.add_turn(turn, stats)
                 save_conversation_formats(
-                    self.conversation, self.log_dir, self.pt_printer
+                    self.conversation, self.log_dir, self.pt_printer, arena_state=state
                 )
                 state.last_message = assistant_message
                 state.current_speech += 1
@@ -226,5 +227,8 @@ class ArenaOrchestrator(BaseOrchestrator):
         )
         self.conversation.add_turn(turn, self.client.stats.last_request_stats)
         save_conversation_formats(
-            self.conversation, self.log_dir, printer=self.pt_printer
+            self.conversation,
+            self.log_dir,
+            printer=self.pt_printer,
+            arena_state=self.state.arena,
         )

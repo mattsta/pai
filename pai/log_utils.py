@@ -5,12 +5,13 @@ Utilities for session logging, statistics printing, and persistence.
 import json
 import pathlib
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
+import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 if TYPE_CHECKING:
-    from .models import Conversation, SessionStats
+    from .models import ArenaState, Conversation, SessionStats
 
 
 def print_stats(stats: "SessionStats", printer: Callable = print):
@@ -62,7 +63,10 @@ def closing(stats: "SessionStats", printer: Callable = print):
 
 
 def save_conversation_formats(
-    conversation: "Conversation", log_dir: pathlib.Path, printer: Callable = print
+    conversation: "Conversation",
+    log_dir: pathlib.Path,
+    printer: Callable = print,
+    arena_state: Optional["ArenaState"] = None,
 ):
     """Serializes a conversation to multiple HTML formats using Jinja2 templates."""
     try:
@@ -78,18 +82,39 @@ def save_conversation_formats(
         # Use the new method to get a richer history for logging.
         history = conversation.get_rich_history_for_template()
 
+        # If in an arena, prepend the setup details to the history for logging.
+        if arena_state:
+            # Create a dict from the arena config for logging
+            arena_config_dict = arena_state.arena_config.to_log_dict()
+            arena_setup_yaml = yaml.dump(
+                arena_config_dict, sort_keys=False, default_flow_style=False
+            )
+            history.insert(
+                0,
+                {
+                    "role": "system",
+                    "content": f"Arena Setup:\n\n---\n{arena_setup_yaml}---",
+                },
+            )
+            if arena_state.initial_prompt:
+                history.insert(
+                    1, {"role": "user", "content": arena_state.initial_prompt}
+                )
+
         # Defines the templates to render and their output filenames.
         formats = {
             "conversation.html": "conversation.html",
             "gptwink_format.html": "gptwink_conversation.html",
         }
+        template_context = {
+            "conversation_id": conversation.conversation_id,
+            "history": history,
+        }
 
         for template_name, output_filename in formats.items():
             try:
                 template = env.get_template(template_name)
-                final_html = template.render(
-                    conversation_id=conversation.conversation_id, history=history
-                )
+                final_html = template.render(**template_context)
                 output_path = log_dir / output_filename
                 output_path.write_text(final_html, encoding="utf-8")
             except Exception as e:

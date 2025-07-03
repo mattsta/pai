@@ -561,6 +561,35 @@ class Arena:
     def get_participant(self, participant_id: str) -> ArenaParticipant | None:
         return self.participants.get(participant_id)
 
+    def to_log_dict(self) -> dict[str, Any]:
+        """Creates a serializable dictionary for logging, omitting circular references."""
+        participants_log = {}
+        for p_id, p in self.participants.items():
+            if p_id == "judge":
+                continue
+            participants_log[p_id] = {
+                "name": p.name,
+                "endpoint": p.endpoint,
+                "model": p.model,
+                "system_prompt": p.system_prompt,
+            }
+        judge_log = None
+        if self.judge:
+            judge_log = {
+                "name": self.judge.name,
+                "endpoint": self.judge.endpoint,
+                "model": self.judge.model,
+                "system_prompt": self.judge.system_prompt,
+            }
+        return {
+            "name": self.name,
+            "initiator_id": self.initiator_id,
+            "turn_order": self.turn_order.value,
+            "wildcards_enabled": self.wildcards_enabled,
+            "participants": participants_log,
+            "judge": judge_log,
+        }
+
     def get_initiator(self) -> ArenaParticipant:
         """Returns the participant designated to start the conversation."""
         # This assumes the initiator_id from the config is always valid.
@@ -574,6 +603,7 @@ class ArenaState:
     arena_config: Arena
     turn_order_ids: list[str]
     max_turns: int
+    initial_prompt: str = ""
     last_message: str = ""
     # Multiply by number of participants since one "turn" involves everyone speaking once.
     current_speech: int = 0

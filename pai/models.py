@@ -556,6 +556,7 @@ class Arena:
     initiator_id: str
     judge: ArenaParticipant | None = None
     turn_order: ArenaTurnOrder = ArenaTurnOrder.SEQUENTIAL
+    wildcards_enabled: bool = False
 
     def get_participant(self, participant_id: str) -> ArenaParticipant | None:
         return self.participants.get(participant_id)
@@ -610,6 +611,7 @@ class ArenaConfigFile(BaseModel):
     participants: dict[str, ArenaConfigParticipant]
     judge: ArenaConfigJudge | None = None
     turn_order: ArenaTurnOrder = ArenaTurnOrder.SEQUENTIAL
+    wildcards_enabled: bool = False
 
 
 @dataclass
@@ -692,6 +694,7 @@ class TomlArena(BaseModel):
     participants: dict[str, TomlParticipant]
     judge: TomlJudge | None = None
     turn_order: str | None = None
+    wildcards_enabled: bool | None = None
 
 
 # --- Custom Pricing Configuration Models ---

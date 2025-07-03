@@ -16,6 +16,37 @@ from .base import BaseOrchestrator
 class ArenaOrchestrator(BaseOrchestrator):
     """Handles the arena loop and judging."""
 
+    def _wildcard_temp_spike(self, request: ChatRequest) -> tuple[ChatRequest, str]:
+        """Temporarily spikes the temperature for a single turn."""
+        original_temp = request.temperature
+        new_temp = round(random.uniform(1.2, 1.8), 2)
+        request.temperature = new_temp
+        message = (
+            f"🔥 Wildcard! Temperature spiked from {original_temp} to {new_temp}."
+        )
+        return request, message
+
+    def _wildcard_prompt_injection(
+        self, messages: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], str]:
+        """Injects a random instruction into the latest user prompt."""
+        injections = [
+            "Be more argumentative.",
+            "Use an analogy in your response.",
+            "Summarize the opponent's last point before making your own.",
+            "Ask a clarifying question.",
+            "Respond in the style of a Shakespearean play.",
+            "Your response MUST include a pun.",
+            "Explain it like you are talking to a five-year-old.",
+        ]
+        injection = random.choice(injections)
+        # The last message is always the one we're responding to.
+        messages[-1][
+            "content"
+        ] += f"\n\n(Wildcard Instruction: You MUST follow this instruction for this turn only: {injection})"
+        message = f"📝 Wildcard! The following instruction was added: '{injection}'"
+        return messages, message
+
     async def run(self, user_input: str | None = None) -> Any:
         if not self.state.arena:
             self.pt_printer("❌ Arena state not found.")
@@ -62,6 +93,29 @@ class ArenaOrchestrator(BaseOrchestrator):
                     stream=self.runtime_config.stream,
                     tools=get_tool_schemas() if self.client.tools_enabled else [],
                 )
+
+                # --- Wildcard Logic ---
+                if state.arena_config.wildcards_enabled and random.random() < 0.33:
+                    wildcard_fn = random.choice(
+                        [self._wildcard_temp_spike, self._wildcard_prompt_injection]
+                    )
+                    effect_message = ""
+                    if wildcard_fn.__name__ == "_wildcard_temp_spike":
+                        request, effect_message = self._wildcard_temp_spike(request)
+                    else:  # prompt injection
+                        messages, effect_message = self._wildcard_prompt_injection(
+                            messages
+                        )
+                        # Re-assign messages to the request object
+                        request.messages = messages
+
+                    self.pt_printer(
+                        HTML(
+                            f"  - <style fg='ansimagenta'><b>{effect_message}</b></style>"
+                        )
+                    )
+                # --- End Wildcard Logic ---
+
                 result = await self.client.generate(
                     request,
                     self.runtime_config.verbose,

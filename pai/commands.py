@@ -154,6 +154,7 @@ class HelpCommand(Command):
   /arena set initiator <id> - Set the participant who speaks first
   /arena set turns <number> - Set the max number of turns for the debate
   /arena set order <seq..|rand..> - Set turn order (sequential, random)
+  /arena set wildcards on|off - Toggle random wildcard events per turn
   /arena set judge <id> --name "Name" --endpoint <ep> --model <m> --prompt <p>
                          - Define the judge participant
   /pause                   - Pause the arena after the current model's turn
@@ -912,6 +913,7 @@ class ArenaCommand(Command):
             participants={},
             initiator_id="",
             turn_order=ArenaTurnOrder.SEQUENTIAL,
+            wildcards_enabled=False,
         )
         arena_state = ArenaState(
             arena_config=arena_config, turn_order_ids=[], max_turns=10
@@ -994,6 +996,7 @@ class ArenaCommand(Command):
                 initiator_id=arena_file_data.initiator,
                 judge=judge_participant,
                 turn_order=arena_file_data.turn_order,
+                wildcards_enabled=arena_file_data.wildcards_enabled,
             )
 
             arena_state = ArenaState(
@@ -1051,6 +1054,7 @@ class ArenaCommand(Command):
             "initiator": config.initiator_id,
             "max_turns": state.max_turns,
             "turn_order": config.turn_order.value,
+            "wildcards_enabled": config.wildcards_enabled,
             "participants": participants_dict,
         }
         if judge_dict:
@@ -1082,6 +1086,7 @@ class ArenaCommand(Command):
         content = f"[bold]Arena:[/bold] {config.name}\n"
         content += f"[bold]Turns:[/bold] {state.max_turns}\n"
         content += f"[bold]Turn Order:[/bold] {config.turn_order.value}\n"
+        content += f"[bold]Wildcards:[/bold] {'Enabled' if config.wildcards_enabled else 'Disabled'}\n"
         content += f"[bold]Initiator:[/bold] {config.initiator_id or '[Not Set]'}\n"
         content += f"\n[bold]Participants ({len(config.participants)}):[/bold]"
 
@@ -1198,7 +1203,9 @@ class ArenaCommand(Command):
             self.ui.pt_printer("❌ Arena must be started with `/arena new <name>` first.")
             return
         if not args:
-            self.ui.pt_printer("❌ Usage: /arena set <initiator|turns|order|judge> ...")
+            self.ui.pt_printer(
+                "❌ Usage: /arena set <initiator|turns|order|wildcards|judge> ..."
+            )
             return
 
         sub_sub_command = args[0]
@@ -1236,6 +1243,13 @@ class ArenaCommand(Command):
                 self.ui.pt_printer(f"✅ Set turn order strategy to '{strategy_str}'.")
             except ValueError:
                 self.ui.pt_printer("❌ Invalid strategy. Use 'sequential' or 'random'.")
+        elif sub_sub_command in ["wildcards", "w"]:
+            if not s_args or s_args[0].lower() not in ["on", "off"]:
+                self.ui.pt_printer("❌ Usage: /arena set wildcards <on|off>")
+                return
+            enabled = s_args[0].lower() == "on"
+            self.ui.state.arena.arena_config.wildcards_enabled = enabled
+            self.ui.pt_printer(f"✅ Wildcards {'enabled' if enabled else 'disabled'}.")
         elif sub_sub_command in ["judge", "j"]:
             if not s_args:
                 self.ui.pt_printer("❌ Usage: /arena set judge <id> [options]")
@@ -1404,6 +1418,7 @@ class ArenaCommand(Command):
                 initiator_id=arena_config.initiator,
                 judge=judge_participant,
                 turn_order=turn_order,
+                wildcards_enabled=arena_config.wildcards_enabled or False,
             )
             p_ids = [p for p in participants.keys() if p != "judge"]
             initiator_idx = p_ids.index(arena_config_obj.initiator_id)

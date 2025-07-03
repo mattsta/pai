@@ -27,6 +27,7 @@ class UIMode(enum.Enum):
     NATIVE_AGENT = "native_agent"
     LEGACY_AGENT = "legacy_agent"
     ARENA = "arena"
+    ARENA_SETUP = "arena_setup"
     TEMPLATE_COMPLETION = "template_completion"
 
 

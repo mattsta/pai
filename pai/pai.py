@@ -171,6 +171,8 @@ class InteractiveUI:
             )
             judge_str = " w/ Judge" if self.state.arena.arena_config.judge else ""
             return f"Arena: {self.state.arena.arena_config.name}{judge_str} ({status})"
+        elif self.state.mode == UIMode.ARENA_SETUP:
+            return "Arena Setup"
         elif self.state.mode == UIMode.NATIVE_AGENT:
             return "Agent"
         elif self.state.mode == UIMode.LEGACY_AGENT:
@@ -436,7 +438,11 @@ class InteractiveUI:
         if prompt_count > 1:
             mode_str += f" <style fg='ansicyan'>Sys[{prompt_count}]</style>"
 
-        if self.state.mode == UIMode.ARENA and self.state.arena:
+        if self.state.mode == UIMode.ARENA_SETUP and self.state.arena:
+            arena_name = self.state.arena.arena_config.name
+            num_participants = len(self.state.arena.arena_config.participants)
+            return f"<style fg='ansiyellow'><b>🚧 Building Arena: {escape(arena_name)}</b></style> | {num_participants} Participants"
+        elif self.state.mode == UIMode.ARENA and self.state.arena:
             p_configs = self.state.arena.arena_config.participants
             p_details = " vs ".join(
                 [

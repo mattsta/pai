@@ -10,9 +10,11 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
+import shlex
 from jinja2 import Environment
 
 from rich.panel import Panel
+from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
@@ -124,10 +126,22 @@ class HelpCommand(Command):
   /load <name>           - Load a chat session from a file
 
 --- MULTI-MODEL ARENA ---
-  /arena <name> [turns]  - Start a multi-model arena conversation
-  /pause                 - Pause the arena after the current model's turn
-  /resume                - Resume a paused arena
-  /say <message>         - Interject with a message while arena is paused
+  /arena <name> [turns]  - Start a pre-configured multi-model arena
+  /arena new <name>      - Start building a new arena configuration interactively
+  /arena participant add <id> --name "Name" --endpoint <ep> --model <m>
+                         - Add a participant to the arena being built
+  /arena participant prompt <id> [<prompt> | file:<path>]
+                         - Set a participant's system prompt (from text or file)
+  /arena set initiator <id> - Set the participant who speaks first
+  /arena set turns <number> - Set the max number of turns for the debate
+  /arena set judge <id> --name "Name" --endpoint <ep> --model <m> --prompt <p>
+                         - Define the judge participant
+  /arena show              - Show the current arena configuration being built
+  /arena run [prompt]      - Run the interactively built arena
+  /arena reset             - Discard the current arena configuration
+  /pause                   - Pause the arena after the current model's turn
+  /resume                  - Resume a paused arena
+  /say <message>           - Interject with a message while arena is paused
 
 --- UI & DEBUGGING ---
   /multiline             - Toggle multi-line input mode (use Esc+Enter)
@@ -815,14 +829,305 @@ class ArenaCommand(Command):
     def requires_param(self):
         return True
 
+    def _parse_kv_args(self, args_list: list[str]) -> dict[str, str | bool]:
+        """Parses a list of arguments into a dictionary of key-value pairs."""
+        args = {}
+        i = 0
+        while i < len(args_list):
+            arg = args_list[i]
+            if arg.startswith("--"):
+                key = arg[2:]
+                # Check for next item being a value or another flag
+                if i + 1 < len(args_list) and not args_list[i + 1].startswith("--"):
+                    args[key] = args_list[i + 1]
+                    i += 1  # Skip the value
+                else:
+                    args[key] = True  # It's a boolean flag
+            i += 1
+        return args
+
     def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer("❌ Usage: /arena <subcommand> [options...]")
+            return
         if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /arena is only available in chat mode.")
             return
 
-        parts = param.strip().split(" ", 1)
-        arena_name, max_turns_str = (parts + [None])[:2]
+        parts = shlex.split(param)
+        subcommand = parts[0]
+        args = parts[1:]
 
+        # --- Subcommand Dispatcher ---
+        if subcommand == "new":
+            self._execute_new(args)
+        elif subcommand == "reset":
+            self._execute_reset()
+        elif subcommand == "show":
+            self._execute_show()
+        elif subcommand == "run":
+            self._execute_run(args)
+        elif subcommand == "participant":
+            self._execute_participant(args)
+        elif subcommand == "set":
+            self._execute_set(args)
+        else:
+            # Fallback to legacy behavior: /arena <name> [turns]
+            self._execute_from_config(parts)
+
+    def _execute_new(self, args: list[str]):
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena new <name>")
+            return
+        arena_name = args[0]
+        arena_config = Arena(name=arena_name, participants={}, initiator_id="")
+        arena_state = ArenaState(
+            arena_config=arena_config, turn_order_ids=[], max_turns=10
+        )
+        self.ui.state.arena = arena_state
+        self.ui.enter_mode(UIMode.ARENA_SETUP, clear_history=False)
+        self.ui.pt_printer(
+            f"🚧 New arena '{arena_name}' created. Add participants and set options."
+        )
+
+    def _execute_reset(self):
+        self.ui.state.arena = None
+        self.ui.enter_mode(UIMode.CHAT, clear_history=False)
+        self.ui.pt_printer("🗑️ Arena configuration reset.")
+
+    def _execute_show(self):
+        if not self.ui.state.arena:
+            self.ui.pt_printer("❌ No active arena configuration to show.")
+            return
+
+        state = self.ui.state.arena
+        config = state.arena_config
+        console = self.ui.client.display.rich_console
+        content = f"[bold]Arena:[/bold] {config.name}\n"
+        content += f"[bold]Turns:[/bold] {state.max_turns}\n"
+        content += f"[bold]Initiator:[/bold] {config.initiator_id or '[Not Set]'}\n"
+        content += f"\n[bold]Participants ({len(config.participants)}):[/bold]"
+
+        self.ui.pt_printer(content)
+
+        for p_id, p in config.participants.items():
+            if p_id == "judge":
+                continue
+            p_content = f"  [bold cyan]ID:[/bold] {p.id}\n"
+            p_content += f"  [bold]Name:[/bold] {p.name}\n"
+            p_content += f"  [bold]Endpoint:[/bold] {p.endpoint}\n"
+            p_content += f"  [bold]Model:[/bold] {p.model}\n"
+            p_content += Syntax(
+                p.system_prompt, "markdown", theme="monokai", word_wrap=True
+            )
+            panel = Panel(
+                p_content,
+                title=f"Participant: {p.name}",
+                border_style="cyan",
+                title_align="left",
+            )
+            with console.capture() as capture:
+                console.print(panel)
+            from prompt_toolkit.formatted_text import ANSI
+
+            self.ui.pt_printer(ANSI(capture.get()))
+
+        if config.judge:
+            j = config.judge
+            p_content = f"  [bold cyan]ID:[/bold] {j.id}\n"
+            p_content += f"  [bold]Name:[/bold] {j.name}\n"
+            p_content += f"  [bold]Endpoint:[/bold] {j.endpoint}\n"
+            p_content += f"  [bold]Model:[/bold] {j.model}\n"
+            p_content += Syntax(
+                j.system_prompt, "markdown", theme="monokai", word_wrap=True
+            )
+            panel = Panel(
+                p_content,
+                title="Judge",
+                border_style="yellow",
+                title_align="left",
+            )
+            with console.capture() as capture:
+                console.print(panel)
+            from prompt_toolkit.formatted_text import ANSI
+
+            self.ui.pt_printer(ANSI(capture.get()))
+
+    def _execute_participant(self, args: list[str]):
+        if self.ui.state.mode != UIMode.ARENA_SETUP:
+            self.ui.pt_printer("❌ Arena must be started with `/arena new <name>` first.")
+            return
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena participant <add|prompt> ...")
+            return
+
+        sub_sub_command = args[0]
+        p_args = args[1:]
+
+        if sub_sub_command == "add":
+            if len(p_args) < 1:
+                self.ui.pt_printer("❌ Usage: /arena participant add <id> [options]")
+                return
+            p_id = p_args[0]
+            kv_args = self._parse_kv_args(p_args[1:])
+            for key in ["name", "endpoint", "model"]:
+                if key not in kv_args:
+                    self.ui.pt_printer(f"❌ Missing required argument: --{key}")
+                    return
+            participant = ArenaParticipant(
+                id=p_id,
+                name=str(kv_args["name"]),
+                endpoint=str(kv_args["endpoint"]),
+                model=str(kv_args["model"]),
+                system_prompt="You are a helpful assistant.",
+                conversation=Conversation(),
+            )
+            self.ui.state.arena.arena_config.participants[p_id] = participant
+            self.ui.pt_printer(f"✅ Added participant '{p_id}' to the arena.")
+        elif sub_sub_command == "prompt":
+            if len(p_args) < 2:
+                self.ui.pt_printer("❌ Usage: /arena participant prompt <id> <text|file:path>")
+                return
+            p_id = p_args[0]
+            prompt_str = " ".join(p_args[1:])
+            participant = self.ui.state.arena.arena_config.participants.get(p_id)
+            if not participant:
+                self.ui.pt_printer(f"❌ Participant with ID '{p_id}' not found.")
+                return
+
+            if prompt_str.lower().startswith("file:"):
+                path_str = prompt_str[5:]
+                prompt_path = self.ui.prompts_dir / f"{path_str}.md"
+                if not prompt_path.exists():
+                    prompt_path = self.ui.prompts_dir / f"{path_str}.txt"
+                if not prompt_path.is_file():
+                    self.ui.pt_printer(f"❌ Prompt file not found: {prompt_path}")
+                    return
+                prompt_content = prompt_path.read_text(encoding="utf-8")
+                participant.system_prompt = prompt_content
+                participant.conversation.set_system_prompt(prompt_content)
+                self.ui.pt_printer(
+                    f"✅ Set system prompt for '{p_id}' from file '{path_str}'."
+                )
+            else:
+                participant.system_prompt = prompt_str
+                participant.conversation.set_system_prompt(prompt_str)
+                self.ui.pt_printer(f"✅ Set system prompt for '{p_id}'.")
+        else:
+            self.ui.pt_printer("❌ Unknown participant command. Use 'add' or 'prompt'.")
+
+    def _execute_set(self, args: list[str]):
+        if self.ui.state.mode != UIMode.ARENA_SETUP:
+            self.ui.pt_printer("❌ Arena must be started with `/arena new <name>` first.")
+            return
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena set <initiator|turns|judge> ...")
+            return
+
+        sub_sub_command = args[0]
+        s_args = args[1:]
+
+        if sub_sub_command == "initiator":
+            if not s_args:
+                self.ui.pt_printer("❌ Usage: /arena set initiator <participant_id>")
+                return
+            p_id = s_args[0]
+            if p_id not in self.ui.state.arena.arena_config.participants:
+                self.ui.pt_printer(f"❌ Participant '{p_id}' not found.")
+                return
+            self.ui.state.arena.arena_config.initiator_id = p_id
+            self.ui.pt_printer(f"✅ Set arena initiator to '{p_id}'.")
+        elif sub_sub_command == "turns":
+            if not s_args:
+                self.ui.pt_printer("❌ Usage: /arena set turns <number>")
+                return
+            try:
+                self.ui.state.arena.max_turns = int(s_args[0])
+                self.ui.pt_printer(
+                    f"✅ Set max turns to {self.ui.state.arena.max_turns}."
+                )
+            except (ValueError, TypeError):
+                self.ui.pt_printer("❌ Invalid value for turns. Must be an integer.")
+        elif sub_sub_command == "judge":
+            if not s_args:
+                self.ui.pt_printer("❌ Usage: /arena set judge <id> [options]")
+                return
+            p_id = s_args[0]
+            kv_args = self._parse_kv_args(s_args[1:])
+            for key in ["name", "endpoint", "model", "prompt"]:
+                if key not in kv_args:
+                    self.ui.pt_printer(f"❌ Missing required argument: --{key}")
+                    return
+            system_prompt = str(kv_args["prompt"])
+            judge = ArenaParticipant(
+                id=p_id,
+                name=str(kv_args["name"]),
+                endpoint=str(kv_args["endpoint"]),
+                model=str(kv_args["model"]),
+                system_prompt=system_prompt,
+                conversation=Conversation(
+                    _messages=[{"role": "system", "content": system_prompt}]
+                ),
+            )
+            self.ui.state.arena.arena_config.judge = judge
+            self.ui.state.arena.arena_config.participants[
+                p_id
+            ] = judge  # Also add to main dict
+            self.ui.pt_printer(f"✅ Set judge to '{p_id}'.")
+        else:
+            self.ui.pt_printer("❌ Unknown set command. Use 'initiator', 'turns', or 'judge'.")
+
+    def _execute_run(self, args: list[str]):
+        if not self.ui.state.arena:
+            self.ui.pt_printer("❌ No active arena configuration. Use `/arena new` first.")
+            return
+
+        state = self.ui.state.arena
+        # --- Validation ---
+        p_ids = [p for p in state.arena_config.participants.keys() if p != "judge"]
+        if len(p_ids) < 2:
+            self.ui.pt_printer("❌ Arena must have at least 2 participants.")
+            return
+        if not state.arena_config.initiator_id:
+            self.ui.pt_printer("❌ Arena initiator has not been set.")
+            return
+        if state.arena_config.initiator_id not in p_ids:
+            self.ui.pt_printer("❌ Initiator must be a valid participant ID.")
+            return
+
+        # --- Setup turn order ---
+        initiator_idx = p_ids.index(state.arena_config.initiator_id)
+        state.turn_order_ids = p_ids[initiator_idx:] + p_ids[:initiator_idx]
+
+        # --- Start the orchestrator ---
+        self.ui.enter_mode(UIMode.ARENA, clear_history=True)
+        self.ui.state.arena = state
+        self.ui.arena_paused_event.clear()
+
+        initiator_name = state.arena_config.get_initiator().name
+        self.ui.pt_printer(
+            f"⚔️  Arena '{state.arena_config.name}' activated for {state.max_turns} turns."
+        )
+        self.ui.pt_printer(
+            "   The arena will auto-run. Use /pause, /resume, and /say to control it."
+        )
+
+        initial_prompt = " ".join(args)
+        orchestrator = self.ui._get_orchestrator()
+        if initial_prompt:
+            self.ui.pt_printer(f"▶️  Starting with prompt: {initial_prompt}")
+            self.ui.generation_in_progress.set()
+            self.ui.generation_task = asyncio.create_task(
+                orchestrator.run(initial_prompt)
+            )
+        else:
+            self.ui.pt_printer(
+                f"   Your next prompt will be given to '{initiator_name}' to start the conversation."
+            )
+
+    def _execute_from_config(self, parts: list[str]):
+        """Runs an arena from a static configuration in pai.toml."""
+        arena_name, max_turns_str = (parts + [None])[:2]
         try:
             max_turns = int(max_turns_str) if max_turns_str else 10
         except (ValueError, TypeError):
@@ -831,14 +1136,12 @@ class ArenaCommand(Command):
 
         arenas_config = self.ui.client.toml_config.arenas
         arena_config = arenas_config.get(arena_name)
-
         if not arena_config:
             self.ui.pt_printer(f"❌ Arena '{arena_name}' not found in pai.toml.")
             return
 
         participant_configs = arena_config.participants
         judge_config = arena_config.judge
-
         if len(participant_configs) < 2:
             self.ui.pt_printer(
                 f"❌ Arena '{arena_name}' must have at least 2 participants."
@@ -852,17 +1155,13 @@ class ArenaCommand(Command):
                 prompt_path = self.ui.prompts_dir / f"{prompt_key}.md"
                 if not prompt_path.exists():
                     prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
-
                 if not prompt_path.is_file():
                     raise FileNotFoundError(
                         f"System prompt file for '{prompt_key}' not found."
                     )
-
                 system_prompt = prompt_path.read_text(encoding="utf-8")
-
                 conversation = Conversation()
                 conversation.set_system_prompt(system_prompt)
-
                 participants[p_id] = ArenaParticipant(
                     id=p_id,
                     name=p_config.name,
@@ -878,12 +1177,10 @@ class ArenaCommand(Command):
                 prompt_path = self.ui.prompts_dir / f"{prompt_key}.md"
                 if not prompt_path.exists():
                     prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
-
                 if not prompt_path.is_file():
                     raise FileNotFoundError(
                         f"System prompt file for judge '{prompt_key}' not found."
                     )
-
                 system_prompt = prompt_path.read_text(encoding="utf-8")
                 judge_participant = ArenaParticipant(
                     id="judge",
@@ -903,23 +1200,17 @@ class ArenaCommand(Command):
                 initiator_id=arena_config.initiator,
                 judge=judge_participant,
             )
-
-            # Setup turn order (without the judge), starting with the initiator
             p_ids = [p for p in participants.keys() if p != "judge"]
             initiator_idx = p_ids.index(arena_config_obj.initiator_id)
             turn_order_ids = p_ids[initiator_idx:] + p_ids[:initiator_idx]
-
-            # Create the dynamic state object for the session
             arena_state = ArenaState(
                 arena_config=arena_config_obj,
                 turn_order_ids=turn_order_ids,
                 max_turns=max_turns,
             )
-
-            # Enter arena mode
             self.ui.enter_mode(UIMode.ARENA, clear_history=True)
             self.ui.state.arena = arena_state
-            self.ui.arena_paused_event.clear()  # Start in a paused state
+            self.ui.arena_paused_event.clear()
 
             initiator_name = arena_state.arena_config.get_initiator().name
             self.ui.pt_printer(
@@ -931,7 +1222,6 @@ class ArenaCommand(Command):
             self.ui.pt_printer(
                 "   The arena will auto-run. Use /pause, /resume, and /say to control it."
             )
-
         except (KeyError, FileNotFoundError) as e:
             self.ui.pt_printer(f"❌ Error setting up arena: {e}")
 

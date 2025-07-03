@@ -7,7 +7,12 @@ import asyncio
 import inspect
 import json
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import TYPE_CHECKING
+
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from .models import Arena, ArenaParticipant, ArenaState, Conversation, UIMode
 from .tools import get_tool_schemas
@@ -90,6 +95,7 @@ class HelpCommand(Command):
   /switch <name>         - Switch to a different provider endpoint
   /model <name>          - Set the model for the current session
   /models [term] [refresh] - List & filter models (add 'refresh' to bypass cache)
+  /info <model_id>       - Show detailed info for a model from Hugging Face
   /temp <value>          - Set the generation temperature (0.0-2.0)
   /tokens <num>          - Set the max tokens for the response
   /timeout <seconds>     - Set the network request timeout
@@ -202,6 +208,68 @@ class ModelsCommand(Command):
 
         # Create a task to run the async code without blocking the UI's event loop.
         asyncio.create_task(_fetch_and_print_models())
+
+
+class InfoCommand(Command):
+    @property
+    def name(self):
+        return "info"
+
+    @property
+    def requires_param(self):
+        return True
+
+    def execute(self, app: "Application", param: str | None = None):
+        """Fetches and displays detailed model information from Hugging Face."""
+        model_id = param.strip()
+
+        async def _fetch_and_print_info():
+            self.ui.pt_printer(
+                f"⏳ Fetching info for '{model_id}' from Hugging Face API or cache..."
+            )
+            info = await self.ui.client.get_model_info(model_id)
+
+            if not info:
+                # The client method prints a more specific error.
+                return
+
+            table = Table(show_header=False, box=None, padding=(0, 2))
+            table.add_column(style="bold cyan", no_wrap=True)
+            table.add_column()
+
+            table.add_row("ID", info.get("id"))
+            table.add_row("Type", info.get("pipeline_tag"))
+            table.add_row("Library", info.get("library_name"))
+            table.add_row("Downloads", f"{info.get('downloads', 0):,}")
+            table.add_row("Likes", f"{info.get('likes', 0):,}")
+            table.add_row("SHA", info.get("sha"))
+
+            if last_modified_str := info.get("lastModified"):
+                try:
+                    dt = datetime.fromisoformat(last_modified_str.replace("Z", "+00:00"))
+                    table.add_row("Last Modified", dt.strftime("%Y-%m-%d %H:%M UTC"))
+                except (ValueError, TypeError):
+                    table.add_row("Last Modified", last_modified_str)
+
+            if tags := info.get("tags"):
+                table.add_row("Tags", Text(", ".join(tags), overflow="fold"))
+
+            console = self.ui.client.display.rich_console
+            panel = Panel(
+                table,
+                title=f"Model Info: {info.get('id', model_id)}",
+                title_align="left",
+                border_style="dim",
+            )
+            # Must capture rich output to print via prompt_toolkit's safe printer
+            with console.capture() as capture:
+                console.print(panel)
+
+            from prompt_toolkit.formatted_text import ANSI
+
+            self.ui.pt_printer(ANSI(capture.get()))
+
+        asyncio.create_task(_fetch_and_print_info())
 
 
 class ModelCommand(Command):

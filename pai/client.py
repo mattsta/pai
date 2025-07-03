@@ -52,6 +52,7 @@ class PolyglotClient:
         self.http_session = http_session
         self._cache_dir = self._get_cache_dir()
         self._models_cache_path = self._cache_dir / "models_cache.json"
+        self._model_info_cache_path = self._cache_dir / "model_info_cache.json"
         self.tools_enabled = runtime_config.tools
         self.pricing_service = pricing_service
         self.switch_endpoint(runtime_config.endpoint)
@@ -164,6 +165,46 @@ class PolyglotClient:
             return [m for m in model_list if search_term.lower() in m.lower()]
 
         return model_list
+
+    async def get_model_info(self, model_id: str) -> dict[str, Any] | None:
+        """
+        Fetches detailed model information from the Hugging Face Hub API, with caching.
+        """
+        cache: dict[str, dict[str, Any]] = {}
+        if self._model_info_cache_path.exists():
+            try:
+                with open(self._model_info_cache_path, "r", encoding="utf-8") as f:
+                    cache = json.load(f)
+            except json.JSONDecodeError:
+                pass  # Corrupted cache will be overwritten.
+
+        if model_id in cache:
+            return cache[model_id]
+
+        try:
+            url = f"https://huggingface.co/api/models/{model_id}"
+            # Use a temporary client to avoid interfering with the main session's base URL and headers.
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, timeout=10.0)
+            response.raise_for_status()
+            model_data = response.json()
+
+            cache[model_id] = model_data
+            with open(self._model_info_cache_path, "w", encoding="utf-8") as f:
+                json.dump(cache, f, indent=2)
+
+            return model_data
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                self.display._print(f"❌ Model '{model_id}' not found on Hugging Face Hub.")
+            else:
+                self.display._print(
+                    f"❌ Error fetching model info: HTTP {e.response.status_code}"
+                )
+            return None
+        except (httpx.RequestError, json.JSONDecodeError) as e:
+            self.display._print(f"❌ Error fetching or parsing model info: {e!r}")
+            return None
 
     async def generate(
         self,

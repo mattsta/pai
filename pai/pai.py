@@ -165,12 +165,12 @@ class InteractiveUI:
     def _get_mode_display_name(self) -> str:
         """Returns the string name of the current interaction mode."""
         if self.state.mode == UIMode.ARENA and self.state.arena:
-            status = (
-                "Paused"
-                if not self.arena_paused_event.is_set()
-                and self.generation_in_progress.is_set()
-                else "Running"
-            )
+            status = "Running"
+            if not self.generation_in_progress.is_set():
+                status = "Finished"
+            elif not self.arena_paused_event.is_set():
+                status = "Paused"
+
             judge_str = " w/ Judge" if self.state.arena.arena_config.judge else ""
             return f"Arena: {self.state.arena.arena_config.name}{judge_str} ({status})"
         elif self.state.mode == UIMode.ARENA_SETUP:
@@ -282,10 +282,8 @@ class InteractiveUI:
                         prompt_ui,
                         filter=Condition(
                             lambda: not self.generation_in_progress.is_set()
-                            or (
-                                self.state.mode == UIMode.ARENA
-                                and not self.arena_paused_event.is_set()
-                            )
+                            or self.state.mode
+                            in [UIMode.ARENA, UIMode.ARENA_SETUP]
                         ),
                     ),
                     ConditionalContainer(
@@ -362,40 +360,50 @@ class InteractiveUI:
 
     def _on_buffer_accepted(self, buffer: Buffer):
         """Callback for when the user presses Enter on the input buffer."""
-        # An active task can only be interrupted if it's a paused arena.
-        is_paused_arena = (
-            self.state.mode == UIMode.ARENA and not self.arena_paused_event.is_set()
-        )
-        if self.generation_in_progress.is_set() and not is_paused_arena:
-            return
-
         user_input = buffer.text
+        lstripped_input = user_input.lstrip()
 
-        # If input is only whitespace, ignore it.
-        if not user_input.strip():
+        if not lstripped_input:
             buffer.reset()
             return
 
-        # Always add non-empty input to history manually for consistent behavior.
+        # Check if we should block the input.
+        if lstripped_input.startswith("/"):
+            # Commands are always allowed to be processed.
+            pass
+        else:
+            # It's a prompt. We should block it if a generation is active,
+            # unless the arena is explicitly paused and waiting for input.
+            is_paused_arena = (
+                self.state.mode == UIMode.ARENA
+                and not self.arena_paused_event.is_set()
+                and self.generation_in_progress.is_set()
+            )
+            if self.generation_in_progress.is_set() and not is_paused_arena:
+                self.pt_printer(
+                    HTML(
+                        "<style fg='ansiyellow'>ℹ️ A generation is in progress. Use a command or wait.</style>"
+                    )
+                )
+                buffer.reset()
+                return
+
+        # If we've reached here, the input is valid to process.
         buffer.reset(append_to_history=True)
 
-        # Print the user's input to the log area.
         self.pt_printer(
             HTML(
                 f"\n<style fg='ansigreen'>👤 ({self._get_mode_display_name()}) User:</style> {escape(user_input)}"
             )
         )
 
-        lstripped_input = user_input.lstrip()
         if lstripped_input.startswith("/"):
             self.command_handler.handle(lstripped_input, self.app)
         else:
-            # Handle plain text input by dispatching to an orchestrator.
+            # It's a prompt, so dispatch to an orchestrator.
             orchestrator = self._get_orchestrator()
             if orchestrator:
                 self.generation_in_progress.set()
-                # The orchestrator is responsible for its own cleanup,
-                # including managing self.generation_task.
                 self.generation_task = asyncio.create_task(orchestrator.run(user_input))
 
     # Business logic for chat, agent, and arena modes has been extracted

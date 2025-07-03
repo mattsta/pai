@@ -63,6 +63,11 @@ class Command(ABC):
         """Whether the command requires a parameter to function."""
         return False
 
+    @property
+    def help_text(self) -> str:
+        """The detailed help text for the command, shown for incomplete commands."""
+        return f"Usage: /{self.name} <parameter>"
+
     @abstractmethod
     def execute(self, app: "Application", param: str | None = None):
         """The logic to execute when the command is called."""
@@ -194,6 +199,9 @@ class SwitchCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(self.help_text)
+            return
         self.ui.client.switch_endpoint(param.strip())
 
 
@@ -445,6 +453,9 @@ class ModelCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(self.help_text)
+            return
         self.ui.client.set_model(param.strip())
 
 
@@ -458,6 +469,9 @@ class TempCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(self.help_text)
+            return
         self.ui.set_temperature(param.strip())
 
 
@@ -471,6 +485,9 @@ class TokensCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(self.help_text)
+            return
         self.ui.set_max_tokens(param.strip())
 
 
@@ -484,6 +501,9 @@ class TimeoutCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(self.help_text)
+            return
         try:
             timeout_val = int(param.strip())
             self.ui.client.set_timeout(timeout_val)
@@ -617,9 +637,28 @@ class SystemCommand(Command):
     def requires_param(self):
         return True
 
+    @property
+    def help_text(self) -> str:
+        return """
+⚙️ System Prompt Command Help
+Usage: /system <subcommand> [text]
+
+Subcommands:
+  add <text>     - Add a new prompt to the system prompt stack.
+  pop            - Remove the last prompt from the stack.
+  show           - Show all prompts in the current stack.
+  clear          - Clear all system prompts from the stack.
+  <text>         - If no subcommand is given, the entire text replaces the
+                   current system prompt stack and clears chat history.
+"""
+
     def execute(self, app: "Application", param: str | None = None):
         if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /system is only available in chat mode.")
+            return
+
+        if not param:
+            self.ui.pt_printer(self.help_text)
             return
 
         parts = param.lstrip().split(" ", 1)
@@ -692,6 +731,9 @@ class PromptCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(f"Usage: /{self.name} <name>")
+            return
         if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /prompt is only available in chat mode.")
             return
@@ -886,6 +928,31 @@ class ArenaCommand(Command):
     def requires_param(self):
         return True
 
+    @property
+    def help_text(self) -> str:
+        return """
+⚔️ Arena Command Help
+Manages multi-model conversations. Can be run from a configuration in pai.toml
+or built interactively.
+
+--- Pre-configured (from pai.toml) ---
+Usage: /arena <name> [turns]
+  <name>         - The name of an arena defined in pai.toml.
+  [turns]        - (Optional) Number of turns to run. Default: 10.
+
+--- Interactive Builder ---
+Usage: /arena <subcommand> [options...]
+  new <name>       - Start building a new arena config named <name>.
+  list             - List all saved arena configurations from the 'arenas/' dir.
+  load <name>      - Load a saved arena configuration file.
+  save <name>      - Save the current interactive configuration to a file.
+  run [prompt]     - Run the currently loaded interactive arena.
+  show             - Show the current interactive arena configuration.
+  reset            - Discard the current arena configuration.
+  participant ...  - Manage participants. Use '/arena p' for more help.
+  set ...          - Configure arena settings. Use '/arena s' for more help.
+"""
+
     def _parse_kv_args(self, args_list: list[str]) -> dict[str, str | bool]:
         """Parses a list of arguments into a dictionary of key-value pairs."""
         args = {}
@@ -905,7 +972,7 @@ class ArenaCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         if not param:
-            self.ui.pt_printer("❌ Usage: /arena <subcommand> [options...]")
+            self.ui.pt_printer(self.help_text)
             return
         if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /arena is only available in chat mode.")
@@ -1192,6 +1259,26 @@ class ArenaCommand(Command):
 
             self.ui.pt_printer(ANSI(capture.get()))
 
+    def _get_participant_help(self) -> str:
+        return """
+👥 Arena Participant Command Help
+Usage: /arena participant <add|prompt> [options...]
+
+Subcommands:
+  add <id> --name "Display Name" --endpoint <ep> --model <m>
+    - Adds a new participant to the interactive arena.
+    - <id>: A short, unique identifier (e.g., 'p1', 'critic').
+    - --name: The full display name.
+    - --endpoint: An endpoint name from pai.toml.
+    - --model: The model to use.
+
+  prompt <id> <text | file:path/to/prompt.md>
+    - Sets the system prompt for a participant.
+    - <id>: The ID of the participant to modify.
+    - <text>: The raw text of the system prompt.
+    - file:<path>: The path to a file in the 'prompts/' directory.
+"""
+
     def _execute_participant(self, args: list[str]):
         if self.ui.state.mode != UIMode.ARENA_SETUP:
             self.ui.pt_printer(
@@ -1199,7 +1286,7 @@ class ArenaCommand(Command):
             )
             return
         if not args:
-            self.ui.pt_printer("❌ Usage: /arena participant <add|prompt> ...")
+            self.ui.pt_printer(self._get_participant_help())
             return
 
         sub_sub_command = args[0]
@@ -1259,6 +1346,33 @@ class ArenaCommand(Command):
         else:
             self.ui.pt_printer("❌ Unknown participant command. Use 'add' or 'prompt'.")
 
+    def _get_set_help(self) -> str:
+        return """
+🔧 Arena Set Command Help
+Usage: /arena set <subcommand> [options...]
+
+Subcommands:
+  initiator <id>
+    - Sets which participant speaks first.
+
+  turns <number>
+    - Sets the maximum number of turns for the arena.
+
+  order <sequential|random>
+    - Sets the turn order strategy.
+
+  style <pairwise|chatroom>
+    - Sets the conversation style.
+    - pairwise: Each model sees a 1-on-1 chat history.
+    - chatroom: All models see a shared, interleaved transcript.
+
+  wildcards <on|off>
+    - Toggles random events like temperature spikes.
+
+  judge <id> --name "Name" --endpoint <ep> --model <m> --prompt <p>
+    - Configures the judge participant for the arena.
+"""
+
     def _execute_set(self, args: list[str]):
         if self.ui.state.mode != UIMode.ARENA_SETUP:
             self.ui.pt_printer(
@@ -1266,9 +1380,7 @@ class ArenaCommand(Command):
             )
             return
         if not args:
-            self.ui.pt_printer(
-                "❌ Usage: /arena set <initiator|turns|order|style|wildcards|judge> ..."
-            )
+            self.ui.pt_printer(self._get_set_help())
             return
 
         sub_sub_command = args[0]
@@ -1592,6 +1704,9 @@ class SayCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(f"Usage: /{self.name} <message>")
+            return
         if self.ui.state.mode != UIMode.ARENA or not self.ui.state.arena:
             self.ui.pt_printer("❌ /say is only available in arena mode.")
             return
@@ -1616,6 +1731,9 @@ class SaveCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(f"Usage: /{self.name} <filename>")
+            return
         if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /save is only available in chat mode.")
             return
@@ -1639,6 +1757,9 @@ class LoadCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(f"Usage: /{self.name} <filename>")
+            return
         clean_param = param.strip()
         json_path = self.ui.snapshots_dir / f"{clean_param}.json"
         pickle_path = self.ui.snapshots_dir / f"{clean_param}.pkl"
@@ -1755,14 +1876,29 @@ class CommandHandler:
         parts = command_body.split(" ", 1)
         cmd_name, param = parts[0].lower(), parts[1] if len(parts) > 1 else None
 
-        command = self.commands.get(cmd_name)
+        # Find all commands that match the prefix
+        matching_keys = [key for key in self.commands if key.startswith(cmd_name)]
 
-        if not command:
+        if not matching_keys:
             self.ui.pt_printer("❌ Unknown command.")
             return
 
-        if command.requires_param and not param:
-            self.ui.pt_printer(f"❌ Command '/{command.name}' requires a parameter.")
+        # Check for ambiguity among the matched commands
+        unique_commands = {self.commands[key] for key in matching_keys}
+
+        if len(unique_commands) > 1:
+            # It's ambiguous, list the possible full commands.
+            # We use a set to avoid listing the same command multiple times if aliases matched.
+            possible_cmds = sorted({cmd.name for cmd in unique_commands})
+            self.ui.pt_printer(
+                f"❌ Ambiguous command. Possibilities: {', '.join(f'/{c}' for c in possible_cmds)}"
+            )
             return
 
+        # Unambiguous match, get the single command instance
+        command = unique_commands.pop()
+
+        # The command.requires_param check is now handled within each
+        # command's `execute` method to allow for more detailed, command-specific
+        # help text when a command is incomplete.
         command.execute(app, param)

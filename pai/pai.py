@@ -631,7 +631,9 @@ class InteractiveUI:
     def enter_mode(self, mode: UIMode, clear_history: bool = True):
         """Handles the logic of switching UI modes."""
         self.state.mode = mode
-        self.state.arena = None if mode != UIMode.ARENA else self.state.arena
+        # Preserve arena state only when in Arena or Arena Setup modes.
+        if mode not in [UIMode.ARENA, UIMode.ARENA_SETUP]:
+            self.state.arena = None
 
         # Reset agent-related flags and stats when switching modes.
         if mode not in [UIMode.NATIVE_AGENT, UIMode.LEGACY_AGENT]:

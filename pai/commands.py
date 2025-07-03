@@ -639,9 +639,24 @@ class TemplateCommand(Command):
                     )
 
             if not template_str:
+                checked_paths = [
+                    "'info.tokenizer_config.chat_template'",
+                    "'info.config.tokenizer_config.chat_template'",
+                ]
                 self.ui.pt_printer(
                     f"❌ No chat_template found in metadata for model '{model_id}'."
                 )
+                self.ui.pt_printer(f"   Checked paths: {', '.join(checked_paths)}.")
+                self.ui.pt_printer(
+                    f"   Use `/info {model_id}` to inspect the raw model metadata from Hugging Face."
+                )
+                if self.ui.runtime_config.verbose:
+                    # Dump the full metadata structure if verbose mode is on.
+                    self.ui.pt_printer("\n   --- Verbose: full metadata dump ---")
+                    pretty_info = json.dumps(info, indent=2)
+                    self.ui.pt_printer(pretty_info)
+                    self.ui.pt_printer("   ------------------------------------")
+
                 return
 
             try:

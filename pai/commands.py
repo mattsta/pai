@@ -1450,6 +1450,87 @@ Subcommands:
     - Configures the judge participant for the arena.
 """
 
+    def _execute_set_initiator(self, args: list[str]):
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena set initiator <participant_id>")
+            return
+        p_id = args[0]
+        if p_id not in self.ui.state.arena.arena_config.participants:
+            self.ui.pt_printer(f"❌ Participant '{p_id}' not found.")
+            return
+        self.ui.state.arena.arena_config.initiator_id = p_id
+        self.ui.pt_printer(f"✅ Set arena initiator to '{p_id}'.")
+
+    def _execute_set_turns(self, args: list[str]):
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena set turns <number>")
+            return
+        try:
+            self.ui.state.arena.max_turns = int(args[0])
+            self.ui.pt_printer(
+                f"✅ Set max turns to {self.ui.state.arena.max_turns}."
+            )
+        except (ValueError, TypeError):
+            self.ui.pt_printer("❌ Invalid value for turns. Must be an integer.")
+
+    def _execute_set_order(self, args: list[str]):
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena set order <sequential|random>")
+            return
+        strategy_str = args[0].lower()
+        try:
+            strategy_enum = ArenaTurnOrder(strategy_str)
+            self.ui.state.arena.arena_config.turn_order = strategy_enum
+            self.ui.pt_printer(f"✅ Set turn order strategy to '{strategy_str}'.")
+        except ValueError:
+            self.ui.pt_printer("❌ Invalid strategy. Use 'sequential' or 'random'.")
+
+    def _execute_set_style(self, args: list[str]):
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena set style <pairwise|chatroom>")
+            return
+        style_str = args[0].lower()
+        try:
+            style_enum = ArenaConversationStyle(style_str)
+            self.ui.state.arena.arena_config.conversation_style = style_enum
+            self.ui.pt_printer(f"✅ Set conversation style to '{style_str}'.")
+        except ValueError:
+            self.ui.pt_printer("❌ Invalid style. Use 'pairwise' or 'chatroom'.")
+
+    def _execute_set_wildcards(self, args: list[str]):
+        if not args or args[0].lower() not in ["on", "off"]:
+            self.ui.pt_printer("❌ Usage: /arena set wildcards <on|off>")
+            return
+        enabled = args[0].lower() == "on"
+        self.ui.state.arena.arena_config.wildcards_enabled = enabled
+        self.ui.pt_printer(f"✅ Wildcards {'enabled' if enabled else 'disabled'}.")
+
+    def _execute_set_judge(self, args: list[str]):
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena set judge <id> [options]")
+            return
+        p_id = args[0]
+        kv_args = self._parse_kv_args(args[1:])
+        for key in ["name", "endpoint", "model", "prompt"]:
+            if key not in kv_args:
+                self.ui.pt_printer(f"❌ Missing required argument: --{key}")
+                return
+        system_prompt = str(kv_args["prompt"])
+        judge = ArenaParticipant(
+            id=p_id,
+            name=str(kv_args["name"]),
+            endpoint=str(kv_args["endpoint"]),
+            model=str(kv_args["model"]),
+            system_prompt=system_prompt,
+            conversation=Conversation(
+                _messages=[{"role": "system", "content": system_prompt}]
+            ),
+        )
+        self.ui.state.arena.arena_config.judge = judge
+        # Also add to main dict
+        self.ui.state.arena.arena_config.participants[p_id] = judge
+        self.ui.pt_printer(f"✅ Set judge to '{p_id}'.")
+
     def _execute_set(self, args: list[str]):
         if self.ui.state.mode != UIMode.ARENA_SETUP:
             self.ui.pt_printer(
@@ -1460,89 +1541,48 @@ Subcommands:
             self.ui.pt_printer(self._get_set_help())
             return
 
-        sub_sub_command = args[0]
+        subcommand_prefix = args[0]
         s_args = args[1:]
+        subcommands = {
+            "initiator": self._execute_set_initiator,
+            "i": self._execute_set_initiator,
+            "turns": self._execute_set_turns,
+            "t": self._execute_set_turns,
+            "order": self._execute_set_order,
+            "o": self._execute_set_order,
+            "style": self._execute_set_style,
+            "st": self._execute_set_style,
+            "wildcards": self._execute_set_wildcards,
+            "w": self._execute_set_wildcards,
+            "judge": self._execute_set_judge,
+            "j": self._execute_set_judge,
+        }
+        canonical_names = {
+            self._execute_set_initiator: "initiator",
+            self._execute_set_turns: "turns",
+            self._execute_set_order: "order",
+            self._execute_set_style: "style",
+            self._execute_set_wildcards: "wildcards",
+            self._execute_set_judge: "judge",
+        }
 
-        if sub_sub_command in ["initiator", "i"]:
-            if not s_args:
-                self.ui.pt_printer("❌ Usage: /arena set initiator <participant_id>")
-                return
-            p_id = s_args[0]
-            if p_id not in self.ui.state.arena.arena_config.participants:
-                self.ui.pt_printer(f"❌ Participant '{p_id}' not found.")
-                return
-            self.ui.state.arena.arena_config.initiator_id = p_id
-            self.ui.pt_printer(f"✅ Set arena initiator to '{p_id}'.")
-        elif sub_sub_command in ["turns", "t"]:
-            if not s_args:
-                self.ui.pt_printer("❌ Usage: /arena set turns <number>")
-                return
-            try:
-                self.ui.state.arena.max_turns = int(s_args[0])
-                self.ui.pt_printer(
-                    f"✅ Set max turns to {self.ui.state.arena.max_turns}."
-                )
-            except (ValueError, TypeError):
-                self.ui.pt_printer("❌ Invalid value for turns. Must be an integer.")
-        elif sub_sub_command in ["order", "o"]:
-            if not s_args:
-                self.ui.pt_printer("❌ Usage: /arena set order <sequential|random>")
-                return
-            strategy_str = s_args[0].lower()
-            try:
-                strategy_enum = ArenaTurnOrder(strategy_str)
-                self.ui.state.arena.arena_config.turn_order = strategy_enum
-                self.ui.pt_printer(f"✅ Set turn order strategy to '{strategy_str}'.")
-            except ValueError:
-                self.ui.pt_printer("❌ Invalid strategy. Use 'sequential' or 'random'.")
-        elif sub_sub_command in ["style", "st"]:
-            if not s_args:
-                self.ui.pt_printer("❌ Usage: /arena set style <pairwise|chatroom>")
-                return
-            style_str = s_args[0].lower()
-            try:
-                style_enum = ArenaConversationStyle(style_str)
-                self.ui.state.arena.arena_config.conversation_style = style_enum
-                self.ui.pt_printer(f"✅ Set conversation style to '{style_str}'.")
-            except ValueError:
-                self.ui.pt_printer("❌ Invalid style. Use 'pairwise' or 'chatroom'.")
-        elif sub_sub_command in ["wildcards", "w"]:
-            if not s_args or s_args[0].lower() not in ["on", "off"]:
-                self.ui.pt_printer("❌ Usage: /arena set wildcards <on|off>")
-                return
-            enabled = s_args[0].lower() == "on"
-            self.ui.state.arena.arena_config.wildcards_enabled = enabled
-            self.ui.pt_printer(f"✅ Wildcards {'enabled' if enabled else 'disabled'}.")
-        elif sub_sub_command in ["judge", "j"]:
-            if not s_args:
-                self.ui.pt_printer("❌ Usage: /arena set judge <id> [options]")
-                return
-            p_id = s_args[0]
-            kv_args = self._parse_kv_args(s_args[1:])
-            for key in ["name", "endpoint", "model", "prompt"]:
-                if key not in kv_args:
-                    self.ui.pt_printer(f"❌ Missing required argument: --{key}")
-                    return
-            system_prompt = str(kv_args["prompt"])
-            judge = ArenaParticipant(
-                id=p_id,
-                name=str(kv_args["name"]),
-                endpoint=str(kv_args["endpoint"]),
-                model=str(kv_args["model"]),
-                system_prompt=system_prompt,
-                conversation=Conversation(
-                    _messages=[{"role": "system", "content": system_prompt}]
-                ),
-            )
-            self.ui.state.arena.arena_config.judge = judge
-            self.ui.state.arena.arena_config.participants[p_id] = (
-                judge  # Also add to main dict
-            )
-            self.ui.pt_printer(f"✅ Set judge to '{p_id}'.")
-        else:
+        matching_keys = [
+            key for key in subcommands if key.startswith(subcommand_prefix)
+        ]
+        if not matching_keys:
+            self.ui.pt_printer(self._get_set_help())
+            return
+
+        unique_handlers = {subcommands[key] for key in matching_keys}
+        if len(unique_handlers) > 1:
+            possible_cmds = sorted([canonical_names[h] for h in unique_handlers])
             self.ui.pt_printer(
-                "❌ Unknown set command. Use 'initiator', 'turns', or 'judge'."
+                f"❌ Ambiguous set command. Possibilities: {', '.join(possible_cmds)}"
             )
+            return
+
+        handler = unique_handlers.pop()
+        handler(s_args)
 
     def _get_system_prompt_from_config(
         self,

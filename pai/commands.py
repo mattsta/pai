@@ -358,7 +358,7 @@ class InfoCommand(Command):
                     # This case handles sub-second differences.
                     return "just now"
 
-                return ", ".join(parts) + " old"
+                return ", ".join(parts) + " ago"
 
             created_at_str = info.get("createdAt")
             if created_at_str:

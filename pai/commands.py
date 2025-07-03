@@ -7,7 +7,7 @@ import asyncio
 import inspect
 import json
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from jinja2 import Environment
@@ -298,22 +298,55 @@ class InfoCommand(Command):
 
             def format_relative_time(dt: datetime) -> str:
                 now = datetime.now(dt.tzinfo)
-                delta = now - dt
-                days = delta.days
-
-                if days < 0:
+                if dt > now:
                     return "from the future"
-                if days == 0:
-                    return "less than a day old"
-                if days == 1:
-                    return "1 day old"
-                if days < 30:
-                    return f"{days} days old"
-                if days < 365:
-                    months = days // 30
-                    return f"~{months} month{'s' if months > 1 else ''} old"
-                years = days // 365
-                return f"~{years} year{'s' if years > 1 else ''} old"
+
+                # Calculate differences for date parts, then borrow if negative
+                years = now.year - dt.year
+                months = now.month - dt.month
+                days = now.day - dt.day
+                hours = now.hour - dt.hour
+                minutes = now.minute - dt.minute
+                seconds = now.second - dt.second
+
+                if seconds < 0:
+                    seconds += 60
+                    minutes -= 1
+                if minutes < 0:
+                    minutes += 60
+                    hours -= 1
+                if hours < 0:
+                    hours += 24
+                    days -= 1
+                if days < 0:
+                    # Get days in previous month relative to 'now'
+                    days_in_prev_month = (now.replace(day=1) - timedelta(days=1)).day
+                    days += days_in_prev_month
+                    months -= 1
+                if months < 0:
+                    months += 12
+                    years -= 1
+
+                parts = []
+                if years > 0:
+                    parts.append(f"{years} year{'s' if years > 1 else ''}")
+                if months > 0:
+                    parts.append(f"{months} month{'s' if months > 1 else ''}")
+                if days > 0:
+                    parts.append(f"{days} day{'s' if days > 1 else ''}")
+                if hours > 0:
+                    parts.append(f"{hours} hour{'s' if hours > 1 else ''}")
+                if minutes > 0:
+                    parts.append(f"{minutes} minute{'s' if minutes > 1 else ''}")
+                # Always include seconds if it's the most granular unit of difference.
+                if seconds > 0 or not parts:
+                    parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
+
+                if not parts:
+                    # This case handles sub-second differences.
+                    return "just now"
+
+                return " / ".join(parts) + " old"
 
             created_at_str = info.get("createdAt")
             if created_at_str:

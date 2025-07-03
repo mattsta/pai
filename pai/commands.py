@@ -652,6 +652,36 @@ Subcommands:
                    current system prompt stack and clears chat history.
 """
 
+    def _execute_add(self, text: str | None):
+        if not text:
+            self.ui.pt_printer("❌ Usage: /system add <prompt text>")
+            return
+        self.ui.conversation.add_system_prompt(text)
+        self.ui.pt_printer("🤖 System prompt added to stack.")
+
+    def _execute_pop(self, text: str | None):
+        popped = self.ui.conversation.pop_system_prompt()
+        if popped:
+            self.ui.pt_printer(
+                f"🤖 Popped system prompt: '{popped[:60].strip()}...'"
+            )
+        else:
+            self.ui.pt_printer("🤖 System prompt stack is empty.")
+
+    def _execute_show(self, text: str | None):
+        prompts = self.ui.conversation.get_system_prompts()
+        if not prompts:
+            self.ui.pt_printer("🤖 System prompt stack is empty.")
+        else:
+            self.ui.pt_printer("--- System Prompt Stack ---")
+            for i, p in enumerate(prompts):
+                self.ui.pt_printer(f"[{i + 1}]> {p}")
+            self.ui.pt_printer("---------------------------")
+
+    def _execute_clear(self, text: str | None):
+        self.ui.conversation.clear_system_prompts()
+        self.ui.pt_printer("🤖 All system prompts have been cleared.")
+
     def execute(self, app: "Application", param: str | None = None):
         if self.ui.state.mode == UIMode.COMPLETION:
             self.ui.pt_printer("❌ /system is only available in chat mode.")
@@ -662,43 +692,37 @@ Subcommands:
             return
 
         parts = param.lstrip().split(" ", 1)
-        subcommand = parts[0].lower()
+        subcommand_prefix = parts[0].lower()
         text = parts[1] if len(parts) > 1 else None
 
-        if subcommand == "add":
-            if not text:
-                self.ui.pt_printer("❌ Usage: /system add <prompt text>")
-                return
-            self.ui.conversation.add_system_prompt(text)
-            self.ui.pt_printer("🤖 System prompt added to stack.")
-        elif subcommand == "pop":
-            popped = self.ui.conversation.pop_system_prompt()
-            if popped:
-                self.ui.pt_printer(
-                    f"🤖 Popped system prompt: '{popped[:60].strip()}...'"
-                )
-            else:
-                self.ui.pt_printer("🤖 System prompt stack is empty.")
-        elif subcommand == "show":
-            prompts = self.ui.conversation.get_system_prompts()
-            if not prompts:
-                self.ui.pt_printer("🤖 System prompt stack is empty.")
-            else:
-                self.ui.pt_printer("--- System Prompt Stack ---")
-                for i, p in enumerate(prompts):
-                    self.ui.pt_printer(f"[{i + 1}]> {p}")
-                self.ui.pt_printer("---------------------------")
-        elif subcommand == "clear":
-            self.ui.conversation.clear_system_prompts()
-            self.ui.pt_printer("🤖 All system prompts have been cleared.")
-        else:
-            # If no subcommand matches, the entire param is the prompt.
-            # This replaces the entire stack.
-            self.ui.enter_mode(UIMode.CHAT, clear_history=True)
-            self.ui.conversation.set_system_prompt(param)
+        subcommands = {
+            "add": self._execute_add,
+            "pop": self._execute_pop,
+            "show": self._execute_show,
+            "clear": self._execute_clear,
+        }
+
+        matching_keys = [
+            key for key in subcommands if key.startswith(subcommand_prefix)
+        ]
+
+        if len(matching_keys) == 1:
+            command_name = matching_keys[0]
+            subcommands[command_name](text)
+            return
+
+        if len(matching_keys) > 1:
             self.ui.pt_printer(
-                "🤖 System prompt stack replaced. Conversation history cleared."
+                f"❌ Ambiguous subcommand. Possibilities: {', '.join(sorted(matching_keys))}"
             )
+            return
+
+        # If no subcommand matches, the entire param is the prompt.
+        self.ui.enter_mode(UIMode.CHAT, clear_history=True)
+        self.ui.conversation.set_system_prompt(param)
+        self.ui.pt_printer(
+            "🤖 System prompt stack replaced. Conversation history cleared."
+        )
 
 
 class PromptsCommand(Command):
@@ -979,11 +1003,11 @@ Usage: /arena <subcommand> [options...]
             return
 
         command_parts = param.strip().split(" ", 1)
-        subcommand = command_parts[0]
+        subcommand_prefix = command_parts[0]
 
-        # The 'run' command takes a free-form string argument that should not be
-        # parsed by shlex, as it may contain quotes. We handle it specially.
-        if subcommand == "run":
+        # The 'run' command takes a free-form string that should not be parsed by shlex.
+        # We check for it first by its unambiguous prefix.
+        if "run".startswith(subcommand_prefix):
             prompt = command_parts[1] if len(command_parts) > 1 else ""
             self._execute_run([prompt] if prompt else [])
             return
@@ -998,30 +1022,57 @@ Usage: /arena <subcommand> [options...]
                 self.ui.pt_printer(f"❌ Error parsing arguments: {e}")
             return
 
-        # The subcommand from shlex is authoritative for alias handling.
-        subcommand = parts[0]
+        subcommand_prefix = parts[0]
         args = parts[1:]
 
         # --- Subcommand Dispatcher ---
-        if subcommand in ["new", "n"]:
-            self._execute_new(args)
-        elif subcommand in ["list", "ls"]:
-            self._execute_list()
-        elif subcommand in ["load", "ld"]:
-            self._execute_load(args)
-        elif subcommand in ["save", "sv"]:
-            self._execute_save(args)
-        elif subcommand == "reset":
-            self._execute_reset()
-        elif subcommand in ["show", "sh"]:
-            self._execute_show()
-        elif subcommand in ["participant", "p"]:
-            self._execute_participant(args)
-        elif subcommand in ["set", "s"]:
-            self._execute_set(args)
-        else:
+        subcommands = {
+            "new": self._execute_new,
+            "n": self._execute_new,
+            "list": self._execute_list,
+            "ls": self._execute_list,
+            "load": self._execute_load,
+            "ld": self._execute_load,
+            "save": self._execute_save,
+            "sv": self._execute_save,
+            "reset": self._execute_reset,
+            "show": self._execute_show,
+            "sh": self._execute_show,
+            "participant": self._execute_participant,
+            "p": self._execute_participant,
+            "set": self._execute_set,
+            "s": self._execute_set,
+        }
+        canonical_names = {
+            self._execute_new: "new",
+            self._execute_list: "list",
+            self._execute_load: "load",
+            self._execute_save: "save",
+            self._execute_reset: "reset",
+            self._execute_show: "show",
+            self._execute_participant: "participant",
+            self._execute_set: "set",
+        }
+
+        matching_keys = [
+            key for key in subcommands if key.startswith(subcommand_prefix)
+        ]
+
+        if not matching_keys:
             # Fallback to legacy behavior: /arena <name> [turns]
             self._execute_from_config(parts)
+            return
+
+        unique_handlers = {subcommands[key] for key in matching_keys}
+        if len(unique_handlers) > 1:
+            possible_cmds = sorted([canonical_names[h] for h in unique_handlers])
+            self.ui.pt_printer(
+                f"❌ Ambiguous command. Possibilities: {', '.join(possible_cmds)}"
+            )
+            return
+
+        handler = unique_handlers.pop()
+        handler(args)
 
     def _execute_new(self, args: list[str]):
         if not args:
@@ -1279,6 +1330,59 @@ Subcommands:
     - file:<path>: The path to a file in the 'prompts/' directory.
 """
 
+    def _execute_participant_add(self, args: list[str]):
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena participant add <id> --name ...")
+            return
+        p_id = args[0]
+        kv_args = self._parse_kv_args(args[1:])
+        for key in ["name", "endpoint", "model"]:
+            if key not in kv_args:
+                self.ui.pt_printer(f"❌ Missing required argument: --{key}")
+                return
+        participant = ArenaParticipant(
+            id=p_id,
+            name=str(kv_args["name"]),
+            endpoint=str(kv_args["endpoint"]),
+            model=str(kv_args["model"]),
+            system_prompt="You are a helpful assistant.",
+            conversation=Conversation(),
+        )
+        self.ui.state.arena.arena_config.participants[p_id] = participant
+        self.ui.pt_printer(f"✅ Added participant '{p_id}' to the arena.")
+
+    def _execute_participant_prompt(self, args: list[str]):
+        if len(args) < 2:
+            self.ui.pt_printer(
+                "❌ Usage: /arena participant prompt <id> <text|file:path>"
+            )
+            return
+        p_id = args[0]
+        prompt_str = " ".join(args[1:])
+        participant = self.ui.state.arena.arena_config.participants.get(p_id)
+        if not participant:
+            self.ui.pt_printer(f"❌ Participant with ID '{p_id}' not found.")
+            return
+
+        if prompt_str.lower().startswith("file:"):
+            path_str = prompt_str[5:]
+            prompt_path = self.ui.prompts_dir / f"{path_str}.md"
+            if not prompt_path.exists():
+                prompt_path = self.ui.prompts_dir / f"{path_str}.txt"
+            if not prompt_path.is_file():
+                self.ui.pt_printer(f"❌ Prompt file not found: {prompt_path}")
+                return
+            prompt_content = prompt_path.read_text(encoding="utf-8")
+            participant.system_prompt = prompt_content
+            participant.conversation.set_system_prompt(prompt_content)
+            self.ui.pt_printer(
+                f"✅ Set system prompt for '{p_id}' from file '{path_str}'."
+            )
+        else:
+            participant.system_prompt = prompt_str
+            participant.conversation.set_system_prompt(prompt_str)
+            self.ui.pt_printer(f"✅ Set system prompt for '{p_id}'.")
+
     def _execute_participant(self, args: list[str]):
         if self.ui.state.mode != UIMode.ARENA_SETUP:
             self.ui.pt_printer(
@@ -1289,62 +1393,35 @@ Subcommands:
             self.ui.pt_printer(self._get_participant_help())
             return
 
-        sub_sub_command = args[0]
+        subcommand_prefix = args[0]
         p_args = args[1:]
+        subcommands = {
+            "add": self._execute_participant_add,
+            "a": self._execute_participant_add,
+            "prompt": self._execute_participant_prompt,
+        }
+        canonical_names = {
+            self._execute_participant_add: "add",
+            self._execute_participant_prompt: "prompt",
+        }
 
-        if sub_sub_command in ["add", "a"]:
-            if len(p_args) < 1:
-                self.ui.pt_printer("❌ Usage: /arena participant add <id> [options]")
-                return
-            p_id = p_args[0]
-            kv_args = self._parse_kv_args(p_args[1:])
-            for key in ["name", "endpoint", "model"]:
-                if key not in kv_args:
-                    self.ui.pt_printer(f"❌ Missing required argument: --{key}")
-                    return
-            participant = ArenaParticipant(
-                id=p_id,
-                name=str(kv_args["name"]),
-                endpoint=str(kv_args["endpoint"]),
-                model=str(kv_args["model"]),
-                system_prompt="You are a helpful assistant.",
-                conversation=Conversation(),
+        matching_keys = [
+            key for key in subcommands if key.startswith(subcommand_prefix)
+        ]
+        if not matching_keys:
+            self.ui.pt_printer(self._get_participant_help())
+            return
+
+        unique_handlers = {subcommands[key] for key in matching_keys}
+        if len(unique_handlers) > 1:
+            possible_cmds = sorted([canonical_names[h] for h in unique_handlers])
+            self.ui.pt_printer(
+                f"❌ Ambiguous participant command. Possibilities: {', '.join(possible_cmds)}"
             )
-            self.ui.state.arena.arena_config.participants[p_id] = participant
-            self.ui.pt_printer(f"✅ Added participant '{p_id}' to the arena.")
-        elif sub_sub_command == "prompt":
-            if len(p_args) < 2:
-                self.ui.pt_printer(
-                    "❌ Usage: /arena participant prompt <id> <text|file:path>"
-                )
-                return
-            p_id = p_args[0]
-            prompt_str = " ".join(p_args[1:])
-            participant = self.ui.state.arena.arena_config.participants.get(p_id)
-            if not participant:
-                self.ui.pt_printer(f"❌ Participant with ID '{p_id}' not found.")
-                return
+            return
 
-            if prompt_str.lower().startswith("file:"):
-                path_str = prompt_str[5:]
-                prompt_path = self.ui.prompts_dir / f"{path_str}.md"
-                if not prompt_path.exists():
-                    prompt_path = self.ui.prompts_dir / f"{path_str}.txt"
-                if not prompt_path.is_file():
-                    self.ui.pt_printer(f"❌ Prompt file not found: {prompt_path}")
-                    return
-                prompt_content = prompt_path.read_text(encoding="utf-8")
-                participant.system_prompt = prompt_content
-                participant.conversation.set_system_prompt(prompt_content)
-                self.ui.pt_printer(
-                    f"✅ Set system prompt for '{p_id}' from file '{path_str}'."
-                )
-            else:
-                participant.system_prompt = prompt_str
-                participant.conversation.set_system_prompt(prompt_str)
-                self.ui.pt_printer(f"✅ Set system prompt for '{p_id}'.")
-        else:
-            self.ui.pt_printer("❌ Unknown participant command. Use 'add' or 'prompt'.")
+        handler = unique_handlers.pop()
+        handler(p_args)
 
     def _get_set_help(self) -> str:
         return """

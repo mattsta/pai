@@ -342,7 +342,7 @@ class SmoothingStats:
     arrivals: int = 0
     min_delta: str = "N/A"
     mean_delta: str = "N/A"
-    median_delta: str = "N/A"
+    stdev_delta: str = "N/A"
     max_delta: str = "N/A"
     gaps: int = 0
     bursts: int = 0
@@ -516,7 +516,7 @@ class SessionStats:
                     "bursts": last.jitter_stats.bursts,
                     "min_delta": last.jitter_stats.min_delta,
                     "mean_delta": last.jitter_stats.mean_delta,
-                    "median_delta": last.jitter_stats.median_delta,
+                    "stdev_delta": last.jitter_stats.stdev_delta,
                     "max_delta": last.jitter_stats.max_delta,
                     "aborted": last.jitter_stats.smoothing_aborted,
                 }

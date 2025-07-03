@@ -45,7 +45,7 @@ def print_stats(stats: "SessionStats", printer: Callable = print):
                 f"    - {'Mean Delta (ms)':<18}{jitter_stats.get('mean_delta', 'N/A')}"
             )
             printer(
-                f"    - {'Median Delta (ms)':<18}{jitter_stats.get('median_delta', 'N/A')}"
+                f"    - {'Std Dev Delta (ms)':<18}{jitter_stats.get('stdev_delta', 'N/A')}"
             )
             printer(
                 f"    - {'Max Delta (ms)':<18}{jitter_stats.get('max_delta', 'N/A')}"

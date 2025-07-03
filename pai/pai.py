@@ -555,16 +555,16 @@ class InteractiveUI:
                 try:
                     min_d = float(s_stats.min_delta)
                     mean_d = float(s_stats.mean_delta)
-                    med_d = float(s_stats.median_delta)
+                    stdev_d = float(s_stats.stdev_delta)
                     max_d = float(s_stats.max_delta)
                     parts.append(
-                        f"Δ (min/mean/med/max ms): {min_d:4.1f}/{mean_d:4.1f}/{med_d:4.1f}/{max_d:4.1f}"
+                        f"Δ (min/mean/stdev/max ms): {min_d:4.1f}/{mean_d:4.1f}/{stdev_d:4.1f}/{max_d:4.1f}"
                     )
                 except ValueError:
-                    parts.append("Δ (min/mean/med/max ms): --.-/--.-/--.-/--.-")
+                    parts.append("Δ (min/mean/stdev/max ms): --.-/--.-/--.-/--.-")
                 parts.append(f"G/B: {s_stats.gaps:2d}/{s_stats.bursts:3d}")
             else:
-                parts.append("Δ (min/mean/med/max ms): --.-/--.-/--.-/--.-")
+                parts.append("Δ (min/mean/stdev/max ms): --.-/--.-/--.-/--.-")
                 parts.append("G/B: --/---")
             return f"<b>Smooth Stats</b> | {' | '.join(parts)}"
 

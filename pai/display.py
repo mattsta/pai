@@ -174,7 +174,7 @@ class StreamingDisplay:
                 min_val = min(non_zero_deltas) if non_zero_deltas else 0.0
                 stats.min_delta = f"{min_val * 1000:.1f}"
                 stats.mean_delta = f"{mean * 1000:.1f}"
-                stats.median_delta = f"{statistics.median(deltas) * 1000:.1f}"
+                stats.stdev_delta = f"{stdev * 1000:.1f}"
                 stats.max_delta = f"{max(deltas) * 1000:.1f}"
 
                 gaps = (

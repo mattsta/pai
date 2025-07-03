@@ -612,17 +612,35 @@ class TemplateCommand(Command):
             self.ui.pt_printer(
                 f"⏳ Fetching model info for '{model_id}' to find chat template..."
             )
-            info = await self.ui.client.get_model_info(model_id)
+
+            # First, try to get info from the provider's cached model list
+            info = await self.ui.client.get_cached_provider_model_info(model_id)
+
+            # If not found, fall back to fetching from Hugging Face Hub
+            if not info:
+                self.ui.pt_printer(
+                    f"ℹ️  Model info not in provider cache, falling back to Hugging Face Hub for '{model_id}'..."
+                )
+                info = await self.ui.client.get_model_info(model_id)
 
             if not info:
                 self.ui.pt_printer(f"❌ Could not retrieve info for model '{model_id}'.")
                 return
 
-            template_str = info.get("tokenizer_config", {}).get("chat_template")
+            # Robustly look for the chat template in a few common places
+            template_str = None
+            if isinstance(info.get("tokenizer_config"), dict):
+                template_str = info["tokenizer_config"].get("chat_template")
+
+            if not template_str and isinstance(info.get("config"), dict):
+                if isinstance(info["config"].get("tokenizer_config"), dict):
+                    template_str = info["config"]["tokenizer_config"].get(
+                        "chat_template"
+                    )
 
             if not template_str:
                 self.ui.pt_printer(
-                    f"❌ No chat_template found in tokenizer_config for model '{model_id}'."
+                    f"❌ No chat_template found in metadata for model '{model_id}'."
                 )
                 return
 

@@ -127,36 +127,39 @@ class PolyglotClient:
     ) -> list[str]:
         """
         Fetches the list of available models from the provider, using a cache.
+        The cache now stores the full model dictionary from the provider.
         An optional search term can be provided to filter the results.
         Returns an empty list on failure, printing an error message.
         """
         endpoint_name = self.config.name
-        # Sanitize endpoint name to be a valid filename
         safe_endpoint_name = "".join(
             c for c in endpoint_name if c.isalnum() or c in ("-", "_")
         ).rstrip()
         cache_file = self._models_cache_dir / f"{safe_endpoint_name}.json"
 
-        model_list: list[str] | None = None
+        model_data_list: list[dict[str, Any]] | None = None
         if not force_refresh and cache_file.exists():
             try:
                 with open(cache_file, "r", encoding="utf-8") as f:
-                    model_list = json.load(f)
-            except json.JSONDecodeError:
-                pass  # Corrupted cache, will be refreshed
+                    cached_data = json.load(f)
+                    # Handle both old (list of strings) and new (list of dicts) formats
+                    if cached_data and isinstance(cached_data[0], dict):
+                        model_data_list = cached_data
+                    elif cached_data:
+                        # Convert old format to new format for internal consistency
+                        model_data_list = [{"id": m} for m in cached_data]
+            except (json.JSONDecodeError, IndexError):
+                pass  # Corrupted or empty cache, will be refreshed
 
-        if model_list is None:  # Cache miss or corrupted
+        if model_data_list is None:  # Cache miss or corrupted
             try:
-                # Most providers use /v1/models, which is 'models' relative to base_url
                 response = await self.http_session.get("models")
                 response.raise_for_status()
                 data = response.json()
-                fetched_models = sorted([item["id"] for item in data.get("data", [])])
+                model_data_list = data.get("data", [])
 
                 with open(cache_file, "w", encoding="utf-8") as f:
-                    json.dump(fetched_models, f, indent=2)
-
-                model_list = fetched_models
+                    json.dump(model_data_list, f, indent=2)
             except (httpx.RequestError, httpx.HTTPStatusError) as e:
                 self.display._print(f"❌ Error fetching models: {e}")
                 return []
@@ -164,10 +167,40 @@ class PolyglotClient:
                 self.display._print("❌ Error parsing models response. Unexpected format.")
                 return []
 
+        # Return a list of model IDs for backward compatibility with callers
+        model_ids = sorted([m.get("id", "") for m in model_data_list])
         if search_term:
-            return [m for m in model_list if search_term.lower() in m.lower()]
+            return [m for m in model_ids if search_term.lower() in m.lower()]
 
-        return model_list
+        return model_ids
+
+    async def get_cached_provider_model_info(
+        self, model_id: str
+    ) -> dict[str, Any] | None:
+        """
+        Loads the provider model cache and searches for a specific model's info.
+        This does NOT make a network call.
+        """
+        endpoint_name = self.config.name
+        safe_endpoint_name = "".join(
+            c for c in endpoint_name if c.isalnum() or c in ("-", "_")
+        ).rstrip()
+        cache_file = self._models_cache_dir / f"{safe_endpoint_name}.json"
+
+        if cache_file.exists():
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    model_data_list = json.load(f)
+
+                if not isinstance(model_data_list, list):
+                    return None
+
+                for model_info in model_data_list:
+                    if isinstance(model_info, dict) and model_info.get("id") == model_id:
+                        return model_info
+            except (json.JSONDecodeError, IndexError):
+                return None  # Cache is corrupt or not in the expected format.
+        return None
 
     async def get_model_info(self, model_id: str) -> dict[str, Any] | None:
         """

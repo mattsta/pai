@@ -1,5 +1,6 @@
 """Orchestrator for legacy agent mode (text-based tool use)."""
 
+import asyncio
 import json
 import re
 from html import escape
@@ -10,6 +11,7 @@ from prompt_toolkit.formatted_text import HTML
 from ..log_utils import save_conversation_formats
 from ..models import ChatRequest, Turn
 from ..tools import ToolArgumentError, ToolError, ToolNotFound, execute_tool
+from ..utils import estimate_tokens
 from .base import BaseOrchestrator
 
 
@@ -28,6 +30,7 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
         messages = self.conversation.get_messages_for_next_turn(user_input)
         max_loops = 5
         used_tools_in_loop = False
+        request = None
 
         try:
             for i in range(max_loops):
@@ -101,6 +104,19 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                     break
             else:
                 self.pt_printer("⚠️ Agent reached maximum loops.")
+        except asyncio.CancelledError:
+            request_stats = await self.client.display.finish_response(success=False)
+            partial_text = self.client.display.current_response
+            if request_stats and request and partial_text:
+                request_stats.finish_reason = "cancelled"
+                request_stats.tokens_sent = sum(
+                    estimate_tokens(m.get("content", "")) for m in request.messages
+                )
+                self.client.stats.add_completed_request(request_stats)
+                self._log_cancelled_turn(request, partial_text)
+            self.pt_printer(
+                HTML("\n<style fg='ansiyellow'>🚫 Generation cancelled.</style>")
+            )
         except Exception as e:
             await self.client.display.finish_response(success=False)
             self.pt_printer(HTML(f"❌ LEGACY AGENT ERROR: {e}"))

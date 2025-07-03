@@ -142,8 +142,7 @@ class DefaultOrchestrator(BaseOrchestrator):
                 else:
                     request_stats.tokens_sent = estimate_tokens(request.prompt)
                 self.client.stats.add_completed_request(request_stats)
-                if self.state.mode != UIMode.COMPLETION:
-                    self._log_cancelled_turn(request, partial_text)
+                self._log_cancelled_turn(request, partial_text)
             self.pt_printer(
                 HTML("\n<style fg='ansiyellow'>🚫 Generation cancelled.</style>")
             )
@@ -154,26 +153,3 @@ class DefaultOrchestrator(BaseOrchestrator):
             self.ui.generation_in_progress.clear()
             self.ui.generation_task = None
 
-    def _log_cancelled_turn(
-        self, request: ChatRequest | CompletionRequest, partial_text: str
-    ):
-        """Saves information about a cancelled turn for debugging."""
-        request_data = request.to_dict(self.client.config.model_name)
-        response_data = {
-            "pai_note": "This response was cancelled by the user.",
-            "choices": [{"message": {"role": "assistant", "content": partial_text}}],
-        }
-        turn = Turn(
-            request_data=request_data,
-            response_data=response_data,
-            assistant_message=partial_text,
-        )
-        self.conversation.add_turn(turn)
-        try:
-            turn_file = self.log_dir / f"{turn.turn_id}-turn.json"
-            turn_file.write_text(json.dumps(turn.to_dict(), indent=2), encoding="utf-8")
-            save_conversation_formats(
-                self.conversation, self.log_dir, printer=self.pt_printer
-            )
-        except Exception as e:
-            self.pt_printer(f"\n⚠️  Warning: Could not save cancelled session turn: {e}")

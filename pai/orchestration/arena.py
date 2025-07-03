@@ -8,6 +8,7 @@ from prompt_toolkit.formatted_text import HTML
 from ..log_utils import save_conversation_formats
 from ..models import ChatRequest, Turn, UIMode
 from ..tools import get_tool_schemas
+from ..utils import estimate_tokens
 from .base import BaseOrchestrator
 
 
@@ -34,6 +35,7 @@ class ArenaOrchestrator(BaseOrchestrator):
 
     async def _orchestrate(self):
         original_endpoint_name = self.client.config.name
+        request = None
         try:
             if not (state := self.state.arena):
                 return
@@ -87,6 +89,15 @@ class ArenaOrchestrator(BaseOrchestrator):
             self.pt_printer("\n🏁 Arena finished: Maximum turns reached.")
             await self._run_arena_judge()
         except asyncio.CancelledError:
+            request_stats = await self.client.display.finish_response(success=False)
+            partial_text = self.client.display.current_response
+            if request_stats and request and partial_text:
+                request_stats.finish_reason = "cancelled"
+                request_stats.tokens_sent = sum(
+                    estimate_tokens(m.get("content", "")) for m in request.messages
+                )
+                self.client.stats.add_completed_request(request_stats)
+                self._log_cancelled_turn(request, partial_text)
             self.pt_printer(
                 HTML("\n<style fg='ansiyellow'>🚫 Arena cancelled by user.</style>")
             )

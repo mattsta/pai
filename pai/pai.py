@@ -123,6 +123,8 @@ class InteractiveUI:
         pai_user_dir.mkdir(exist_ok=True)
         self.prompts_dir = pathlib.Path("prompts")
         self.prompts_dir.mkdir(exist_ok=True)
+        self.arenas_dir = pathlib.Path("arenas")
+        self.arenas_dir.mkdir(exist_ok=True)
         self.snapshots_dir = pathlib.Path("session_snapshots")
         self.snapshots_dir.mkdir(exist_ok=True)
 

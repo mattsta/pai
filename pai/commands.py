@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 import shlex
+import yaml
 from jinja2 import Environment
 
 from rich.panel import Panel
@@ -18,7 +19,18 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
-from .models import Arena, ArenaParticipant, ArenaState, Conversation, UIMode
+from .models import (
+    Arena,
+    ArenaConfigFile,
+    ArenaConfigJudge,
+    ArenaConfigParticipant,
+    ArenaParticipant,
+    ArenaState,
+    Conversation,
+    TomlJudge,
+    TomlParticipant,
+    UIMode,
+)
 from .tools import get_tool_schemas
 
 if TYPE_CHECKING:
@@ -126,8 +138,14 @@ class HelpCommand(Command):
   /load <name>           - Load a chat session from a file
 
 --- MULTI-MODEL ARENA ---
-  /arena <name> [turns]  - Start a pre-configured multi-model arena
+  /arena <name> [turns]  - Start a pre-configured multi-model arena from pai.toml
   /arena new <name>      - Start building a new arena configuration interactively
+  /arena list              - List all saved arena configurations
+  /arena load <name>       - Load an arena configuration from a file
+  /arena save <name>       - Save the current interactive arena config to a file
+  /arena run [prompt]      - Run the interactively built or loaded arena
+  /arena show              - Show the current arena configuration being built
+  /arena reset             - Discard the current arena configuration
   /arena participant add <id> --name "Name" --endpoint <ep> --model <m>
                          - Add a participant to the arena being built
   /arena participant prompt <id> [<prompt> | file:<path>]
@@ -136,9 +154,6 @@ class HelpCommand(Command):
   /arena set turns <number> - Set the max number of turns for the debate
   /arena set judge <id> --name "Name" --endpoint <ep> --model <m> --prompt <p>
                          - Define the judge participant
-  /arena show              - Show the current arena configuration being built
-  /arena run [prompt]      - Run the interactively built arena
-  /arena reset             - Discard the current arena configuration
   /pause                   - Pause the arena after the current model's turn
   /resume                  - Resume a paused arena
   /say <message>           - Interject with a message while arena is paused
@@ -861,6 +876,12 @@ class ArenaCommand(Command):
         # --- Subcommand Dispatcher ---
         if subcommand == "new":
             self._execute_new(args)
+        elif subcommand == "list":
+            self._execute_list()
+        elif subcommand == "load":
+            self._execute_load(args)
+        elif subcommand == "save":
+            self._execute_save(args)
         elif subcommand == "reset":
             self._execute_reset()
         elif subcommand == "show":
@@ -889,6 +910,148 @@ class ArenaCommand(Command):
         self.ui.pt_printer(
             f"🚧 New arena '{arena_name}' created. Add participants and set options."
         )
+
+    def _execute_list(self):
+        """Lists available, saved arena configuration files."""
+        self.ui.pt_printer("💾 Available saved arenas:")
+        found = False
+        for p in sorted(self.ui.arenas_dir.glob("*.yaml")):
+            self.ui.pt_printer(f"  - {p.stem}")
+            found = True
+        for p in sorted(self.ui.arenas_dir.glob("*.yml")):
+            self.ui.pt_printer(f"  - {p.stem}")
+            found = True
+        if not found:
+            self.ui.pt_printer(
+                "  (None found. Use '/arena save <name>' to save a configuration.)"
+            )
+
+    def _execute_load(self, args: list[str]):
+        """Loads an arena state from a YAML configuration file."""
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena load <filename>")
+            return
+        filename = args[0]
+        if not filename.endswith((".yml", ".yaml")):
+            filename += ".yaml"
+
+        load_path = self.ui.arenas_dir / filename
+        if not load_path.is_file():
+            self.ui.pt_printer(f"❌ Arena configuration file not found: '{load_path}'")
+            return
+
+        try:
+            with open(load_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+
+            arena_file_data = ArenaConfigFile.model_validate(data)
+
+            # --- Build ArenaState from loaded config ---
+            participants = {}
+            for p_id, p_config in arena_file_data.participants.items():
+                system_prompt = self._get_system_prompt_from_config(p_config)
+                conversation = Conversation()
+                conversation.set_system_prompt(system_prompt)
+                participants[p_id] = ArenaParticipant(
+                    id=p_id,
+                    name=p_config.name,
+                    endpoint=p_config.endpoint,
+                    model=p_config.model,
+                    system_prompt=system_prompt,
+                    conversation=conversation,
+                )
+
+            judge_participant = None
+            if arena_file_data.judge:
+                j_config = arena_file_data.judge
+                system_prompt = self._get_system_prompt_from_config(j_config)
+                judge_conversation = Conversation()
+                judge_conversation.set_system_prompt(system_prompt)
+                judge_participant = ArenaParticipant(
+                    id="judge",
+                    name=j_config.name,
+                    endpoint=j_config.endpoint,
+                    model=j_config.model,
+                    system_prompt=system_prompt,
+                    conversation=judge_conversation,
+                )
+                participants["judge"] = judge_participant
+
+            arena_config_obj = Arena(
+                name=arena_file_data.name,
+                participants=participants,
+                initiator_id=arena_file_data.initiator,
+                judge=judge_participant,
+            )
+
+            arena_state = ArenaState(
+                arena_config=arena_config_obj,
+                turn_order_ids=[],  # Will be set by /arena run
+                max_turns=arena_file_data.max_turns,
+            )
+
+            self.ui.state.arena = arena_state
+            self.ui.enter_mode(UIMode.ARENA_SETUP, clear_history=False)
+            self.ui.pt_printer(
+                f"✅ Loaded arena '{arena_file_data.name}' from '{load_path}'. Use `/arena run` to start."
+            )
+
+        except (yaml.YAMLError, Exception) as e:
+            self.ui.pt_printer(f"❌ Error loading arena configuration: {e}")
+
+    def _execute_save(self, args: list[str]):
+        """Saves the current arena configuration to a YAML file."""
+        if not self.ui.state.arena:
+            self.ui.pt_printer("❌ No active arena configuration to save.")
+            return
+        if not args:
+            self.ui.pt_printer("❌ Usage: /arena save <filename>")
+            return
+        filename = args[0]
+        if not filename.endswith((".yml", ".yaml")):
+            filename += ".yaml"
+
+        state = self.ui.state.arena
+        config = state.arena_config
+
+        participants_dict = {}
+        for p_id, p in config.participants.items():
+            if p_id == "judge":
+                continue
+            participants_dict[p_id] = {
+                "name": p.name,
+                "endpoint": p.endpoint,
+                "model": p.model,
+                "system_prompt": p.system_prompt,
+            }
+
+        judge_dict = None
+        if config.judge:
+            judge_dict = {
+                "name": config.judge.name,
+                "endpoint": config.judge.endpoint,
+                "model": config.judge.model,
+                "system_prompt": config.judge.system_prompt,
+            }
+
+        arena_file_content = {
+            "name": config.name,
+            "initiator": config.initiator_id,
+            "max_turns": state.max_turns,
+            "participants": participants_dict,
+        }
+        if judge_dict:
+            arena_file_content["judge"] = judge_dict
+
+        save_path = self.ui.arenas_dir / filename
+        try:
+            with open(save_path, "w", encoding="utf-8") as f:
+                yaml.dump(
+                    arena_file_content, f, sort_keys=False, default_flow_style=False
+                )
+            self.ui.pt_printer(f"💾 Arena configuration saved to '{save_path}'.")
+        except Exception as e:
+            self.ui.pt_printer(f"❌ Error saving arena configuration: {e}")
 
     def _execute_reset(self):
         self.ui.state.arena = None
@@ -1076,6 +1239,29 @@ class ArenaCommand(Command):
             self.ui.pt_printer(f"✅ Set judge to '{p_id}'.")
         else:
             self.ui.pt_printer("❌ Unknown set command. Use 'initiator', 'turns', or 'judge'.")
+
+    def _get_system_prompt_from_config(
+        self,
+        p_config: TomlParticipant | TomlJudge | ArenaConfigParticipant | ArenaConfigJudge,
+    ) -> str:
+        """Determines the system prompt from an arena participant config object."""
+        # Inline prompt takes precedence
+        if p_config.system_prompt:
+            return p_config.system_prompt
+        # Fallback to a key for a file
+        if p_config.system_prompt_key:
+            prompt_key = p_config.system_prompt_key
+            prompt_path = self.ui.prompts_dir / f"{prompt_key}.md"
+            if not prompt_path.exists():
+                prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
+
+            if not prompt_path.is_file():
+                # Let the caller handle the error.
+                raise FileNotFoundError(f"System prompt file '{prompt_key}' not found.")
+            return prompt_path.read_text(encoding="utf-8")
+
+        # Fallback to a generic prompt if neither is specified.
+        return "You are a helpful assistant."
 
     def _execute_run(self, args: list[str]):
         if not self.ui.state.arena:

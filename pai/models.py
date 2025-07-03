@@ -576,6 +576,33 @@ class ArenaState:
         return self.max_turns * len(self.turn_order_ids) if self.turn_order_ids else 0
 
 
+# --- Arena Configuration File Models ---
+class ArenaConfigParticipant(BaseModel):
+    """A participant model for standalone arena config files."""
+
+    name: str
+    endpoint: str
+    model: str
+    system_prompt: str | None = None
+    system_prompt_key: str | None = None
+
+
+class ArenaConfigJudge(ArenaConfigParticipant):
+    """A judge model for standalone arena config files."""
+
+    pass
+
+
+class ArenaConfigFile(BaseModel):
+    """Represents the structure of a standalone arena YAML/TOML file."""
+
+    name: str
+    initiator: str
+    max_turns: int = 10
+    participants: dict[str, ArenaConfigParticipant]
+    judge: ArenaConfigJudge | None = None
+
+
 @dataclass
 class EndpointConfig:
     name: str = "default"
@@ -639,14 +666,16 @@ class TomlParticipant(BaseModel):
     name: str
     endpoint: str
     model: str
-    system_prompt_key: str
+    system_prompt: str | None = None
+    system_prompt_key: str | None = None
 
 
 class TomlJudge(BaseModel):
     name: str
     endpoint: str
     model: str
-    system_prompt_key: str
+    system_prompt: str | None = None
+    system_prompt_key: str | None = None
 
 
 class TomlArena(BaseModel):

@@ -563,7 +563,39 @@ class HistoryCommand(Command):
         return "history"
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.pt_printer(json.dumps(self.ui.conversation.get_history(), indent=2))
+        if self.ui.state.mode in [UIMode.ARENA, UIMode.ARENA_SETUP]:
+            if not self.ui.state.arena:
+                self.ui.pt_printer("❌ Arena state not found, but in arena mode.")
+                return
+
+            state = self.ui.state.arena
+            console = self.ui.client.display.rich_console
+            self.ui.pt_printer("--- Arena Participant Histories ---")
+
+            for p_id, participant in state.arena_config.participants.items():
+                title_style = "cyan"
+                if p_id == "judge":
+                    title_style = "yellow"
+
+                history_json = json.dumps(
+                    participant.conversation.get_history(), indent=2
+                )
+                history_syntax = Syntax(
+                    history_json, "json", theme="monokai", word_wrap=True
+                )
+                panel = Panel(
+                    history_syntax,
+                    title=f"History for {participant.name} ({p_id})",
+                    border_style=title_style,
+                    title_align="left",
+                )
+                with console.capture() as capture:
+                    console.print(panel)
+                from prompt_toolkit.formatted_text import ANSI
+
+                self.ui.pt_printer(ANSI(capture.get()))
+        else:
+            self.ui.pt_printer(json.dumps(self.ui.conversation.get_history(), indent=2))
 
 
 class ClearCommand(Command):

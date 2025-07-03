@@ -104,6 +104,8 @@ class DefaultOrchestrator(BaseOrchestrator):
                         request_data=result.get("request", {}),
                         response_data=result.get("response", {}),
                         assistant_message=result.get("text", ""),
+                        mode=self.state.mode,
+                        stats=self.client.stats.last_request_stats,
                     )
 
                     # For completion mode, we need to add a "user" message to the

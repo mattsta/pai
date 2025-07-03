@@ -94,6 +94,8 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                         request_data=final_request_for_log,
                         response_data=result.get("response", {}),
                         assistant_message=assistant_response,
+                        mode=self.state.mode,
+                        stats=self.client.stats.last_request_stats,
                     )
                     self.conversation.add_turn(
                         turn, self.client.stats.last_request_stats

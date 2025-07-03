@@ -2,6 +2,7 @@
 Data models for Polyglot AI state, history, and requests.
 """
 
+import dataclasses
 import enum
 import time
 from dataclasses import dataclass, field
@@ -66,12 +67,17 @@ class Turn:
     # Arena mode fields
     participant_name: str | None = None
     model_name: str | None = None
+    # Context fields for logging
+    mode: "UIMode | None" = None
+    stats: "RequestStats | None" = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serializes the turn to a dictionary, handling non-native JSON types."""
         return {
             "turn_id": str(self.turn_id),
             "timestamp": self.timestamp.isoformat(),
+            "mode": self.mode.value if self.mode else None,
+            "stats": self.stats.to_dict() if self.stats else None,
             "request_data": self.request_data,
             "response_data": self.response_data,
             "assistant_message": self.assistant_message,
@@ -95,6 +101,16 @@ class RequestCost:
     # Calculated properties
     input_cost: float = 0.0
     output_cost: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serializes the cost breakdown into a dictionary."""
+        return {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "input_cost": self.input_cost,
+            "output_cost": self.output_cost,
+            "total_cost": self.total_cost,
+        }
 
     def update(self, input_tokens: int | None = None, output_tokens: int | None = None):
         """
@@ -265,33 +281,42 @@ class Conversation:
 
             # Process all messages for this turn, adding arena metadata where needed.
             for msg in turn_messages:
+                msg_for_template = msg.copy()
                 # The template needs to handle various message structures.
                 # We normalize the 'tool' role to have a 'name' if possible.
-                if msg["role"] == "tool" and "name" not in msg:
+                if (
+                    msg_for_template["role"] == "tool"
+                    and "name" not in msg_for_template
+                ):
                     # Find the corresponding tool_call to get the name.
-                    tool_call_id = msg.get("tool_call_id")
+                    tool_call_id = msg_for_template.get("tool_call_id")
                     if tool_call_id:
                         for prev_msg in reversed(turn_messages):
                             if prev_msg["role"] == "assistant":
                                 for tc in prev_msg.get("tool_calls", []):
                                     if tc["id"] == tool_call_id:
-                                        msg["name"] = tc["function"]["name"]
+                                        msg_for_template["name"] = tc["function"][
+                                            "name"
+                                        ]
                                         break
-                                if msg.get("name"):
+                                if msg_for_template.get("name"):
                                     break
 
-                p_name = turn.participant_name
-                # Add participant info only to assistant messages in arena mode.
-                if msg["role"] == "assistant" and p_name:
-                    msg_for_template = msg.copy()
-                    msg_for_template["participant_name"] = p_name
-                    msg_for_template["model_name"] = turn.model_name
-                    msg_for_template["participant_index"] = participant_index_map.get(
-                        p_name
+                # Attach turn-level context to assistant messages for display.
+                if msg_for_template["role"] == "assistant":
+                    if p_name := turn.participant_name:
+                        msg_for_template["participant_name"] = p_name
+                        msg_for_template["model_name"] = turn.model_name
+                        msg_for_template["participant_index"] = (
+                            participant_index_map.get(p_name)
+                        )
+                    # Add mode and stats for logging and display
+                    msg_for_template["mode"] = turn.mode
+                    msg_for_template["stats"] = (
+                        turn.stats.to_dict() if turn.stats else None
                     )
-                    history.append(msg_for_template)
-                else:
-                    history.append(msg)
+
+                history.append(msg_for_template)
 
         return history
 
@@ -374,6 +399,22 @@ class RequestStats:
 
     # Internal state for live calculations
     _first_token_time: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serializes request stats into a dictionary."""
+        return {
+            "start_time": self.start_time,
+            "ttft": self.ttft,
+            "response_time": self.response_time,
+            "tokens_sent": self.tokens_sent,
+            "tokens_received": self.tokens_received,
+            "success": self.success,
+            "finish_reason": self.finish_reason,
+            "cost": self.cost.to_dict() if self.cost else None,
+            "jitter_stats": dataclasses.asdict(self.jitter_stats)
+            if self.jitter_stats
+            else None,
+        }
 
     def record_first_token(self):
         """Call this when the first token is received to capture TTFT."""

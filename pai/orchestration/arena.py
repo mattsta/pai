@@ -127,6 +127,8 @@ class ArenaOrchestrator(BaseOrchestrator):
                     assistant_message=assistant_message,
                     participant_name=participant.name,
                     model_name=participant.model,
+                    mode=self.state.mode,
+                    stats=self.client.stats.last_request_stats,
                 )
                 stats = self.client.stats.last_request_stats
                 self.conversation.add_turn(turn, stats)
@@ -224,6 +226,8 @@ class ArenaOrchestrator(BaseOrchestrator):
             assistant_message=result.get("text", ""),
             participant_name=judge.name,
             model_name=judge.model,
+            mode=self.state.mode,
+            stats=self.client.stats.last_request_stats,
         )
         self.conversation.add_turn(turn, self.client.stats.last_request_stats)
         save_conversation_formats(

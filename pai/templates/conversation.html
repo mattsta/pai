@@ -5,7 +5,7 @@
     <title>PAI Conversation</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; background-color: #fdfdfd; color: #333; }
-        .message { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .message { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; }
         .user { background-color: #e6f3ff; }
         .assistant { background-color: #f9f9f9; }
         .tool { background-color: #fff8e1; border-left: 4px solid #ffc107; }
@@ -24,6 +24,13 @@
         .assistant.participant-6 { border-left: 4px solid #f44336; background-color: #fef6f5; }
         .assistant.participant-7 { border-left: 4px solid #9c27b0; background-color: #f9f5fa; }
         .participant-info { font-size: 0.8em; color: #555; margin-bottom: 5px; }
+        .message-details { font-size: 0.8em; color: #666; }
+        .message-details summary { cursor: pointer; display: inline-block; padding: 2px 6px; border-radius: 4px; background-color: #f0f0f0; margin-top: 10px; }
+        .message-details summary:hover { background-color: #e0e0e0; }
+        .message-details[open] summary { background-color: #ddd; }
+        .stats-table { margin-top: 10px; border-collapse: collapse; width: auto; }
+        .stats-table td { padding: 4px 8px; border: 1px solid #ddd; }
+        .stats-table td:first-child { font-weight: bold; background-color: #f9f9f9; }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/monokai.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -53,6 +60,21 @@
             <div>Tool Call Request:</div>
             <pre><code class="language-json">{{ message.tool_calls | prettyjson }}</code></pre>
             {% endif %}
+        {% endif %}
+        {% if message.stats %}
+        <details class="message-details">
+            <summary>Details</summary>
+            <table class="stats-table">
+                <tr><td>Mode</td><td>{{ message.mode.value if message.mode else 'N/A' }}</td></tr>
+                <tr><td>TTFT</td><td>{{ "%.2f"|format(message.stats.ttft) if message.stats.ttft else 'N/A' }}s</td></tr>
+                <tr><td>Response Time</td><td>{{ "%.2f"|format(message.stats.response_time) if message.stats.response_time else 'N/A' }}s</td></tr>
+                <tr><td>Tokens (Sent/Recv)</td><td>{{ message.stats.tokens_sent }} / {{ message.stats.tokens_received }}</td></tr>
+                <tr><td>Finish Reason</td><td>{{ message.stats.finish_reason or 'N/A' }}</td></tr>
+                {% if message.stats.cost %}
+                <tr><td>Cost</td><td>${{ "%.5f"|format(message.stats.cost.total_cost) }}</td></tr>
+                {% endif %}
+            </table>
+        </details>
         {% endif %}
     </div>
     {% endfor %}

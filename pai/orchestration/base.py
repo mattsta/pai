@@ -42,6 +42,8 @@ class BaseOrchestrator(ABC):
             request_data=request_data,
             response_data=response_data,
             assistant_message=partial_text,
+            mode=self.state.mode,
+            stats=self.client.stats.last_request_stats,
         )
         self.conversation.add_turn(turn)
         try:

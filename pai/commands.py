@@ -281,7 +281,6 @@ class InfoCommand(Command):
             table.add_row("Library", info.get("library_name"))
             table.add_row("Downloads", f"{info.get('downloads', 0):,}")
             table.add_row("Likes", f"{info.get('likes', 0):,}")
-            table.add_row("SHA", info.get("sha"))
 
             if inference_state := info.get("inference"):
                 table.add_row("Inference Status", str(inference_state))
@@ -295,6 +294,20 @@ class InfoCommand(Command):
                         f"{format_large_number(v)} ({k})" for k, v in params.items()
                     )
                     table.add_row("Parameters", param_str)
+
+                    total_params = sum(params.values())
+                    if total_params > 0:
+                        # 16-bit (2 bytes), 8-bit (1 byte), 4-bit (0.5 bytes)
+                        size_16bit = total_params * 2
+                        size_8bit = total_params * 1
+                        size_4bit = int(total_params * 0.5)
+
+                        size_str = (
+                            f"{format_bytes(size_16bit)} (16-bit) │ "
+                            f"{format_bytes(size_8bit)} (8-bit) │ "
+                            f"{format_bytes(size_4bit)} (4-bit)"
+                        )
+                        table.add_row("Est. Memory", size_str)
 
             def format_relative_time(dt: datetime) -> str:
                 now = datetime.now(dt.tzinfo)

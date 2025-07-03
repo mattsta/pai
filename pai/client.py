@@ -51,8 +51,10 @@ class PolyglotClient:
         )
         self.http_session = http_session
         self._cache_dir = self._get_cache_dir()
-        self._models_cache_path = self._cache_dir / "models_cache.json"
-        self._model_info_cache_path = self._cache_dir / "model_info_cache.json"
+        self._models_cache_dir = self._cache_dir / "models"
+        self._model_info_cache_dir = self._cache_dir / "model_info"
+        self._models_cache_dir.mkdir(exist_ok=True)
+        self._model_info_cache_dir.mkdir(exist_ok=True)
         self.tools_enabled = runtime_config.tools
         self.pricing_service = pricing_service
         self.switch_endpoint(runtime_config.endpoint)
@@ -128,20 +130,22 @@ class PolyglotClient:
         An optional search term can be provided to filter the results.
         Returns an empty list on failure, printing an error message.
         """
-        cache: dict[str, list[str]] = {}
-        if self._models_cache_path.exists():
-            try:
-                with open(self._models_cache_path, "r", encoding="utf-8") as f:
-                    cache = json.load(f)
-            except json.JSONDecodeError:
-                pass  # Ignore corrupted cache, it will be overwritten
-
         endpoint_name = self.config.name
-        model_list: list[str]
+        # Sanitize endpoint name to be a valid filename
+        safe_endpoint_name = "".join(
+            c for c in endpoint_name if c.isalnum() or c in ("-", "_")
+        ).rstrip()
+        cache_file = self._models_cache_dir / f"{safe_endpoint_name}.json"
 
-        if not force_refresh and endpoint_name in cache:
-            model_list = cache[endpoint_name]
-        else:
+        model_list: list[str] | None = None
+        if not force_refresh and cache_file.exists():
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    model_list = json.load(f)
+            except json.JSONDecodeError:
+                pass  # Corrupted cache, will be refreshed
+
+        if model_list is None:  # Cache miss or corrupted
             try:
                 # Most providers use /v1/models, which is 'models' relative to base_url
                 response = await self.http_session.get("models")
@@ -149,9 +153,8 @@ class PolyglotClient:
                 data = response.json()
                 fetched_models = sorted([item["id"] for item in data.get("data", [])])
 
-                cache[endpoint_name] = fetched_models
-                with open(self._models_cache_path, "w", encoding="utf-8") as f:
-                    json.dump(cache, f, indent=2)
+                with open(cache_file, "w", encoding="utf-8") as f:
+                    json.dump(fetched_models, f, indent=2)
 
                 model_list = fetched_models
             except (httpx.RequestError, httpx.HTTPStatusError) as e:
@@ -170,16 +173,17 @@ class PolyglotClient:
         """
         Fetches detailed model information from the Hugging Face Hub API, with caching.
         """
-        cache: dict[str, dict[str, Any]] = {}
-        if self._model_info_cache_path.exists():
-            try:
-                with open(self._model_info_cache_path, "r", encoding="utf-8") as f:
-                    cache = json.load(f)
-            except json.JSONDecodeError:
-                pass  # Corrupted cache will be overwritten.
+        # Sanitize model_id to create a safe path.
+        # This handles model_ids like 'Org/ModelName' by creating subdirectories.
+        cache_path = self._model_info_cache_dir / f"{model_id}.json"
 
-        if model_id in cache:
-            return cache[model_id]
+        if cache_path.exists():
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                # Corrupted cache file, will proceed to fetch.
+                pass
 
         try:
             url = f"https://huggingface.co/api/models/{model_id}"
@@ -189,9 +193,10 @@ class PolyglotClient:
             response.raise_for_status()
             model_data = response.json()
 
-            cache[model_id] = model_data
-            with open(self._model_info_cache_path, "w", encoding="utf-8") as f:
-                json.dump(cache, f, indent=2)
+            # Create parent directories if they don't exist
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(model_data, f, indent=2)
 
             return model_data
         except httpx.HTTPStatusError as e:

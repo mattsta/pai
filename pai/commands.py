@@ -629,19 +629,18 @@ class TemplateCommand(Command):
 
             # Robustly look for the chat template in a few common places
             template_str = None
-            if isinstance(info.get("tokenizer_config"), dict):
-                template_str = info["tokenizer_config"].get("chat_template")
+            if info and isinstance(info.get("config"), dict):
+                tokenizer_config = info["config"].get("tokenizer_config")
+                if isinstance(tokenizer_config, dict):
+                    template_str = tokenizer_config.get("chat_template")
 
-            if not template_str and isinstance(info.get("config"), dict):
-                if isinstance(info["config"].get("tokenizer_config"), dict):
-                    template_str = info["config"]["tokenizer_config"].get(
-                        "chat_template"
-                    )
+            if not template_str and isinstance(info.get("tokenizer_config"), dict):
+                template_str = info["tokenizer_config"].get("chat_template")
 
             if not template_str:
                 checked_paths = [
-                    "'info.tokenizer_config.chat_template'",
                     "'info.config.tokenizer_config.chat_template'",
+                    "'info.tokenizer_config.chat_template'",
                 ]
                 self.ui.pt_printer(
                     f"❌ No chat_template found in metadata for model '{model_id}'."

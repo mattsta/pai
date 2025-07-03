@@ -223,18 +223,51 @@ class InfoCommand(Command):
         return True
 
     def execute(self, app: "Application", param: str | None = None):
-        """Fetches and displays detailed model information from Hugging Face."""
+        """Fetches and displays detailed model information from provider and Hugging Face."""
         model_id = param.strip()
 
         async def _fetch_and_print_info():
             self.ui.pt_printer(
-                f"⏳ Fetching info for '{model_id}' from Hugging Face API or cache..."
+                f"⏳ Fetching info for '{model_id}' from provider cache and Hugging Face API..."
             )
-            info = await self.ui.client.get_model_info(model_id)
+            provider_info = await self.ui.client.get_cached_provider_model_info(
+                model_id
+            )
+            hf_info = await self.ui.client.get_model_info(model_id)
+
+            info = {}
+            if provider_info:
+                info.update(provider_info)
+            if hf_info:
+                info.update(hf_info)
 
             if not info:
-                # The client method prints a more specific error.
+                self.ui.pt_printer(
+                    f"❌ No information found for model '{model_id}' from any source."
+                )
                 return
+
+            def format_bytes(byte_count: int | None) -> str:
+                if byte_count is None:
+                    return "N/A"
+                if byte_count == 0:
+                    return "0 B"
+                if byte_count < 1024:
+                    return f"{byte_count} B"
+                if byte_count < 1024**2:
+                    return f"{byte_count/1024:.2f} KB"
+                if byte_count < 1024**3:
+                    return f"{byte_count/1024**2:.2f} MB"
+                return f"{byte_count/1024**3:.2f} GB"
+
+            def format_large_number(n: int | None) -> str:
+                if n is None:
+                    return "N/A"
+                if n < 1_000_000:
+                    return f"{n:,}"
+                if n < 1_000_000_000:
+                    return f"{n / 1_000_000:.2f}M"
+                return f"{n / 1_000_000_000:.2f}B"
 
             table = Table(show_header=False, box=None, padding=(0, 2))
             table.add_column(style="bold cyan", no_wrap=True)
@@ -247,12 +280,34 @@ class InfoCommand(Command):
             table.add_row("Likes", f"{info.get('likes', 0):,}")
             table.add_row("SHA", info.get("sha"))
 
-            if last_modified_str := info.get("lastModified"):
+            if inference_state := info.get("inference"):
+                table.add_row("Inference Status", str(inference_state))
+
+            if used_storage := info.get("usedStorage"):
+                table.add_row("Storage Used", format_bytes(used_storage))
+
+            if st_info := info.get("safetensors"):
+                if params := st_info.get("parameters"):
+                    param_str = ", ".join(
+                        f"{format_large_number(v)} ({k})" for k, v in params.items()
+                    )
+                    table.add_row("Parameters", param_str)
+
+            date_to_use = None
+            date_label = ""
+            if last_mod := info.get("lastModified"):
+                date_to_use = last_mod
+                date_label = "Last Modified"
+            elif created_at := info.get("createdAt"):
+                date_to_use = created_at
+                date_label = "Created At"
+
+            if date_to_use:
                 try:
-                    dt = datetime.fromisoformat(last_modified_str.replace("Z", "+00:00"))
-                    table.add_row("Last Modified", dt.strftime("%Y-%m-%d %H:%M UTC"))
+                    dt = datetime.fromisoformat(date_to_use.replace("Z", "+00:00"))
+                    table.add_row(date_label, dt.strftime("%Y-%m-%d %H:%M UTC"))
                 except (ValueError, TypeError):
-                    table.add_row("Last Modified", last_modified_str)
+                    table.add_row(date_label, date_to_use)
 
             if tags := info.get("tags"):
                 table.add_row("Tags", Text(", ".join(tags), overflow="fold"))

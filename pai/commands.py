@@ -296,21 +296,45 @@ class InfoCommand(Command):
                     )
                     table.add_row("Parameters", param_str)
 
-            date_to_use = None
-            date_label = ""
-            if last_mod := info.get("lastModified"):
-                date_to_use = last_mod
-                date_label = "Last Modified"
-            elif created_at := info.get("createdAt"):
-                date_to_use = created_at
-                date_label = "Created At"
+            def format_relative_time(dt: datetime) -> str:
+                now = datetime.now(dt.tzinfo)
+                delta = now - dt
+                days = delta.days
 
-            if date_to_use:
+                if days < 0:
+                    return "from the future"
+                if days == 0:
+                    return "less than a day old"
+                if days == 1:
+                    return "1 day old"
+                if days < 30:
+                    return f"{days} days old"
+                if days < 365:
+                    months = days // 30
+                    return f"~{months} month{'s' if months > 1 else ''} old"
+                years = days // 365
+                return f"~{years} year{'s' if years > 1 else ''} old"
+
+            created_at_str = info.get("createdAt")
+            if created_at_str:
                 try:
-                    dt = datetime.fromisoformat(date_to_use.replace("Z", "+00:00"))
-                    table.add_row(date_label, dt.strftime("%Y-%m-%d %H:%M UTC"))
+                    dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                    relative_str = format_relative_time(dt)
+                    dt_str = dt.strftime("%Y-%m-%d %H:%M UTC")
+                    table.add_row("Created At", f"{dt_str} ({relative_str})")
                 except (ValueError, TypeError):
-                    table.add_row(date_label, date_to_use)
+                    table.add_row("Created At", created_at_str)
+
+            if last_mod := info.get("lastModified"):
+                # Avoid duplicating info if createdAt and lastModified are identical
+                if not created_at_str or created_at_str != last_mod:
+                    try:
+                        dt = datetime.fromisoformat(last_mod.replace("Z", "+00:00"))
+                        relative_str = format_relative_time(dt)
+                        dt_str = dt.strftime("%Y-%m-%d %H:%M UTC")
+                        table.add_row("Last Modified", f"{dt_str} ({relative_str})")
+                    except (ValueError, TypeError):
+                        table.add_row("Last Modified", last_mod)
 
             if tags := info.get("tags"):
                 table.add_row("Tags", Text(", ".join(tags), overflow="fold"))

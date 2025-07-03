@@ -841,6 +841,10 @@ class ArenaCommand(Command):
         return "arena"
 
     @property
+    def aliases(self) -> list[str]:
+        return ["ar"]
+
+    @property
     def requires_param(self):
         return True
 
@@ -874,23 +878,23 @@ class ArenaCommand(Command):
         args = parts[1:]
 
         # --- Subcommand Dispatcher ---
-        if subcommand == "new":
+        if subcommand in ["new", "n"]:
             self._execute_new(args)
-        elif subcommand == "list":
+        elif subcommand in ["list", "ls"]:
             self._execute_list()
-        elif subcommand == "load":
+        elif subcommand in ["load", "ld"]:
             self._execute_load(args)
-        elif subcommand == "save":
+        elif subcommand in ["save", "sv"]:
             self._execute_save(args)
         elif subcommand == "reset":
             self._execute_reset()
-        elif subcommand == "show":
+        elif subcommand in ["show", "sh"]:
             self._execute_show()
         elif subcommand == "run":
             self._execute_run(args)
-        elif subcommand == "participant":
+        elif subcommand in ["participant", "p"]:
             self._execute_participant(args)
-        elif subcommand == "set":
+        elif subcommand in ["set", "s"]:
             self._execute_set(args)
         else:
             # Fallback to legacy behavior: /arena <name> [turns]
@@ -1127,7 +1131,7 @@ class ArenaCommand(Command):
         sub_sub_command = args[0]
         p_args = args[1:]
 
-        if sub_sub_command == "add":
+        if sub_sub_command in ["add", "a"]:
             if len(p_args) < 1:
                 self.ui.pt_printer("❌ Usage: /arena participant add <id> [options]")
                 return
@@ -1190,7 +1194,7 @@ class ArenaCommand(Command):
         sub_sub_command = args[0]
         s_args = args[1:]
 
-        if sub_sub_command == "initiator":
+        if sub_sub_command in ["initiator", "i"]:
             if not s_args:
                 self.ui.pt_printer("❌ Usage: /arena set initiator <participant_id>")
                 return
@@ -1200,7 +1204,7 @@ class ArenaCommand(Command):
                 return
             self.ui.state.arena.arena_config.initiator_id = p_id
             self.ui.pt_printer(f"✅ Set arena initiator to '{p_id}'.")
-        elif sub_sub_command == "turns":
+        elif sub_sub_command in ["turns", "t"]:
             if not s_args:
                 self.ui.pt_printer("❌ Usage: /arena set turns <number>")
                 return
@@ -1211,7 +1215,7 @@ class ArenaCommand(Command):
                 )
             except (ValueError, TypeError):
                 self.ui.pt_printer("❌ Invalid value for turns. Must be an integer.")
-        elif sub_sub_command == "judge":
+        elif sub_sub_command in ["judge", "j"]:
             if not s_args:
                 self.ui.pt_printer("❌ Usage: /arena set judge <id> [options]")
                 return

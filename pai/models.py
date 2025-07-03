@@ -571,7 +571,8 @@ class ArenaState:
     @property
     def max_speeches(self) -> int:
         """Total number of individual model responses in the arena session."""
-        return self.max_turns * len(self.arena_config.participants)
+        # Use turn_order_ids as it correctly excludes the judge.
+        return self.max_turns * len(self.turn_order_ids) if self.turn_order_ids else 0
 
 
 @dataclass

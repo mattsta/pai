@@ -20,18 +20,17 @@ class ArenaOrchestrator(BaseOrchestrator):
             self.pt_printer("❌ Arena state not found.")
             return
 
-        if not self.ui.generation_task:
-            if not user_input:
-                return
-            self.state.arena.last_message = user_input
-            self.ui.generation_task = asyncio.create_task(self._orchestrate())
-            self.ui.arena_paused_event.set()
-        else:
-            self.pt_printer(
-                HTML(
-                    "<style fg='ansiyellow'>ℹ️ Arena is paused. Use /say &lt;message&gt; to interject, or /resume to continue.</style>"
-                )
-            )
+        if not user_input:
+            # Should not happen if called correctly
+            return
+
+        # The `run` method is called once to start the arena.
+        # It's the coroutine for the main generation task.
+        # We set the initial message and start the orchestration loop.
+        self.state.arena.last_message = user_input
+        self.ui.arena_paused_event.set()  # Start in a running state.
+
+        await self._orchestrate()
 
     async def _orchestrate(self):
         original_endpoint_name = self.client.config.name

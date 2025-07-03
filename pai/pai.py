@@ -568,6 +568,24 @@ class InteractiveUI:
                 parts.append("G/B: --/---")
             return f"<b>Smooth Stats</b> | {' | '.join(parts)}"
 
+        if self.state.mode == UIMode.ARENA and self.state.arena and self.generation_in_progress.is_set():
+            state = self.state.arena
+            if state.turn_order_ids:
+                num_participants = len(state.turn_order_ids)
+                turn_num = (state.current_speech // num_participants) + 1
+                parts = [
+                    f"Turn: {turn_num}/{state.max_turns}",
+                    f"Speech: {state.current_speech + 1}/{state.max_speeches}",
+                ]
+                if state.current_speech < state.max_speeches:
+                    current_participant_id = state.turn_order_ids[0]
+                    participant = state.arena_config.get_participant(
+                        current_participant_id
+                    )
+                    if participant:
+                        parts.append(f"Speaking: <b>{escape(participant.name)}</b>")
+                return f"<style fg='ansimagenta'><b>Arena Progress</b> | {' | '.join(parts)}</style>"
+
         if is_agent_mode:
             parts = [
                 f"Loops: {self.state.agent_loops}",

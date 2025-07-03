@@ -351,15 +351,21 @@ class InfoCommand(Command):
                     parts.append(f"{hours} hour{'s' if hours > 1 else ''}")
                 if minutes > 0:
                     parts.append(f"{minutes} minute{'s' if minutes > 1 else ''}")
-                # Always include seconds if it's the most granular unit of difference.
-                if seconds > 0 or not parts:
+                if seconds > 0:
                     parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
 
                 if not parts:
                     # This case handles sub-second differences.
                     return "just now"
 
-                return " / ".join(parts) + " old"
+                # Limit to the top 2 most significant units for readability.
+                if len(parts) > 2:
+                    parts = parts[:2]
+
+                if len(parts) == 1:
+                    return f"about {parts[0]} old"
+
+                return f"about {parts[0]} and {parts[1]} old"
 
             created_at_str = info.get("createdAt")
             if created_at_str:

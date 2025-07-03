@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from jinja2 import Environment
+
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -103,6 +105,7 @@ class HelpCommand(Command):
 --- AGENT & TOOLS ---
   /agent                 - Enable native agent mode (requires --tools)
   /legacy_agent          - Enable agent mode for models without tool-calling
+  /template              - Enable chat template completion for debugging
   /tools                 - Toggle tool-use capability on/off for the session
   /confirm on|off        - Toggle user confirmation for tool execution
 
@@ -589,6 +592,72 @@ class LegacyAgentCommand(Command):
             self.ui.pt_printer(
                 f"❌ Legacy agent prompt '{param}.md' not found in '{self.ui.prompts_dir}'."
             )
+
+
+class TemplateCommand(Command):
+    @property
+    def name(self):
+        return "template"
+
+    def execute(self, app: "Application", param: str | None = None):
+        """Switches to template completion mode if the model has a chat template."""
+        if self.ui.state.mode == UIMode.COMPLETION:
+            self.ui.pt_printer(
+                "❌ /template requires a chat-like history. Use /mode to switch."
+            )
+            return
+
+        async def _load_and_set_template():
+            model_id = self.ui.client.config.model_name
+            self.ui.pt_printer(
+                f"⏳ Fetching model info for '{model_id}' to find chat template..."
+            )
+            info = await self.ui.client.get_model_info(model_id)
+
+            if not info:
+                self.ui.pt_printer(f"❌ Could not retrieve info for model '{model_id}'.")
+                return
+
+            template_str = info.get("tokenizer_config", {}).get("chat_template")
+
+            if not template_str:
+                self.ui.pt_printer(
+                    f"❌ No chat_template found in tokenizer_config for model '{model_id}'."
+                )
+                return
+
+            try:
+                # Use a specific environment for safety and consistency.
+                env = Environment(
+                    trim_blocks=True, lstrip_blocks=True, autoescape=False
+                )
+                template_obj = env.from_string(template_str)
+                self.ui.state.chat_template = template_str
+                self.ui.state.chat_template_obj = template_obj
+                self.ui.enter_mode(UIMode.TEMPLATE_COMPLETION, clear_history=True)
+                self.ui.pt_printer(
+                    f"✅ Switched to Template Completion mode for '{model_id}'."
+                )
+                self.ui.pt_printer("ℹ️  Template:")
+                from rich.markdown import Markdown
+                from rich.panel import Panel
+
+                console = self.ui.client.display.rich_console
+                panel = Panel(
+                    Markdown(f"```jinja\n{template_str}\n```"),
+                    title="Jinja2 Chat Template",
+                    title_align="left",
+                    border_style="dim",
+                )
+                with console.capture() as capture:
+                    console.print(panel)
+                from prompt_toolkit.formatted_text import ANSI
+
+                self.ui.pt_printer(ANSI(capture.get()))
+            except Exception as e:
+                self.ui.pt_printer(f"❌ Error compiling Jinja2 template: {e}")
+
+        asyncio.create_task(_load_and_set_template())
 
 
 class ArenaCommand(Command):

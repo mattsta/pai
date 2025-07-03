@@ -4,6 +4,7 @@ import asyncio
 import json
 from typing import Any
 
+from jinja2 import Environment
 from prompt_toolkit.formatted_text import HTML
 
 from ..log_utils import save_conversation_formats
@@ -24,7 +25,47 @@ class DefaultOrchestrator(BaseOrchestrator):
 
         request: ChatRequest | CompletionRequest | None = None
         try:
-            if self.state.mode == UIMode.COMPLETION:
+            if self.state.mode == UIMode.TEMPLATE_COMPLETION:
+                if not self.state.chat_template_obj:
+                    self.pt_printer(
+                        HTML(
+                            "<style fg='ansired'>❌ No chat template loaded. Use /template to load one for the current model.</style>"
+                        )
+                    )
+                    self.ui.generation_in_progress.clear()
+                    self.ui.generation_task = None
+                    return
+
+                messages = self.conversation.get_messages_for_next_turn(user_input)
+
+                try:
+                    rendered_prompt = self.state.chat_template_obj.render(
+                        messages=messages, add_generation_prompt=True
+                    )
+                    if self.runtime_config.verbose:
+                        self.pt_printer(
+                            HTML(
+                                f"\n<style fg='grey'>[Rendered Template Prompt]</style>\n{escape(rendered_prompt)}"
+                            )
+                        )
+                except Exception as e:
+                    self.pt_printer(
+                        HTML(
+                            f"<style fg='ansired'>❌ Error rendering chat template: {e}</style>"
+                        )
+                    )
+                    self.ui.generation_in_progress.clear()
+                    self.ui.generation_task = None
+                    return
+
+                request = CompletionRequest(
+                    prompt=rendered_prompt,
+                    model=self.client.config.model_name,
+                    max_tokens=self.runtime_config.max_tokens,
+                    temperature=self.runtime_config.temperature,
+                    stream=self.runtime_config.stream,
+                )
+            elif self.state.mode == UIMode.COMPLETION:
                 request = CompletionRequest(
                     prompt=user_input,
                     model=self.client.config.model_name,

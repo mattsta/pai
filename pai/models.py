@@ -27,6 +27,7 @@ class UIMode(enum.Enum):
     NATIVE_AGENT = "native_agent"
     LEGACY_AGENT = "legacy_agent"
     ARENA = "arena"
+    TEMPLATE_COMPLETION = "template_completion"
 
 
 @dataclass
@@ -40,6 +41,9 @@ class UIState:
     # Agent-specific stats
     tools_used: int = 0
     agent_loops: int = 0
+    # For template completion mode
+    chat_template: str | None = None
+    chat_template_obj: Any | None = None
 
 
 @dataclass

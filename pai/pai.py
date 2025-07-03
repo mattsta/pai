@@ -99,6 +99,7 @@ class InteractiveUI:
         UIMode.CHAT: DefaultOrchestrator,
         UIMode.NATIVE_AGENT: DefaultOrchestrator,
         UIMode.COMPLETION: DefaultOrchestrator,
+        UIMode.TEMPLATE_COMPLETION: DefaultOrchestrator,
     }
 
     def __init__(self, client: "PolyglotClient", runtime_config: RuntimeConfig):
@@ -174,6 +175,8 @@ class InteractiveUI:
             return "Agent"
         elif self.state.mode == UIMode.LEGACY_AGENT:
             return "Legacy Agent"
+        elif self.state.mode == UIMode.TEMPLATE_COMPLETION:
+            return "Template"
         elif self.state.mode == UIMode.CHAT:
             return "Chat"
         return "Completion"
@@ -608,6 +611,10 @@ class InteractiveUI:
         if mode not in [UIMode.NATIVE_AGENT, UIMode.LEGACY_AGENT]:
             self.state.tools_used = 0
             self.state.agent_loops = 0
+
+        if mode != UIMode.TEMPLATE_COMPLETION:
+            self.state.chat_template = None
+            self.state.chat_template_obj = None
 
         if clear_history:
             self.conversation.clear()

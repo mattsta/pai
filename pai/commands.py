@@ -97,7 +97,7 @@ class HelpCommand(Command):
   /switch <name>         - Switch to a different provider endpoint
   /model <name>          - Set the model for the current session
   /models [term] [refresh] - List & filter models (add 'refresh' to bypass cache)
-  /info <model_id>       - Show detailed info for a model from Hugging Face
+  /info [model_id]       - Show detailed info for a model (defaults to current)
   /temp <value>          - Set the generation temperature (0.0-2.0)
   /tokens <num>          - Set the max tokens for the response
   /timeout <seconds>     - Set the network request timeout
@@ -220,11 +220,14 @@ class InfoCommand(Command):
 
     @property
     def requires_param(self):
-        return True
+        return False
 
     def execute(self, app: "Application", param: str | None = None):
         """Fetches and displays detailed model information from provider and Hugging Face."""
-        model_id = param.strip()
+        if param:
+            model_id = param.strip()
+        else:
+            model_id = self.ui.client.config.model_name
 
         async def _fetch_and_print_info():
             self.ui.pt_printer(

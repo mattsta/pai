@@ -877,7 +877,27 @@ class ArenaCommand(Command):
             self.ui.pt_printer("❌ /arena is only available in chat mode.")
             return
 
-        parts = shlex.split(param)
+        command_parts = param.strip().split(" ", 1)
+        subcommand = command_parts[0]
+
+        # The 'run' command takes a free-form string argument that should not be
+        # parsed by shlex, as it may contain quotes. We handle it specially.
+        if subcommand == "run":
+            prompt = command_parts[1] if len(command_parts) > 1 else ""
+            self._execute_run([prompt] if prompt else [])
+            return
+
+        # For all other commands, parse arguments using shlex for correctness.
+        try:
+            parts = shlex.split(param)
+        except ValueError as e:
+            if "No closing quotation" in str(e):
+                self.ui.pt_printer("❌ Error: Unmatched quote in command arguments.")
+            else:
+                self.ui.pt_printer(f"❌ Error parsing arguments: {e}")
+            return
+
+        # The subcommand from shlex is authoritative for alias handling.
         subcommand = parts[0]
         args = parts[1:]
 
@@ -894,8 +914,6 @@ class ArenaCommand(Command):
             self._execute_reset()
         elif subcommand in ["show", "sh"]:
             self._execute_show()
-        elif subcommand == "run":
-            self._execute_run(args)
         elif subcommand in ["participant", "p"]:
             self._execute_participant(args)
         elif subcommand in ["set", "s"]:

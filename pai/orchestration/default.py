@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from html import escape
 from typing import Any
 
 from jinja2 import Environment

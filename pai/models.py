@@ -27,6 +27,13 @@ class ArenaTurnOrder(str, enum.Enum):
     RANDOM = "random"
 
 
+class ArenaConversationStyle(str, enum.Enum):
+    """Enumerates the possible conversation styles for an arena."""
+
+    PAIRWISE = "pairwise"  # Each model sees a 1-on-1 conversation
+    CHATROOM = "chatroom"  # All models see a shared chat log
+
+
 class UIMode(enum.Enum):
     """Enumerates the possible interaction modes for the UI."""
 
@@ -598,6 +605,7 @@ class Arena:
     judge: ArenaParticipant | None = None
     turn_order: ArenaTurnOrder = ArenaTurnOrder.SEQUENTIAL
     wildcards_enabled: bool = False
+    conversation_style: ArenaConversationStyle = ArenaConversationStyle.PAIRWISE
 
     def get_participant(self, participant_id: str) -> ArenaParticipant | None:
         return self.participants.get(participant_id)
@@ -627,6 +635,7 @@ class Arena:
             "initiator_id": self.initiator_id,
             "turn_order": self.turn_order.value,
             "wildcards_enabled": self.wildcards_enabled,
+            "conversation_style": self.conversation_style.value,
             "participants": participants_log,
             "judge": judge_log,
         }
@@ -683,6 +692,7 @@ class ArenaConfigFile(BaseModel):
     judge: ArenaConfigJudge | None = None
     turn_order: ArenaTurnOrder = ArenaTurnOrder.SEQUENTIAL
     wildcards_enabled: bool = False
+    conversation_style: ArenaConversationStyle = ArenaConversationStyle.PAIRWISE
 
 
 @dataclass
@@ -766,6 +776,7 @@ class TomlArena(BaseModel):
     judge: TomlJudge | None = None
     turn_order: str | None = None
     wildcards_enabled: bool | None = None
+    conversation_style: str | None = None
 
 
 # --- Custom Pricing Configuration Models ---

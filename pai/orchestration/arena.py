@@ -7,7 +7,7 @@ from typing import Any
 from prompt_toolkit.formatted_text import HTML
 
 from ..log_utils import save_conversation_formats
-from ..models import ArenaTurnOrder, ChatRequest, Turn, UIMode
+from ..models import ArenaConversationStyle, ArenaTurnOrder, ChatRequest, Turn, UIMode
 from ..tools import get_tool_schemas
 from ..utils import estimate_tokens
 from .base import BaseOrchestrator
@@ -81,9 +81,44 @@ class ArenaOrchestrator(BaseOrchestrator):
                         f"\n<style bg='ansiblue' fg='white'> 🥊 TURN {turn_num} | {participant.name} ({participant.model}) </style>"
                     )
                 )
-                messages = participant.conversation.get_messages_for_next_turn(
-                    state.last_message
-                )
+
+                # --- Build message history based on conversation style ---
+                if (
+                    state.arena_config.conversation_style
+                    == ArenaConversationStyle.PAIRWISE
+                ):
+                    # Previous message is presented as from the 'user'
+                    messages = participant.conversation.get_messages_for_next_turn(
+                        state.last_message
+                    )
+                else:  # CHATROOM mode
+                    # Build a single string transcript of the whole conversation
+                    transcript_lines = []
+                    if state.initial_prompt:
+                        transcript_lines.append(f"User: {state.initial_prompt}")
+                    for turn in self.conversation.turns:
+                        if p_name := turn.participant_name:
+                            transcript_lines.append(
+                                f"{p_name}: {turn.assistant_message}"
+                            )
+                    transcript = "\n".join(transcript_lines)
+
+                    # Augment system prompt to give the model its identity
+                    system_prompt_with_identity = (
+                        f"{participant.system_prompt}\n\n"
+                        f"You are participating in a group discussion as '{participant.name}'. "
+                        "Read the transcript and provide your next response."
+                    )
+                    user_prompt_with_transcript = (
+                        "Below is the transcript of the conversation so far. "
+                        f"Provide your response as '{participant.name}'.\n\n"
+                        f"--- TRANSCRIPT ---\n{transcript}\n--- END TRANSCRIPT ---"
+                    )
+
+                    messages = [
+                        {"role": "system", "content": system_prompt_with_identity},
+                        {"role": "user", "content": user_prompt_with_transcript},
+                    ]
                 request = ChatRequest(
                     messages=messages,
                     model=participant.model,

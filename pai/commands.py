@@ -23,6 +23,7 @@ from .models import (
     ArenaConfigFile,
     ArenaConfigJudge,
     ArenaConfigParticipant,
+    ArenaConversationStyle,
     ArenaParticipant,
     ArenaState,
     ArenaTurnOrder,
@@ -153,6 +154,7 @@ class HelpCommand(Command):
   /arena set initiator <id> - Set the participant who speaks first
   /arena set turns <number> - Set the max number of turns for the debate
   /arena set order <seq..|rand..> - Set turn order (sequential, random)
+  /arena set style <pair..|chat..> - Set conversation style (pairwise, chatroom)
   /arena set wildcards on|off - Toggle random wildcard events per turn
   /arena set judge <id> --name "Name" --endpoint <ep> --model <m> --prompt <p>
                          - Define the judge participant
@@ -933,6 +935,7 @@ class ArenaCommand(Command):
             initiator_id="",
             turn_order=ArenaTurnOrder.SEQUENTIAL,
             wildcards_enabled=False,
+            conversation_style=ArenaConversationStyle.PAIRWISE,
         )
         arena_state = ArenaState(
             arena_config=arena_config, turn_order_ids=[], max_turns=10
@@ -1016,6 +1019,7 @@ class ArenaCommand(Command):
                 judge=judge_participant,
                 turn_order=arena_file_data.turn_order,
                 wildcards_enabled=arena_file_data.wildcards_enabled,
+                conversation_style=arena_file_data.conversation_style,
             )
 
             arena_state = ArenaState(
@@ -1074,6 +1078,7 @@ class ArenaCommand(Command):
             "max_turns": state.max_turns,
             "turn_order": config.turn_order.value,
             "wildcards_enabled": config.wildcards_enabled,
+            "conversation_style": config.conversation_style.value,
             "participants": participants_dict,
         }
         if judge_dict:
@@ -1105,6 +1110,7 @@ class ArenaCommand(Command):
         content = f"[bold]Arena:[/bold] {config.name}\n"
         content += f"[bold]Turns:[/bold] {state.max_turns}\n"
         content += f"[bold]Turn Order:[/bold] {config.turn_order.value}\n"
+        content += f"[bold]Conversation Style:[/bold] {config.conversation_style.value}\n"
         content += f"[bold]Wildcards:[/bold] {'Enabled' if config.wildcards_enabled else 'Disabled'}\n"
         content += f"[bold]Initiator:[/bold] {config.initiator_id or '[Not Set]'}\n"
         content += f"\n[bold]Participants ({len(config.participants)}):[/bold]"
@@ -1229,7 +1235,7 @@ class ArenaCommand(Command):
             return
         if not args:
             self.ui.pt_printer(
-                "❌ Usage: /arena set <initiator|turns|order|wildcards|judge> ..."
+                "❌ Usage: /arena set <initiator|turns|order|style|wildcards|judge> ..."
             )
             return
 
@@ -1268,6 +1274,17 @@ class ArenaCommand(Command):
                 self.ui.pt_printer(f"✅ Set turn order strategy to '{strategy_str}'.")
             except ValueError:
                 self.ui.pt_printer("❌ Invalid strategy. Use 'sequential' or 'random'.")
+        elif sub_sub_command in ["style", "st"]:
+            if not s_args:
+                self.ui.pt_printer("❌ Usage: /arena set style <pairwise|chatroom>")
+                return
+            style_str = s_args[0].lower()
+            try:
+                style_enum = ArenaConversationStyle(style_str)
+                self.ui.state.arena.arena_config.conversation_style = style_enum
+                self.ui.pt_printer(f"✅ Set conversation style to '{style_str}'.")
+            except ValueError:
+                self.ui.pt_printer("❌ Invalid style. Use 'pairwise' or 'chatroom'.")
         elif sub_sub_command in ["wildcards", "w"]:
             if not s_args or s_args[0].lower() not in ["on", "off"]:
                 self.ui.pt_printer("❌ Usage: /arena set wildcards <on|off>")
@@ -1344,6 +1361,14 @@ class ArenaCommand(Command):
         p_ids = [p for p in state.arena_config.participants.keys() if p != "judge"]
         if len(p_ids) < 2:
             self.ui.pt_printer("❌ Arena must have at least 2 participants.")
+            return
+        if (
+            state.arena_config.conversation_style == ArenaConversationStyle.PAIRWISE
+            and len(p_ids) != 2
+        ):
+            self.ui.pt_printer(
+                "❌ Pairwise mode requires exactly 2 participants (excluding the judge)."
+            )
             return
         if not state.arena_config.initiator_id:
             self.ui.pt_printer("❌ Arena initiator has not been set.")
@@ -1444,6 +1469,16 @@ class ArenaCommand(Command):
                         f"⚠️ Invalid turn_order '{arena_config.turn_order}' in pai.toml, defaulting to sequential."
                     )
 
+            conversation_style = ArenaConversationStyle.PAIRWISE
+            if arena_config.conversation_style:
+                try:
+                    conversation_style = ArenaConversationStyle(
+                        arena_config.conversation_style.lower()
+                    )
+                except ValueError:
+                    self.ui.pt_printer(
+                        f"⚠️ Invalid conversation_style '{arena_config.conversation_style}' in pai.toml, defaulting to pairwise."
+                    )
             arena_config_obj = Arena(
                 name=arena_name,
                 participants=participants,
@@ -1451,6 +1486,7 @@ class ArenaCommand(Command):
                 judge=judge_participant,
                 turn_order=turn_order,
                 wildcards_enabled=arena_config.wildcards_enabled or False,
+                conversation_style=conversation_style,
             )
             p_ids = [p for p in participants.keys() if p != "judge"]
             initiator_idx = p_ids.index(arena_config_obj.initiator_id)

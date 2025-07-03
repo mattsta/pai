@@ -1,12 +1,13 @@
 """Orchestrator for multi-model arena mode."""
 
 import asyncio
+import random
 from typing import Any
 
 from prompt_toolkit.formatted_text import HTML
 
 from ..log_utils import save_conversation_formats
-from ..models import ChatRequest, Turn, UIMode
+from ..models import ArenaTurnOrder, ChatRequest, Turn, UIMode
 from ..tools import get_tool_schemas
 from ..utils import estimate_tokens
 from .base import BaseOrchestrator
@@ -82,9 +83,19 @@ class ArenaOrchestrator(BaseOrchestrator):
                 )
                 state.last_message = assistant_message
                 state.current_speech += 1
-                state.turn_order_ids = (
-                    state.turn_order_ids[1:] + state.turn_order_ids[:1]
-                )
+                # --- New Turn Order Logic ---
+                if len(state.turn_order_ids) > 1:
+                    if state.arena_config.turn_order == ArenaTurnOrder.RANDOM:
+                        # Pop the current speaker (at index 0)
+                        current_speaker = state.turn_order_ids.pop(0)
+                        # Shuffle the rest of the participants
+                        random.shuffle(state.turn_order_ids)
+                        # Add the current speaker to the end of the shuffled list
+                        state.turn_order_ids.append(current_speaker)
+                    else:  # SEQUENTIAL (the default)
+                        state.turn_order_ids = (
+                            state.turn_order_ids[1:] + state.turn_order_ids[:1]
+                        )
             self.pt_printer("\n🏁 Arena finished: Maximum turns reached.")
             await self._run_arena_judge()
         except asyncio.CancelledError:

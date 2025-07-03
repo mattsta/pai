@@ -19,6 +19,13 @@ if TYPE_CHECKING:
     from .protocols.base_adapter import BaseProtocolAdapter
 
 
+class ArenaTurnOrder(str, enum.Enum):
+    """Enumerates the possible turn order strategies for an arena."""
+
+    SEQUENTIAL = "sequential"
+    RANDOM = "random"
+
+
 class UIMode(enum.Enum):
     """Enumerates the possible interaction modes for the UI."""
 
@@ -548,6 +555,7 @@ class Arena:
     participants: dict[str, ArenaParticipant]
     initiator_id: str
     judge: ArenaParticipant | None = None
+    turn_order: ArenaTurnOrder = ArenaTurnOrder.SEQUENTIAL
 
     def get_participant(self, participant_id: str) -> ArenaParticipant | None:
         return self.participants.get(participant_id)
@@ -601,6 +609,7 @@ class ArenaConfigFile(BaseModel):
     max_turns: int = 10
     participants: dict[str, ArenaConfigParticipant]
     judge: ArenaConfigJudge | None = None
+    turn_order: ArenaTurnOrder = ArenaTurnOrder.SEQUENTIAL
 
 
 @dataclass
@@ -682,6 +691,7 @@ class TomlArena(BaseModel):
     initiator: str
     participants: dict[str, TomlParticipant]
     judge: TomlJudge | None = None
+    turn_order: str | None = None
 
 
 # --- Custom Pricing Configuration Models ---

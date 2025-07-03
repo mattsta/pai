@@ -26,6 +26,7 @@ from .models import (
     ArenaConfigParticipant,
     ArenaParticipant,
     ArenaState,
+    ArenaTurnOrder,
     Conversation,
     TomlJudge,
     TomlParticipant,
@@ -152,6 +153,7 @@ class HelpCommand(Command):
                          - Set a participant's system prompt (from text or file)
   /arena set initiator <id> - Set the participant who speaks first
   /arena set turns <number> - Set the max number of turns for the debate
+  /arena set order <seq..|rand..> - Set turn order (sequential, random)
   /arena set judge <id> --name "Name" --endpoint <ep> --model <m> --prompt <p>
                          - Define the judge participant
   /pause                   - Pause the arena after the current model's turn
@@ -905,7 +907,12 @@ class ArenaCommand(Command):
             self.ui.pt_printer("❌ Usage: /arena new <name>")
             return
         arena_name = args[0]
-        arena_config = Arena(name=arena_name, participants={}, initiator_id="")
+        arena_config = Arena(
+            name=arena_name,
+            participants={},
+            initiator_id="",
+            turn_order=ArenaTurnOrder.SEQUENTIAL,
+        )
         arena_state = ArenaState(
             arena_config=arena_config, turn_order_ids=[], max_turns=10
         )
@@ -986,6 +993,7 @@ class ArenaCommand(Command):
                 participants=participants,
                 initiator_id=arena_file_data.initiator,
                 judge=judge_participant,
+                turn_order=arena_file_data.turn_order,
             )
 
             arena_state = ArenaState(
@@ -1042,6 +1050,7 @@ class ArenaCommand(Command):
             "name": config.name,
             "initiator": config.initiator_id,
             "max_turns": state.max_turns,
+            "turn_order": config.turn_order.value,
             "participants": participants_dict,
         }
         if judge_dict:
@@ -1072,6 +1081,7 @@ class ArenaCommand(Command):
         console = self.ui.client.display.rich_console
         content = f"[bold]Arena:[/bold] {config.name}\n"
         content += f"[bold]Turns:[/bold] {state.max_turns}\n"
+        content += f"[bold]Turn Order:[/bold] {config.turn_order.value}\n"
         content += f"[bold]Initiator:[/bold] {config.initiator_id or '[Not Set]'}\n"
         content += f"\n[bold]Participants ({len(config.participants)}):[/bold]"
 
@@ -1188,7 +1198,7 @@ class ArenaCommand(Command):
             self.ui.pt_printer("❌ Arena must be started with `/arena new <name>` first.")
             return
         if not args:
-            self.ui.pt_printer("❌ Usage: /arena set <initiator|turns|judge> ...")
+            self.ui.pt_printer("❌ Usage: /arena set <initiator|turns|order|judge> ...")
             return
 
         sub_sub_command = args[0]
@@ -1215,6 +1225,17 @@ class ArenaCommand(Command):
                 )
             except (ValueError, TypeError):
                 self.ui.pt_printer("❌ Invalid value for turns. Must be an integer.")
+        elif sub_sub_command in ["order", "o"]:
+            if not s_args:
+                self.ui.pt_printer("❌ Usage: /arena set order <sequential|random>")
+                return
+            strategy_str = s_args[0].lower()
+            try:
+                strategy_enum = ArenaTurnOrder(strategy_str)
+                self.ui.state.arena.arena_config.turn_order = strategy_enum
+                self.ui.pt_printer(f"✅ Set turn order strategy to '{strategy_str}'.")
+            except ValueError:
+                self.ui.pt_printer("❌ Invalid strategy. Use 'sequential' or 'random'.")
         elif sub_sub_command in ["judge", "j"]:
             if not s_args:
                 self.ui.pt_printer("❌ Usage: /arena set judge <id> [options]")
@@ -1368,11 +1389,21 @@ class ArenaCommand(Command):
                 )
                 participants["judge"] = judge_participant
 
+            turn_order = ArenaTurnOrder.SEQUENTIAL
+            if arena_config.turn_order:
+                try:
+                    turn_order = ArenaTurnOrder(arena_config.turn_order.lower())
+                except ValueError:
+                    self.ui.pt_printer(
+                        f"⚠️ Invalid turn_order '{arena_config.turn_order}' in pai.toml, defaulting to sequential."
+                    )
+
             arena_config_obj = Arena(
                 name=arena_name,
                 participants=participants,
                 initiator_id=arena_config.initiator,
                 judge=judge_participant,
+                turn_order=turn_order,
             )
             p_ids = [p for p in participants.keys() if p != "judge"]
             initiator_idx = p_ids.index(arena_config_obj.initiator_id)

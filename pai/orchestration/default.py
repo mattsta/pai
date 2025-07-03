@@ -5,7 +5,6 @@ import json
 from html import escape
 from typing import Any
 
-from jinja2 import Environment
 from prompt_toolkit.formatted_text import HTML
 
 from ..log_utils import save_conversation_formats
@@ -112,7 +111,7 @@ class DefaultOrchestrator(BaseOrchestrator):
                     if self.state.mode == UIMode.COMPLETION:
                         # This feels a bit hacky. Maybe add_turn should handle it.
                         # It's better to modify add_turn.
-                        pass # No, I will modify add_turn. The request_data has the prompt.
+                        pass  # No, I will modify add_turn. The request_data has the prompt.
 
                     request_stats = self.client.stats.last_request_stats
                     self.conversation.add_turn(turn, request_stats)
@@ -152,4 +151,3 @@ class DefaultOrchestrator(BaseOrchestrator):
         finally:
             self.ui.generation_in_progress.clear()
             self.ui.generation_task = None
-

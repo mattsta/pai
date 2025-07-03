@@ -6,14 +6,13 @@ class-based approach where each command is a self-contained object.
 import asyncio
 import inspect
 import json
+import shlex
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
-import shlex
 import yaml
 from jinja2 import Environment
-
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
@@ -290,10 +289,10 @@ class InfoCommand(Command):
                 if byte_count < 1024:
                     return f"{byte_count} B"
                 if byte_count < 1024**2:
-                    return f"{byte_count/1024:.2f} KB"
+                    return f"{byte_count / 1024:.2f} KB"
                 if byte_count < 1024**3:
-                    return f"{byte_count/1024**2:.2f} MB"
-                return f"{byte_count/1024**3:.2f} GB"
+                    return f"{byte_count / 1024**2:.2f} MB"
+                return f"{byte_count / 1024**3:.2f} GB"
 
             def format_large_number(n: int | None) -> str:
                 if n is None:
@@ -775,7 +774,9 @@ class TemplateCommand(Command):
             info = await self.ui.client.get_model_info(model_id)
 
             if not info:
-                self.ui.pt_printer(f"❌ Could not retrieve info for model '{model_id}'.")
+                self.ui.pt_printer(
+                    f"❌ Could not retrieve info for model '{model_id}'."
+                )
                 return
 
             # Look for the chat template in the correct nested location.
@@ -954,7 +955,7 @@ class ArenaCommand(Command):
             return
 
         try:
-            with open(load_path, "r", encoding="utf-8") as f:
+            with open(load_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
 
             arena_file_data = ArenaConfigFile.model_validate(data)
@@ -1137,7 +1138,9 @@ class ArenaCommand(Command):
 
     def _execute_participant(self, args: list[str]):
         if self.ui.state.mode != UIMode.ARENA_SETUP:
-            self.ui.pt_printer("❌ Arena must be started with `/arena new <name>` first.")
+            self.ui.pt_printer(
+                "❌ Arena must be started with `/arena new <name>` first."
+            )
             return
         if not args:
             self.ui.pt_printer("❌ Usage: /arena participant <add|prompt> ...")
@@ -1168,7 +1171,9 @@ class ArenaCommand(Command):
             self.ui.pt_printer(f"✅ Added participant '{p_id}' to the arena.")
         elif sub_sub_command == "prompt":
             if len(p_args) < 2:
-                self.ui.pt_printer("❌ Usage: /arena participant prompt <id> <text|file:path>")
+                self.ui.pt_printer(
+                    "❌ Usage: /arena participant prompt <id> <text|file:path>"
+                )
                 return
             p_id = p_args[0]
             prompt_str = " ".join(p_args[1:])
@@ -1200,7 +1205,9 @@ class ArenaCommand(Command):
 
     def _execute_set(self, args: list[str]):
         if self.ui.state.mode != UIMode.ARENA_SETUP:
-            self.ui.pt_printer("❌ Arena must be started with `/arena new <name>` first.")
+            self.ui.pt_printer(
+                "❌ Arena must be started with `/arena new <name>` first."
+            )
             return
         if not args:
             self.ui.pt_printer(
@@ -1272,16 +1279,21 @@ class ArenaCommand(Command):
                 ),
             )
             self.ui.state.arena.arena_config.judge = judge
-            self.ui.state.arena.arena_config.participants[
-                p_id
-            ] = judge  # Also add to main dict
+            self.ui.state.arena.arena_config.participants[p_id] = (
+                judge  # Also add to main dict
+            )
             self.ui.pt_printer(f"✅ Set judge to '{p_id}'.")
         else:
-            self.ui.pt_printer("❌ Unknown set command. Use 'initiator', 'turns', or 'judge'.")
+            self.ui.pt_printer(
+                "❌ Unknown set command. Use 'initiator', 'turns', or 'judge'."
+            )
 
     def _get_system_prompt_from_config(
         self,
-        p_config: TomlParticipant | TomlJudge | ArenaConfigParticipant | ArenaConfigJudge,
+        p_config: TomlParticipant
+        | TomlJudge
+        | ArenaConfigParticipant
+        | ArenaConfigJudge,
     ) -> str:
         """Determines the system prompt from an arena participant config object."""
         # Inline prompt takes precedence
@@ -1304,7 +1316,9 @@ class ArenaCommand(Command):
 
     def _execute_run(self, args: list[str]):
         if not self.ui.state.arena:
-            self.ui.pt_printer("❌ No active arena configuration. Use `/arena new` first.")
+            self.ui.pt_printer(
+                "❌ No active arena configuration. Use `/arena new` first."
+            )
             return
 
         state = self.ui.state.arena

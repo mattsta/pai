@@ -316,9 +316,7 @@ class StreamingDisplay:
 
         # 2. Then, find and replace all inline code blocks in the remaining text.
         #    This regex is safer as it won't match across newlines for inline code.
-        text_no_code = re.sub(
-            r"`[^`\n\r]*`", replace_with_placeholder, text_no_fences
-        )
+        text_no_code = re.sub(r"`[^`\n\r]*`", replace_with_placeholder, text_no_fences)
 
         # 3. Escape all HTML special characters in the text that remains.
         #    The placeholders themselves won't be escaped.

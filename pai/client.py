@@ -140,7 +140,7 @@ class PolyglotClient:
         model_data_list: list[dict[str, Any]] | None = None
         if not force_refresh and cache_file.exists():
             try:
-                with open(cache_file, "r", encoding="utf-8") as f:
+                with open(cache_file, encoding="utf-8") as f:
                     cached_data = json.load(f)
                     # Handle both old (list of strings) and new (list of dicts) formats
                     if cached_data and isinstance(cached_data[0], dict):
@@ -164,7 +164,9 @@ class PolyglotClient:
                 self.display._print(f"❌ Error fetching models: {e}")
                 return []
             except (KeyError, TypeError, json.JSONDecodeError):
-                self.display._print("❌ Error parsing models response. Unexpected format.")
+                self.display._print(
+                    "❌ Error parsing models response. Unexpected format."
+                )
                 return []
 
         # Return a list of model IDs for backward compatibility with callers
@@ -189,14 +191,17 @@ class PolyglotClient:
 
         if cache_file.exists():
             try:
-                with open(cache_file, "r", encoding="utf-8") as f:
+                with open(cache_file, encoding="utf-8") as f:
                     model_data_list = json.load(f)
 
                 if not isinstance(model_data_list, list):
                     return None
 
                 for model_info in model_data_list:
-                    if isinstance(model_info, dict) and model_info.get("id") == model_id:
+                    if (
+                        isinstance(model_info, dict)
+                        and model_info.get("id") == model_id
+                    ):
                         return model_info
             except (json.JSONDecodeError, IndexError):
                 return None  # Cache is corrupt or not in the expected format.
@@ -212,7 +217,7 @@ class PolyglotClient:
 
         if cache_path.exists():
             try:
-                with open(cache_path, "r", encoding="utf-8") as f:
+                with open(cache_path, encoding="utf-8") as f:
                     return json.load(f)
             except json.JSONDecodeError:
                 # Corrupted cache file, will proceed to fetch.
@@ -234,7 +239,9 @@ class PolyglotClient:
             return model_data
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
-                self.display._print(f"❌ Model '{model_id}' not found on Hugging Face Hub.")
+                self.display._print(
+                    f"❌ Model '{model_id}' not found on Hugging Face Hub."
+                )
             else:
                 self.display._print(
                     f"❌ Error fetching model info: HTTP {e.response.status_code}"

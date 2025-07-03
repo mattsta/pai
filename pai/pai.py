@@ -396,9 +396,7 @@ class InteractiveUI:
                 self.generation_in_progress.set()
                 # The orchestrator is responsible for its own cleanup,
                 # including managing self.generation_task.
-                self.generation_task = asyncio.create_task(
-                    orchestrator.run(user_input)
-                )
+                self.generation_task = asyncio.create_task(orchestrator.run(user_input))
 
     # Business logic for chat, agent, and arena modes has been extracted
     # to `pai/orchestration/` classes.
@@ -576,7 +574,11 @@ class InteractiveUI:
                 parts.append("G/B: --/---")
             return f"<b>Smooth Stats</b> | {' | '.join(parts)}"
 
-        if self.state.mode == UIMode.ARENA and self.state.arena and self.generation_in_progress.is_set():
+        if (
+            self.state.mode == UIMode.ARENA
+            and self.state.arena
+            and self.generation_in_progress.is_set()
+        ):
             state = self.state.arena
             if state.turn_order_ids:
                 num_participants = len(state.turn_order_ids)

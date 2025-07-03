@@ -21,9 +21,7 @@ class ArenaOrchestrator(BaseOrchestrator):
         original_temp = request.temperature
         new_temp = round(random.uniform(1.2, 1.8), 2)
         request.temperature = new_temp
-        message = (
-            f"🔥 Wildcard! Temperature spiked from {original_temp} to {new_temp}."
-        )
+        message = f"🔥 Wildcard! Temperature spiked from {original_temp} to {new_temp}."
         return request, message
 
     def _wildcard_prompt_injection(
@@ -41,9 +39,9 @@ class ArenaOrchestrator(BaseOrchestrator):
         ]
         injection = random.choice(injections)
         # The last message is always the one we're responding to.
-        messages[-1][
-            "content"
-        ] += f"\n\n(Wildcard Instruction: You MUST follow this instruction for this turn only: {injection})"
+        messages[-1]["content"] += (
+            f"\n\n(Wildcard Instruction: You MUST follow this instruction for this turn only: {injection})"
+        )
         message = f"📝 Wildcard! The following instruction was added: '{injection}'"
         return messages, message
 

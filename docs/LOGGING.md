@@ -10,7 +10,7 @@ One of the core features of `pai` is its automatic, comprehensive session loggin
 
 1.  **Session Start:** When you launch `pai` in interactive mode, it immediately creates a new, unique directory in `logs/`. The directory name is timestamped to make it easy to find later (e.g., `logs/2025-06-25_10-30-00-interactive/`).
 
-2.  **During the Session:** After every single turn—that is, after you send a prompt and the AI returns a complete response—the framework automatically writes and updates log files within that session's directory.
+2.  **During the Session:** After every single turn—that is, after you send a prompt and the AI returns a complete response—the framework automatically writes and updates log files within that session's directory. This also includes partial responses that are saved when a generation is cancelled by the user (e.g., with Ctrl+C).
 
 3.  **What is Logged?** For each turn, two types of files are generated and kept up-to-date:
     *   **Turn-specific JSON (`<turn_id>-turn.json`):** A new JSON file is created for every single turn. This file is a complete, raw dump of the `Turn` object and contains:

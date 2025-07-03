@@ -59,7 +59,7 @@ Type '/help' for commands, '/quit' to exit.
 *   **Powerful Agentic Tool-Use:** An extensible system allowing models to use local Python functions as tools. Supports native tool-calling APIs (OpenAI, etc.) and provides a legacy agent mode for models that lack this capability.
     *   **To create tools:** See the [Tool System Guide](./docs/TOOLS.md).
     *   **For a walkthrough:** Check out the [Tool Usage Tutorial](./docs/TOOL_TUTORIAL.md).
-*   **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in `logs/`. Each turn is saved as structured JSON, and the entire conversation is rendered into multiple browseable HTML formats.
+*   **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in `logs/`. Each turn is saved as structured JSON, and the entire conversation—including partial responses from cancelled turns—is rendered into multiple browseable HTML formats.
 *   **Extensible by Design:** Add new providers via a simple plugin system. Add new tools by dropping Python files into a directory. No core code modification needed.
 *   **Multi-Model Arena:** Pit models against each other in a conversational arena, with an optional judge model to provide a final verdict.
 
@@ -152,6 +152,8 @@ Once in interactive mode, use `/` commands to control the session:
 *   `/endpoints`: Lists all available provider endpoints from your config file.
 *   `/switch <name>`: Switches to a different provider endpoint (e.g., `/switch anthropic`).
 *   `/model <name>`: Changes the model for the current session (e.g., `/model gpt-4o-mini`).
+*   `/models [term] [refresh]`: Lists and filters models (add 'refresh' to bypass cache).
+*   `/info [model_id]`: Shows detailed model info (params, memory, etc.). Defaults to the current model.
 *   `/temp <value>`: Changes the generation temperature (e.g., `/temp 0.9`).
 *   `/tokens <num>`: Changes the maximum number of tokens for the response (e.g., `/tokens 4000`).
 *   `/timeout <seconds>`: Changes the network request timeout (e.g., `/timeout 120`).

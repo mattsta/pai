@@ -135,7 +135,7 @@ The framework supports a "Multi-Model Arena" mode where two AI models can conver
 A key feature of the framework is its ability to automatically log all interactive sessions for review and debugging. This process is handled by a few key components:
 
 *   **`logs/` directory:** When `interactive_mode` starts, it creates a unique, timestamped subdirectory within `logs/`. This folder contains all artifacts for that specific session.
-*   **`save_conversation_formats()`:** After every successful turn in `interactive_mode`, this function is called.
+*   **`save_conversation_formats()`:** After every turn is completed (including successful, failed, or cancelled turns), this function is called.
 *   **`pai/templates/`:** This directory contains `Jinja2` templates for rendering conversation logs.
     *   `conversation.html`: A modern, styled view of the conversation.
     *   `gptwink_format.html`: A legacy-compatible format.

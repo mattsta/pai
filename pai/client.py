@@ -119,9 +119,12 @@ class PolyglotClient:
             self.display._print(msg)
             logging.info(msg)
 
-    async def list_models(self, force_refresh: bool = False) -> list[str]:
+    async def list_models(
+        self, force_refresh: bool = False, search_term: str | None = None
+    ) -> list[str]:
         """
         Fetches the list of available models from the provider, using a cache.
+        An optional search term can be provided to filter the results.
         Returns an empty list on failure, printing an error message.
         """
         cache: dict[str, list[str]] = {}
@@ -133,27 +136,34 @@ class PolyglotClient:
                 pass  # Ignore corrupted cache, it will be overwritten
 
         endpoint_name = self.config.name
+        model_list: list[str]
+
         if not force_refresh and endpoint_name in cache:
-            return cache[endpoint_name]
+            model_list = cache[endpoint_name]
+        else:
+            try:
+                # Most providers use /v1/models, which is 'models' relative to base_url
+                response = await self.http_session.get("models")
+                response.raise_for_status()
+                data = response.json()
+                fetched_models = sorted([item["id"] for item in data.get("data", [])])
 
-        try:
-            # Most providers use /v1/models, which is 'models' relative to base_url
-            response = await self.http_session.get("models")
-            response.raise_for_status()
-            data = response.json()
-            model_list = sorted([item["id"] for item in data.get("data", [])])
+                cache[endpoint_name] = fetched_models
+                with open(self._models_cache_path, "w", encoding="utf-8") as f:
+                    json.dump(cache, f, indent=2)
 
-            cache[endpoint_name] = model_list
-            with open(self._models_cache_path, "w", encoding="utf-8") as f:
-                json.dump(cache, f, indent=2)
+                model_list = fetched_models
+            except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                self.display._print(f"❌ Error fetching models: {e}")
+                return []
+            except (KeyError, TypeError, json.JSONDecodeError):
+                self.display._print("❌ Error parsing models response. Unexpected format.")
+                return []
 
-            return model_list
-        except (httpx.RequestError, httpx.HTTPStatusError) as e:
-            self.display._print(f"❌ Error fetching models: {e}")
-            return []
-        except (KeyError, TypeError, json.JSONDecodeError):
-            self.display._print("❌ Error parsing models response. Unexpected format.")
-            return []
+        if search_term:
+            return [m for m in model_list if search_term.lower() in m.lower()]
+
+        return model_list
 
     async def generate(
         self,

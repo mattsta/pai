@@ -89,7 +89,7 @@ class HelpCommand(Command):
   /endpoints             - List available provider endpoints
   /switch <name>         - Switch to a different provider endpoint
   /model <name>          - Set the model for the current session
-  /models [refresh]      - List available models from the current provider (uses cache)
+  /models [term] [refresh] - List & filter models (add 'refresh' to bypass cache)
   /temp <value>          - Set the generation temperature (0.0-2.0)
   /tokens <num>          - Set the max tokens for the response
   /timeout <seconds>     - Set the network request timeout
@@ -162,26 +162,43 @@ class ModelsCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         """Fetches and displays available models for the current endpoint."""
-        force_refresh = param is not None and param.strip().lower() == "refresh"
+        force_refresh = False
+        search_term: str | None = None
+        if param:
+            parts = param.strip().split()
+            if "refresh" in [p.lower() for p in parts]:
+                force_refresh = True
+                parts = [p for p in parts if p.lower() != "refresh"]
+            if parts:
+                search_term = parts[0]
 
         async def _fetch_and_print_models():
             """The async part of the command's execution."""
+            action_desc = "Loading"
+            source_desc = "from cache or API"
             if force_refresh:
-                self.ui.pt_printer(
-                    f"⏳ Fetching models for '{self.ui.client.config.name}' from API..."
-                )
-            else:
-                self.ui.pt_printer(
-                    f"⏳ Loading models for '{self.ui.client.config.name}' from cache or API..."
-                )
+                action_desc = "Fetching"
+                source_desc = "from API"
 
-            models = await self.ui.client.list_models(force_refresh=force_refresh)
+            search_desc = f" matching '{search_term}'" if search_term else ""
+            self.ui.pt_printer(
+                f"⏳ {action_desc} models{search_desc} for '{self.ui.client.config.name}' {source_desc}..."
+            )
+
+            models = await self.ui.client.list_models(
+                force_refresh=force_refresh, search_term=search_term
+            )
             if models:
                 self.ui.pt_printer("\nAvailable Models:")
                 for m in models:
                     self.ui.pt_printer(f"  - {m}")
             else:
-                self.ui.pt_printer("\nNo available models found.")
+                if search_term:
+                    self.ui.pt_printer(
+                        f"\nNo available models found matching '{search_term}'."
+                    )
+                else:
+                    self.ui.pt_printer("\nNo available models found.")
 
         # Create a task to run the async code without blocking the UI's event loop.
         asyncio.create_task(_fetch_and_print_models())

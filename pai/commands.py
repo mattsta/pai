@@ -358,14 +358,7 @@ class InfoCommand(Command):
                     # This case handles sub-second differences.
                     return "just now"
 
-                # Limit to the top 2 most significant units for readability.
-                if len(parts) > 2:
-                    parts = parts[:2]
-
-                if len(parts) == 1:
-                    return f"about {parts[0]} old"
-
-                return f"about {parts[0]} and {parts[1]} old"
+                return ", ".join(parts) + " old"
 
             created_at_str = info.get("createdAt")
             if created_at_str:

@@ -1337,15 +1337,7 @@ class ArenaCommand(Command):
         try:
             participants = {}
             for p_id, p_config in participant_configs.items():
-                prompt_key = p_config.system_prompt_key
-                prompt_path = self.ui.prompts_dir / f"{prompt_key}.md"
-                if not prompt_path.exists():
-                    prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
-                if not prompt_path.is_file():
-                    raise FileNotFoundError(
-                        f"System prompt file for '{prompt_key}' not found."
-                    )
-                system_prompt = prompt_path.read_text(encoding="utf-8")
+                system_prompt = self._get_system_prompt_from_config(p_config)
                 conversation = Conversation()
                 conversation.set_system_prompt(system_prompt)
                 participants[p_id] = ArenaParticipant(
@@ -1359,15 +1351,7 @@ class ArenaCommand(Command):
 
             judge_participant = None
             if judge_config:
-                prompt_key = judge_config.system_prompt_key
-                prompt_path = self.ui.prompts_dir / f"{prompt_key}.md"
-                if not prompt_path.exists():
-                    prompt_path = self.ui.prompts_dir / f"{prompt_key}.txt"
-                if not prompt_path.is_file():
-                    raise FileNotFoundError(
-                        f"System prompt file for judge '{prompt_key}' not found."
-                    )
-                system_prompt = prompt_path.read_text(encoding="utf-8")
+                system_prompt = self._get_system_prompt_from_config(judge_config)
                 judge_participant = ArenaParticipant(
                     id="judge",
                     name=judge_config.name,

@@ -231,6 +231,10 @@ class InteractiveUI:
             live_stats = display.current_request_stats
 
             if status == "Streaming" and live_stats:
+                if display._smoothing_aborted:
+                    return HTML(
+                        "<style fg='ansiyellow'>[Smooth streaming disabled. Press Ctrl+C again to cancel.]</style>"
+                    )
                 spinner = self.spinner_chars[self.spinner_idx]
                 self.spinner_idx = (self.spinner_idx + 1) % len(self.spinner_chars)
                 time_since_last = display.time_since_last_token

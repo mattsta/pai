@@ -274,11 +274,6 @@ class StreamingDisplay:
         if self._smoothing_aborted:
             return  # Avoid running twice
         self._smoothing_aborted = True
-        self._printer(
-            HTML(
-                "\n<style fg='ansiyellow'>Smooth streaming disabled. Press Ctrl+C again to cancel generation.</style>"
-            )
-        )
         if self._smoother_task and not self._smoother_task.done():
             self._smoother_task.cancel()
             try:

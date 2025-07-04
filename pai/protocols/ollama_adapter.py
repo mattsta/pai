@@ -204,8 +204,16 @@ class OllamaAdapter(BaseProtocolAdapter):
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
                     context.stats.add_completed_request(request_stats)
+                error_body = ""
+                try:
+                    await e.response.aread()
+                    error_body = e.response.text
+                except httpx.ResponseNotRead:
+                    error_body = "[Could not read streaming error response body]"
+                except Exception:
+                    error_body = "[Error reading response body]"
                 raise ConnectionError(
-                    f"Request failed with status {e.response.status_code}: {e.response.text}"
+                    f"Request failed with status {e.response.status_code}: {error_body}"
                 ) from e
             except Exception as e:
                 request_stats = await context.display.finish_response(success=False)

@@ -662,9 +662,7 @@ Subcommands:
     def _execute_pop(self, text: str | None):
         popped = self.ui.conversation.pop_system_prompt()
         if popped:
-            self.ui.pt_printer(
-                f"🤖 Popped system prompt: '{popped[:60].strip()}...'"
-            )
+            self.ui.pt_printer(f"🤖 Popped system prompt: '{popped[:60].strip()}...'")
         else:
             self.ui.pt_printer("🤖 System prompt stack is empty.")
 
@@ -1263,7 +1261,9 @@ Usage: /arena <subcommand> [options...]
         content = f"[bold]Arena:[/bold] {config.name}\n"
         content += f"[bold]Turns:[/bold] {state.max_turns}\n"
         content += f"[bold]Turn Order:[/bold] {config.turn_order.value}\n"
-        content += f"[bold]Conversation Style:[/bold] {config.conversation_style.value}\n"
+        content += (
+            f"[bold]Conversation Style:[/bold] {config.conversation_style.value}\n"
+        )
         content += f"[bold]Wildcards:[/bold] {'Enabled' if config.wildcards_enabled else 'Disabled'}\n"
         content += f"[bold]Initiator:[/bold] {config.initiator_id or '[Not Set]'}\n"
         content += f"\n[bold]Participants ({len(config.participants)}):[/bold]"
@@ -1474,9 +1474,7 @@ Subcommands:
             return
         try:
             self.ui.state.arena.max_turns = int(args[0])
-            self.ui.pt_printer(
-                f"✅ Set max turns to {self.ui.state.arena.max_turns}."
-            )
+            self.ui.pt_printer(f"✅ Set max turns to {self.ui.state.arena.max_turns}.")
         except (ValueError, TypeError):
             self.ui.pt_printer("❌ Invalid value for turns. Must be an integer.")
 

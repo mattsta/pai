@@ -282,8 +282,7 @@ class InteractiveUI:
                         prompt_ui,
                         filter=Condition(
                             lambda: not self.generation_in_progress.is_set()
-                            or self.state.mode
-                            in [UIMode.ARENA, UIMode.ARENA_SETUP]
+                            or self.state.mode in [UIMode.ARENA, UIMode.ARENA_SETUP]
                         ),
                     ),
                     ConditionalContainer(

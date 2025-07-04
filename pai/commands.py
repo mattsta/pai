@@ -82,7 +82,7 @@ class QuitCommand(Command):
 
     @property
     def aliases(self):
-        return ["exit", "q"]
+        return ["exit"]
 
     def execute(self, app: "Application", param: str | None = None):
         app.exit()
@@ -110,7 +110,7 @@ class HelpCommand(Command):
 --- GENERAL COMMANDS ---
   /help                  - Show this help message
   /stats                 - Show session statistics
-  /quit, /exit, /q       - Exit the program
+  /quit, /exit           - Exit the program
 
 --- PROVIDER & MODEL ---
   /endpoints             - List available provider endpoints
@@ -946,7 +946,7 @@ class ArenaCommand(Command):
 
     @property
     def aliases(self) -> list[str]:
-        return ["ar"]
+        return []
 
     @property
     def requires_param(self):
@@ -973,8 +973,8 @@ Usage: /arena <subcommand> [options...]
   run [prompt]     - Run the currently loaded interactive arena.
   show             - Show the current interactive arena configuration.
   reset            - Discard the current arena configuration.
-  participant ...  - Manage participants. Use '/arena p' for more help.
-  set ...          - Configure arena settings. Use '/arena s' for more help.
+  participant ...  - Manage participants. Use '/arena participant' for more help.
+  set ...          - Configure arena settings. Use '/arena set' for more help.
 """
 
     def _parse_kv_args(self, args_list: list[str]) -> dict[str, str | bool]:
@@ -1028,20 +1028,13 @@ Usage: /arena <subcommand> [options...]
         # --- Subcommand Dispatcher ---
         subcommands = {
             "new": self._execute_new,
-            "n": self._execute_new,
             "list": self._execute_list,
-            "ls": self._execute_list,
             "load": self._execute_load,
-            "ld": self._execute_load,
             "save": self._execute_save,
-            "sv": self._execute_save,
             "reset": self._execute_reset,
             "show": self._execute_show,
-            "sh": self._execute_show,
             "participant": self._execute_participant,
-            "p": self._execute_participant,
             "set": self._execute_set,
-            "s": self._execute_set,
         }
         canonical_names = {
             self._execute_new: "new",
@@ -1397,7 +1390,6 @@ Subcommands:
         p_args = args[1:]
         subcommands = {
             "add": self._execute_participant_add,
-            "a": self._execute_participant_add,
             "prompt": self._execute_participant_prompt,
         }
         canonical_names = {
@@ -1545,17 +1537,11 @@ Subcommands:
         s_args = args[1:]
         subcommands = {
             "initiator": self._execute_set_initiator,
-            "i": self._execute_set_initiator,
             "turns": self._execute_set_turns,
-            "t": self._execute_set_turns,
             "order": self._execute_set_order,
-            "o": self._execute_set_order,
             "style": self._execute_set_style,
-            "st": self._execute_set_style,
             "wildcards": self._execute_set_wildcards,
-            "w": self._execute_set_wildcards,
             "judge": self._execute_set_judge,
-            "j": self._execute_set_judge,
         }
         canonical_names = {
             self._execute_set_initiator: "initiator",

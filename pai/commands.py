@@ -702,6 +702,11 @@ Subcommands:
             "clear": self._execute_clear,
         }
 
+        # Prioritize exact matches
+        if subcommand_prefix in subcommands:
+            subcommands[subcommand_prefix](text)
+            return
+
         matching_keys = [
             key for key in subcommands if key.startswith(subcommand_prefix)
         ]
@@ -1046,6 +1051,11 @@ Usage: /arena <subcommand> [options...]
             self._execute_participant: "participant",
             self._execute_set: "set",
         }
+
+        # Prioritize exact matches
+        if subcommand_prefix in subcommands:
+            subcommands[subcommand_prefix](args)
+            return
 
         matching_keys = [
             key for key in subcommands if key.startswith(subcommand_prefix)
@@ -1397,6 +1407,11 @@ Subcommands:
             self._execute_participant_prompt: "prompt",
         }
 
+        # Prioritize exact matches
+        if subcommand_prefix in subcommands:
+            subcommands[subcommand_prefix](p_args)
+            return
+
         matching_keys = [
             key for key in subcommands if key.startswith(subcommand_prefix)
         ]
@@ -1551,6 +1566,11 @@ Subcommands:
             self._execute_set_wildcards: "wildcards",
             self._execute_set_judge: "judge",
         }
+
+        # Prioritize exact matches
+        if subcommand_prefix in subcommands:
+            subcommands[subcommand_prefix](s_args)
+            return
 
         matching_keys = [
             key for key in subcommands if key.startswith(subcommand_prefix)
@@ -1979,7 +1999,13 @@ class CommandHandler:
         parts = command_body.split(" ", 1)
         cmd_name, param = parts[0].lower(), parts[1] if len(parts) > 1 else None
 
-        # Find all commands that match the prefix
+        # Prioritize exact matches to avoid ambiguity with prefixes.
+        if cmd_name in self.commands:
+            command = self.commands[cmd_name]
+            command.execute(app, param)
+            return
+
+        # If no exact match, find all commands that match the prefix
         matching_keys = [key for key in self.commands if key.startswith(cmd_name)]
 
         if not matching_keys:

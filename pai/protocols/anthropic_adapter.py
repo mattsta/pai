@@ -102,7 +102,12 @@ class AnthropicAdapter(BaseProtocolAdapter):
                         url, json=payload, timeout=context.config.timeout
                     )
                     response.raise_for_status()
-                    response_data = response.json()
+                    try:
+                        response_data = response.json()
+                    except json.JSONDecodeError as e:
+                        raise ConnectionError(
+                            f"Failed to decode JSON response: {e}. Content: {response.text!r}"
+                        ) from e
                     messages.append(
                         {"role": "assistant", "content": response_data["content"]}
                     )
@@ -208,10 +213,9 @@ class AnthropicAdapter(BaseProtocolAdapter):
                                         )
                                     final_usage = chunk.get("usage", {})
                             except (json.JSONDecodeError, IndexError) as e:
-                                if context.display.debug_mode:
-                                    context.display._print(
-                                        f"⚠️  Stream parse error: {e} on line: {chunk_str!r}"
-                                    )
+                                context.display._print(
+                                    f"⚠️  Stream parse error: {e} on line: {chunk_str!r}"
+                                )
 
                 request_stats = await context.display.finish_response(success=True)
                 if request_stats:

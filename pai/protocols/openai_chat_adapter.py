@@ -32,10 +32,12 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
             name = tool_call["function"]["name"]
             try:
                 args = json.loads(tool_call["function"]["arguments"])
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 # Handle malformed JSON arguments from the model.
+                failed_content = tool_call["function"]["arguments"]
                 error_msg = (
-                    f"Error: Model provided invalid JSON arguments for tool '{name}'."
+                    f"Error: Model provided invalid JSON for tool '{name}' args. "
+                    f"Error: {e}. Content: {failed_content!r}"
                 )
                 context.display._print(f"  - ❌ Tool Error: {error_msg}")
                 return {
@@ -107,7 +109,12 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         url, json=payload, timeout=context.config.timeout
                     )
                     response.raise_for_status()
-                    response_data = response.json()
+                    try:
+                        response_data = response.json()
+                    except json.JSONDecodeError as e:
+                        raise ConnectionError(
+                            f"Failed to decode JSON response: {e}. Content: {response.text!r}"
+                        ) from e
 
                     choice = response_data.get("choices", [{}])[0]
                     message = choice.get("message", {})
@@ -204,10 +211,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     if reason := choice.get("finish_reason"):
                                         finish_reason = reason
                                 except (json.JSONDecodeError, IndexError) as e:
-                                    if context.display.debug_mode:
-                                        context.display._print(
-                                            f"⚠️  Stream parse error on line: {data!r} | Error: {e}"
-                                        )
+                                    context.display._print(
+                                        f"⚠️  Stream parse error on line: {data!r} | Error: {e}"
+                                    )
                                     continue
 
                 if tool_calls:

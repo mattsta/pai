@@ -48,7 +48,12 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                     url, json=payload, timeout=context.config.timeout
                 )
                 response.raise_for_status()
-                response_data = response.json()
+                try:
+                    response_data = response.json()
+                except json.JSONDecodeError as e:
+                    raise ConnectionError(
+                        f"Failed to decode JSON response: {e}. Content: {response.text!r}"
+                    ) from e
                 text = response_data.get("choices", [{}])[0].get("text", "")
                 await context.display.show_parsed_chunk(response_data, text)
 
@@ -84,10 +89,9 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                                     chunk_data, chunk_text
                                 )  # This also accumulates the response
                             except (json.JSONDecodeError, IndexError) as e:
-                                if context.display.debug_mode:
-                                    context.display._print(
-                                        f"⚠️  Stream parse error on line: {data!r} | Error: {e}"
-                                    )
+                                context.display._print(
+                                    f"⚠️  Stream parse error on line: {data!r} | Error: {e}"
+                                )
                                 continue
 
             request_stats = await context.display.finish_response(success=True)

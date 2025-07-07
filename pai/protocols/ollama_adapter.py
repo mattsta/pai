@@ -33,7 +33,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                 args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
                 result = await _execute_with_confirmation(name, args)
             except json.JSONDecodeError as e:
-                result = f"Error: Model provided invalid JSON arguments for tool '{name}': {e}"
+                result = f"Error: Model provided invalid JSON arguments for tool '{name}': {e}. Content: {args_raw!r}"
                 context.display._print(f"  - ❌ Tool Error: {result}")
 
             return {"role": "tool", "content": str(result)}
@@ -96,7 +96,12 @@ class OllamaAdapter(BaseProtocolAdapter):
                         url, json=payload, timeout=context.config.timeout
                     )
                     response.raise_for_status()
-                    response_data = response.json()
+                    try:
+                        response_data = response.json()
+                    except json.JSONDecodeError as e:
+                        raise ConnectionError(
+                            f"Failed to decode JSON response: {e}. Content: {response.text!r}"
+                        ) from e
                     message = response_data.get("message", {})
 
                     if tool_calls := message.get("tool_calls"):
@@ -165,11 +170,10 @@ class OllamaAdapter(BaseProtocolAdapter):
                                     chunk_data, content
                                 )
 
-                        except json.JSONDecodeError:
-                            if context.display.debug_mode:
-                                context.display._print(
-                                    f"⚠️  Stream parse error on line: {line!r}"
-                                )
+                        except json.JSONDecodeError as e:
+                            context.display._print(
+                                f"⚠️  Stream parse error on line: {line!r} | Error: {e}"
+                            )
                             continue
 
                 request_stats = await context.display.finish_response(success=True)

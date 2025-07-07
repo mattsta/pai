@@ -71,9 +71,10 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                             else:
                                 tool_result = await execute_tool(tool_name, tool_args)
                                 self.state.tools_used += 1
-                        except json.JSONDecodeError:
+                        except json.JSONDecodeError as e:
                             tool_result = (
-                                f"Error: Invalid JSON in <args> for {tool_name}."
+                                f"Error: Invalid JSON in <args> for {tool_name}. "
+                                f"Error: {e}. Content: {tool_args_str!r}"
                             )
                         except (ToolNotFound, ToolArgumentError, ToolError) as e:
                             tool_result = f"Error: {e}"

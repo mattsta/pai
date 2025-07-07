@@ -11,6 +11,7 @@ import logging
 import pathlib
 import re
 import sys
+from copy import deepcopy
 from datetime import datetime
 from html import escape
 
@@ -776,12 +777,53 @@ def get_version_string() -> str:
         return f"dev-{datetime.now().strftime('%Y%m%d')}"
 
 
+def _merge_configs(base: dict, new: dict) -> dict:
+    """Performs a deep merge of two configuration dictionaries."""
+    merged = deepcopy(base)
+
+    # Simple key updates (last one wins)
+    if "custom-pricing-file" in new:
+        merged["custom-pricing-file"] = new["custom-pricing-file"]
+
+    # Dict updates for profiles and arenas
+    for key in ["profiles", "arenas"]:
+        if key in new:
+            if key not in merged or not isinstance(merged.get(key), dict):
+                merged[key] = {}
+            merged[key].update(new[key])
+
+    # Tool config merge (list concatenation, no duplicates)
+    if new_tool_config := new.get("tool_config"):
+        if "directories" in new_tool_config:
+            if "tool_config" not in merged:
+                merged["tool_config"] = {"directories": []}
+            elif "directories" not in merged["tool_config"]:
+                merged["tool_config"]["directories"] = []
+
+            base_dirs = merged["tool_config"]["directories"]
+            for d in new_tool_config["directories"]:
+                if d not in base_dirs:
+                    base_dirs.append(d)
+
+    # Endpoints merge (by name)
+    if "endpoints" in new and new["endpoints"]:
+        if "endpoints" not in merged:
+            merged["endpoints"] = []
+
+        base_endpoints = {e["name"]: e for e in merged["endpoints"]}
+        new_endpoints = {e["name"]: e for e in new["endpoints"]}
+
+        base_endpoints.update(new_endpoints)
+        merged["endpoints"] = list(base_endpoints.values())
+
+    return merged
+
+
 def load_toml_config(path: str) -> PolyglotConfig:
-    """Loads and validates the TOML configuration file."""
+    """Loads a base TOML config and merges any configs from the providers/ dir."""
     try:
         with open(path, encoding="utf-8") as f:
-            data = toml.load(f)
-            return PolyglotConfig.model_validate(data)
+            base_data = toml.load(f)
     except FileNotFoundError:
         # Provide a helpful message if the old config file name is found.
         if path == "pai.toml" and pathlib.Path("polyglot.toml").exists():
@@ -791,6 +833,33 @@ def load_toml_config(path: str) -> PolyglotConfig:
         sys.exit(f"❌ FATAL: Config file not found at '{path}'")
     except Exception as e:
         sys.exit(f"❌ FATAL: Could not parse '{path}': {e}")
+
+    # Now merge provider configs from a 'providers' directory
+    providers_dir = pathlib.Path("providers")
+    merged_data = base_data
+
+    if providers_dir.is_dir():
+        provider_files = sorted(providers_dir.glob("*.toml"))
+        if provider_files:
+            typer.echo(
+                f"🔎 Merging {len(provider_files)} provider configs from '{providers_dir}'..."
+            )
+
+        for provider_file in provider_files:
+            try:
+                with open(provider_file, encoding="utf-8") as f:
+                    provider_data = toml.load(f)
+                    merged_data = _merge_configs(merged_data, provider_data)
+            except Exception as e:
+                typer.echo(
+                    f"⚠️  Warning: Could not load or merge '{provider_file}': {e}",
+                    err=True,
+                )
+
+    try:
+        return PolyglotConfig.model_validate(merged_data)
+    except Exception as e:
+        sys.exit(f"❌ FATAL: Error in final merged config: {e}")
 
 
 async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):

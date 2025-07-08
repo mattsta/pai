@@ -598,7 +598,7 @@ class HistoryCommand(Command):
                     title_style = "yellow"
 
                 history_json = json.dumps(
-                    participant.conversation.get_history(), indent=2
+                    participant.conversation.get_history(), indent=2, ensure_ascii=False
                 )
                 history_syntax = Syntax(
                     history_json, "json", theme="monokai", word_wrap=True
@@ -615,7 +615,11 @@ class HistoryCommand(Command):
 
                 self.ui.pt_printer(ANSI(capture.get()))
         else:
-            self.ui.pt_printer(json.dumps(self.ui.conversation.get_history(), indent=2))
+            self.ui.pt_printer(
+                json.dumps(
+                    self.ui.conversation.get_history(), indent=2, ensure_ascii=False
+                )
+            )
 
 
 class ClearCommand(Command):

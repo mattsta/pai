@@ -252,10 +252,12 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 else:
                     error_message = ""
                     try:
-                        # Attempt to get a readable text response.
+                        # For streaming responses, we must read the body before accessing .text or .content
+                        await e.response.aread()
                         error_message = e.response.text
                     except Exception as decoding_error:
-                        # If reading as text fails, report the raw content and the decoding error.
+                        # The body has been read, but it couldn't be decoded as text.
+                        # Show the raw bytes.
                         error_message = (
                             f"[Error decoding response body: {decoding_error!r}] "
                             f"Raw content: {e.response.content!r}"

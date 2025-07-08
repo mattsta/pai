@@ -279,20 +279,18 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         f"Authentication failed for endpoint '{context.config.name}'. Please check your API key."
                     ) from e
                 else:
-                    error_body = ""
+                    error_message = ""
                     try:
-                        # .text will handle reading the response body.
-                        error_body = e.response.text
-                    except Exception:
-                        # If .text fails (e.g., decoding error), fallback to raw bytes.
-                        try:
-                            error_body = e.response.content.decode(
-                                "utf-8", errors="replace"
-                            )
-                        except Exception:
-                            error_body = "[Could not read or decode response body]"
+                        # Attempt to get a readable text response.
+                        error_message = e.response.text
+                    except Exception as decoding_error:
+                        # If reading as text fails, report the raw content and the decoding error.
+                        error_message = (
+                            f"[Error decoding response body: {decoding_error!r}] "
+                            f"Raw content: {e.response.content!r}"
+                        )
                     raise ConnectionError(
-                        f"Request failed with status {e.response.status_code}: {error_body}"
+                        f"Request failed with status {e.response.status_code}: {error_message}"
                     ) from e
             except Exception as e:
                 # On failure, finalize stats as unsuccessful and re-raise

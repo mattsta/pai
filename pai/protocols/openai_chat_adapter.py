@@ -281,12 +281,16 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 else:
                     error_body = ""
                     try:
-                        await e.response.aread()
+                        # .text will handle reading the response body.
                         error_body = e.response.text
-                    except httpx.ResponseNotRead:
-                        error_body = "[Could not read streaming error response body]"
                     except Exception:
-                        error_body = "[Error reading response body]"
+                        # If .text fails (e.g., decoding error), fallback to raw bytes.
+                        try:
+                            error_body = e.response.content.decode(
+                                "utf-8", errors="replace"
+                            )
+                        except Exception:
+                            error_body = "[Could not read or decode response body]"
                     raise ConnectionError(
                         f"Request failed with status {e.response.status_code}: {error_body}"
                     ) from e

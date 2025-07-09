@@ -175,6 +175,8 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 async with http_session.stream(
                     "POST", url, json=payload, timeout=context.config.timeout
                 ) as response:
+                    if response.is_error:
+                        await response.aread()
                     response.raise_for_status()
                     async for line in response.aiter_lines():
                         if not line:
@@ -252,12 +254,10 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 else:
                     error_message = ""
                     try:
-                        # For streaming responses, we must read the body before accessing .text or .content
-                        await e.response.aread()
+                        # Attempt to get a readable text response.
                         error_message = e.response.text
                     except Exception as decoding_error:
-                        # The body has been read, but it couldn't be decoded as text.
-                        # Show the raw bytes.
+                        # If reading as text fails, report the raw content and the decoding error.
                         error_message = (
                             f"[Error decoding response body: {decoding_error!r}] "
                             f"Raw content: {e.response.content!r}"

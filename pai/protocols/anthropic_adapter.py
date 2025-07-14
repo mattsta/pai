@@ -108,6 +108,12 @@ class AnthropicAdapter(BaseProtocolAdapter):
                         raise ConnectionError(
                             f"Failed to decode JSON response: {e}. Content: {response.text!r}"
                         ) from e
+
+                    if response_data.get("type") == "error":
+                        error_details = response_data.get("error", {})
+                        error_message = error_details.get("message", "Unknown API error")
+                        raise ValueError(f"API error: {error_message}")
+
                     messages.append(
                         {"role": "assistant", "content": response_data["content"]}
                     )
@@ -188,6 +194,11 @@ class AnthropicAdapter(BaseProtocolAdapter):
                             try:
                                 chunk = json.loads(chunk_str)
                                 event_type = chunk.get("type")
+
+                                if event_type == "error":
+                                    error_details = chunk.get("error", {})
+                                    error_message = error_details.get("message", "Unknown streaming error")
+                                    raise ValueError(f"Streaming error from provider: {error_message}")
 
                                 if event_type == "message_start":
                                     if stats := context.display.current_request_stats:

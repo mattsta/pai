@@ -102,6 +102,10 @@ class OllamaAdapter(BaseProtocolAdapter):
                         raise ConnectionError(
                             f"Failed to decode JSON response: {e}. Content: {response.text!r}"
                         ) from e
+
+                    if error_message := response_data.get("error"):
+                        raise ValueError(f"API error: {error_message}")
+
                     message = response_data.get("message", {})
 
                     if tool_calls := message.get("tool_calls"):
@@ -162,6 +166,11 @@ class OllamaAdapter(BaseProtocolAdapter):
                         context.display.show_raw_line(line)
                         try:
                             chunk_data = json.loads(line)
+
+                            # Check for a streaming error object.
+                            if error_message := chunk_data.get("error"):
+                                raise ValueError(f"Streaming error from provider: {error_message}")
+
                             if chunk_data.get("done"):
                                 final_response_object = chunk_data
                                 break

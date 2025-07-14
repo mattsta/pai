@@ -116,6 +116,11 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                             f"Failed to decode JSON response: {e}. Content: {response.text!r}"
                         ) from e
 
+                    if response_data.get("object") == "error" or "error" in response_data:
+                        error_details = response_data.get("error", {})
+                        error_message = error_details.get("message", "Unknown API error")
+                        raise ValueError(f"API error: {error_message}")
+
                     choice = response_data.get("choices", [{}])[0]
                     message = choice.get("message", {})
                     finish_reason = choice.get("finish_reason")
@@ -177,6 +182,12 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     break
                                 try:
                                     chunk_data = json.loads(data)
+
+                                    if chunk_data.get("object") == "error" or "error" in chunk_data:
+                                        error_details = chunk_data.get("error", {})
+                                        error_message = error_details.get("message", "Unknown streaming error")
+                                        raise ValueError(f"Streaming error from provider: {error_message}")
+
                                     choice = chunk_data.get("choices", [{}])[0]
                                     delta = choice.get("delta", {})
 

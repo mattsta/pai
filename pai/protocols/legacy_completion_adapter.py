@@ -54,6 +54,12 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                     raise ConnectionError(
                         f"Failed to decode JSON response: {e}. Content: {response.text!r}"
                     ) from e
+
+                if response_data.get("object") == "error" or "error" in response_data:
+                    error_details = response_data.get("error", {})
+                    error_message = error_details.get("message", "Unknown API error")
+                    raise ValueError(f"API error: {error_message}")
+
                 text = response_data.get("choices", [{}])[0].get("text", "")
                 await context.display.show_parsed_chunk(response_data, text)
 
@@ -84,6 +90,13 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                                 break
                             try:
                                 chunk_data = json.loads(data)
+
+                                # Check for a streaming error object before processing as a regular chunk.
+                                if chunk_data.get("object") == "error" or "error" in chunk_data:
+                                    error_details = chunk_data.get("error", {})
+                                    error_message = error_details.get("message", "Unknown streaming error")
+                                    raise ValueError(f"Streaming error from provider: {error_message}")
+
                                 chunk_text = chunk_data.get("choices", [{}])[0].get(
                                     "text", ""
                                 )

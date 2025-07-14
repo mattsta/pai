@@ -262,24 +262,19 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
                     context.stats.add_completed_request(request_stats)
-                if e.response.status_code in [401, 403]:
-                    raise ConnectionError(
-                        f"Authentication failed for endpoint '{context.config.name}'. Please check your API key."
-                    ) from e
-                else:
-                    error_message = ""
-                    try:
-                        # Attempt to get a readable text response.
-                        error_message = e.response.text
-                    except Exception as decoding_error:
-                        # If reading as text fails, report the raw content and the decoding error.
-                        error_message = (
-                            f"[Error decoding response body: {decoding_error!r}] "
-                            f"Raw content: {e.response.content!r}"
-                        )
-                    raise ConnectionError(
-                        f"Request failed with status {e.response.status_code}: {error_message}"
-                    ) from e
+                error_message = ""
+                try:
+                    # Attempt to get a readable text response.
+                    error_message = e.response.text
+                except Exception as decoding_error:
+                    # If reading as text fails, report the raw content and the decoding error.
+                    error_message = (
+                        f"[Error decoding response body: {decoding_error!r}] "
+                        f"Raw content: {e.response.content!r}"
+                    )
+                raise ConnectionError(
+                    f"Request failed with status {e.response.status_code}: {error_message}"
+                ) from e
             except Exception as e:
                 request_stats = await context.display.finish_response(success=False)
                 if request_stats:

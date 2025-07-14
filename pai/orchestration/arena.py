@@ -2,6 +2,7 @@
 
 import asyncio
 import random
+from html import escape
 from typing import Any
 
 from prompt_toolkit.formatted_text import HTML
@@ -204,7 +205,9 @@ class ArenaOrchestrator(BaseOrchestrator):
         except Exception as e:
             if self.client.display.current_request_stats:
                 await self.client.display.finish_response(success=False)
-            self.pt_printer(HTML(f"<style fg='ansired'>❌ ARENA ERROR: {e}</style>"))
+            self.pt_printer(
+                HTML(f"<style fg='ansired'>❌ ARENA ERROR: {escape(str(e))}</style>")
+            )
         finally:
             if self.state.arena:
                 await self._run_arena_judge()

@@ -112,7 +112,8 @@ class AnthropicAdapter(BaseProtocolAdapter):
                     if response_data.get("type") == "error":
                         error_details = response_data.get("error", {})
                         error_message = error_details.get("message", "Unknown API error")
-                        raise ValueError(f"API error: {error_message}")
+                        pretty_details = json.dumps(error_details, indent=2)
+                        raise ValueError(f"API error: {error_message}\n{pretty_details}")
 
                     messages.append(
                         {"role": "assistant", "content": response_data["content"]}
@@ -198,7 +199,10 @@ class AnthropicAdapter(BaseProtocolAdapter):
                                 if event_type == "error":
                                     error_details = chunk.get("error", {})
                                     error_message = error_details.get("message", "Unknown streaming error")
-                                    raise ValueError(f"Streaming error from provider: {error_message}")
+                                    pretty_details = json.dumps(error_details, indent=2)
+                                    raise ValueError(
+                                        f"Streaming error from provider: {error_message}\n{pretty_details}"
+                                    )
 
                                 if event_type == "message_start":
                                     if stats := context.display.current_request_stats:
@@ -281,7 +285,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
                     context.stats.add_completed_request(request_stats)
-                raise ConnectionError(f"Anthropic request failed: {e!r}") from e
+                raise ConnectionError(f"Anthropic request failed: {e}") from e
 
         return {
             "text": "[Agent Error] Agent reached maximum iterations.",

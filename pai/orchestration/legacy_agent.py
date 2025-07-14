@@ -122,7 +122,7 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
             )
         except Exception as e:
             await self.client.display.finish_response(success=False)
-            self.pt_printer(HTML(f"❌ LEGACY AGENT ERROR: {e}"))
+            self.pt_printer(HTML(f"❌ LEGACY AGENT ERROR: {escape(str(e))}"))
         finally:
             self.ui.generation_in_progress.clear()
             self.ui.generation_task = None

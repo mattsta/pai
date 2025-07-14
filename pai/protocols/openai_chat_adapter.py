@@ -119,7 +119,8 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     if response_data.get("object") == "error" or "error" in response_data:
                         error_details = response_data.get("error", {})
                         error_message = error_details.get("message", "Unknown API error")
-                        raise ValueError(f"API error: {error_message}")
+                        pretty_details = json.dumps(error_details, indent=2)
+                        raise ValueError(f"API error: {error_message}\n{pretty_details}")
 
                     choice = response_data.get("choices", [{}])[0]
                     message = choice.get("message", {})
@@ -186,7 +187,10 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     if chunk_data.get("object") == "error" or "error" in chunk_data:
                                         error_details = chunk_data.get("error", {})
                                         error_message = error_details.get("message", "Unknown streaming error")
-                                        raise ValueError(f"Streaming error from provider: {error_message}")
+                                        pretty_details = json.dumps(error_details, indent=2)
+                                        raise ValueError(
+                                            f"Streaming error from provider: {error_message}\n{pretty_details}"
+                                        )
 
                                     choice = chunk_data.get("choices", [{}])[0]
                                     delta = choice.get("delta", {})
@@ -311,7 +315,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
                     context.stats.add_completed_request(request_stats)
-                raise ConnectionError(f"Request failed: {e!r}")
+                raise ConnectionError(f"Request failed: {e}")
 
         return {
             "text": "[Agent Error] Agent reached maximum iterations.",

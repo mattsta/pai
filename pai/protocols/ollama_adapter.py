@@ -104,7 +104,8 @@ class OllamaAdapter(BaseProtocolAdapter):
                         ) from e
 
                     if error_message := response_data.get("error"):
-                        raise ValueError(f"API error: {error_message}")
+                        pretty_details = json.dumps(response_data, indent=2)
+                        raise ValueError(f"API error: {error_message}\n{pretty_details}")
 
                     message = response_data.get("message", {})
 
@@ -169,7 +170,10 @@ class OllamaAdapter(BaseProtocolAdapter):
 
                             # Check for a streaming error object.
                             if error_message := chunk_data.get("error"):
-                                raise ValueError(f"Streaming error from provider: {error_message}")
+                                pretty_details = json.dumps(chunk_data, indent=2)
+                                raise ValueError(
+                                    f"Streaming error from provider: {error_message}\n{pretty_details}"
+                                )
 
                             if chunk_data.get("done"):
                                 final_response_object = chunk_data
@@ -237,7 +241,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                 if request_stats:
                     request_stats.tokens_sent = tokens_sent
                     context.stats.add_completed_request(request_stats)
-                raise ConnectionError(f"Ollama request failed: {e!r}") from e
+                raise ConnectionError(f"Ollama request failed: {e}") from e
 
         return {
             "text": "[Agent Error] Agent reached maximum iterations.",

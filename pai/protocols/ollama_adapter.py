@@ -191,14 +191,10 @@ class OllamaAdapter(BaseProtocolAdapter):
                             )
                             continue
 
-                request_stats = await context.display.finish_response(success=True)
+                request_stats = await context.display.finish_response(
+                    success=True, usage=final_response_object
+                )
                 if request_stats:
-                    request_stats.tokens_sent = final_response_object.get(
-                        "prompt_eval_count", tokens_sent
-                    )
-                    request_stats.tokens_received = final_response_object.get(
-                        "eval_count", request_stats.tokens_received
-                    )
                     request_stats.finish_reason = final_response_object.get(
                         "done_reason", "stop"
                     )

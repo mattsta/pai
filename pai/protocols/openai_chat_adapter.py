@@ -166,6 +166,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
                 # Streaming logic starts here
                 tool_calls = []
+                final_usage = {}
 
                 async with context.http_session.stream(
                     "POST", url, json=payload, timeout=context.config.timeout
@@ -191,6 +192,10 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                         raise ValueError(
                                             f"Streaming error from provider: {error_message}\n{pretty_details}"
                                         )
+
+                                    # Some providers (e.g., Groq) send a final usage chunk.
+                                    if usage := chunk_data.get("usage"):
+                                        final_usage = usage
 
                                     choice = chunk_data.get("choices", [{}])[0]
                                     delta = choice.get("delta", {})
@@ -243,19 +248,25 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     messages.extend(tool_results)
                     continue
 
-                request_stats = await context.display.finish_response(success=True)
-                tokens_received = 0
+                request_stats = await context.display.finish_response(
+                    success=True, usage=final_usage
+                )
                 if request_stats:
-                    request_stats.tokens_sent = tokens_sent
-                    tokens_received = request_stats.tokens_received
                     if request_stats.cost:
                         request_stats.cost.update(
-                            input_tokens=tokens_sent, output_tokens=tokens_received
+                            input_tokens=request_stats.tokens_sent,
+                            output_tokens=request_stats.tokens_received,
                         )
                     request_stats.finish_reason = finish_reason
                     context.stats.add_completed_request(request_stats)
 
                 # Construct a response object that mimics the non-streaming API
+                final_tokens_sent = (
+                    request_stats.tokens_sent if request_stats else tokens_sent
+                )
+                final_tokens_received = (
+                    request_stats.tokens_received if request_stats else 0
+                )
                 response_data = {
                     "id": f"chatcmpl-pai-{time.time()}",
                     "object": "chat.completion",
@@ -271,10 +282,11 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                             "finish_reason": finish_reason or "stop",
                         }
                     ],
-                    "usage": {
-                        "prompt_tokens": tokens_sent,
-                        "completion_tokens": tokens_received,
-                        "total_tokens": tokens_sent + tokens_received,
+                    "usage": final_usage
+                    or {
+                        "prompt_tokens": final_tokens_sent,
+                        "completion_tokens": final_tokens_received,
+                        "total_tokens": final_tokens_sent + final_tokens_received,
                     },
                 }
 

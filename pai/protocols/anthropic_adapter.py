@@ -234,16 +234,14 @@ class AnthropicAdapter(BaseProtocolAdapter):
                                     f"⚠️  Stream parse error: {e} on line: {chunk_str!r}"
                                 )
 
-                request_stats = await context.display.finish_response(success=True)
+                request_stats = await context.display.finish_response(
+                    success=True, usage=final_usage
+                )
                 if request_stats:
-                    output_tokens = final_usage.get(
-                        "output_tokens", request_stats.tokens_received
-                    )
-                    request_stats.tokens_received = output_tokens
                     if request_stats.cost:
                         request_stats.cost.update(
                             input_tokens=request_stats.tokens_sent,
-                            output_tokens=output_tokens,
+                            output_tokens=request_stats.tokens_received,
                         )
                     request_stats.finish_reason = finish_reason
                     context.stats.add_completed_request(request_stats)

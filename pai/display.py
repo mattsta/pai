@@ -385,8 +385,14 @@ class StreamingDisplay:
             self._print(log_line)
             logging.info(log_line)
 
-    async def finish_response(self, success: bool = True) -> RequestStats | None:
-        """Finalizes the response, prints stats, and resets the display state."""
+    async def finish_response(
+        self, success: bool = True, usage: dict | None = None
+    ) -> RequestStats | None:
+        """
+        Finalizes the response, prints stats, and resets the display state.
+        If a 'usage' dict from the provider is passed, it will be used for exact
+        token counts.
+        """
         self._stream_finished = True
         # In smooth mode, signal the renderer to stop and wait for it to finish.
         if self.smooth_stream_mode and self._smoother_task:
@@ -404,10 +410,35 @@ class StreamingDisplay:
                 self.current_request_stats.jitter_stats = self.smoothing_stats
 
             self.current_request_stats.finish(success=success)
-            # Final token count uses the full canonical text.
-            self.current_request_stats.tokens_received = estimate_tokens(
-                self.current_response
-            )
+
+            # Use provider's exact token counts if available, otherwise estimate.
+            if usage:
+                # Received tokens (check for openai, anthropic, ollama keys)
+                if usage.get("completion_tokens") is not None:
+                    self.current_request_stats.tokens_received = usage[
+                        "completion_tokens"
+                    ]
+                elif usage.get("output_tokens") is not None:
+                    self.current_request_stats.tokens_received = usage["output_tokens"]
+                elif usage.get("eval_count") is not None:
+                    self.current_request_stats.tokens_received = usage["eval_count"]
+                else:
+                    self.current_request_stats.tokens_received = estimate_tokens(
+                        self.current_response
+                    )
+
+                # Sent tokens (check for openai, anthropic, ollama keys)
+                if usage.get("prompt_tokens") is not None:
+                    self.current_request_stats.tokens_sent = usage["prompt_tokens"]
+                elif usage.get("input_tokens") is not None:
+                    self.current_request_stats.tokens_sent = usage["input_tokens"]
+                elif usage.get("prompt_eval_count") is not None:
+                    self.current_request_stats.tokens_sent = usage["prompt_eval_count"]
+            else:
+                # Fallback to estimation from the final rendered text.
+                self.current_request_stats.tokens_received = estimate_tokens(
+                    self.current_response
+                )
 
         # In interactive mode, if we have a response, print it to the scrollback
         # history. This "finalizes" it, moving it from the temporary live
@@ -451,7 +482,9 @@ class StreamingDisplay:
                     else 0
                 )
 
-                content_tokens = stats.tokens_received
+                # Use the finalized stats from the request object, which may have been
+                # updated with exact counts from the provider.
+                content_tokens = self.current_request_stats.tokens_received
                 json_payloads = self.chunk_count
 
                 avg_content_bytes_per_token = (

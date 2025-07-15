@@ -451,15 +451,40 @@ class StreamingDisplay:
                     else 0
                 )
 
+                content_tokens = stats.tokens_received
+                json_payloads = self.chunk_count
+
+                avg_content_bytes_per_token = (
+                    self.total_content_bytes_received / content_tokens
+                    if content_tokens > 0
+                    else 0
+                )
+                avg_total_bytes_per_token = (
+                    self.total_bytes_received / content_tokens
+                    if content_tokens > 0
+                    else 0
+                )
+                json_per_token_ratio = (
+                    json_payloads / content_tokens if content_tokens > 0 else 0
+                )
+
                 summary_lines = [
                     "=" * 60,
-                    f"🔍 DEBUG SUMMARY: {self.line_count} lines, {self.chunk_count} chunks, {stats.response_time:.2f}s",
+                    f"🔍 DEBUG SUMMARY: {self.line_count} lines, {json_payloads} chunks, {stats.response_time:.2f}s",
                     "-" * 20,
+                    "  Byte & Word Stats:",
                     f"  - Total Bytes Received:   {self.total_bytes_received:7d} B",
                     f"  - Content Bytes Received: {self.total_content_bytes_received:7d} B ({content_to_total_ratio:.1%})",
                     f"  - Protocol Overhead:      {protocol_bytes:7d} B",
                     f"  - Total Words Received:   {total_words:7d} words",
                     f"  - Overhead per Word:      {overhead_per_word:7.2f} bytes/word",
+                    "-" * 20,
+                    "  Token & Overhead Stats:",
+                    f"  - Content Tokens (est.):  {content_tokens:7d} tokens",
+                    f"  - JSON Payloads (chunks): {json_payloads:7d} chunks",
+                    f"  - Avg. Content Bytes/Token: {avg_content_bytes_per_token:7.2f} B/tok",
+                    f"  - Avg. Total Bytes/Token:   {avg_total_bytes_per_token:7.2f} B/tok",
+                    f"  - JSON/Token Ratio:         {json_per_token_ratio:7.2f} chunks/tok",
                     "=" * 60,
                 ]
                 summary = "\n".join(summary_lines)

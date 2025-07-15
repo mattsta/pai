@@ -86,6 +86,10 @@ class StreamingDisplay:
         self._stream_finished: bool = False
         self._smoothing_aborted: bool = False
 
+        # Debugging stats
+        self.total_bytes_received: int = 0
+        self.total_content_bytes_received: int = 0
+
         # State for UI
         self.status = "Idle"
         # Holds the stats for the *in-progress* request.
@@ -127,6 +131,8 @@ class StreamingDisplay:
         self._last_token_time = None
         self.line_count = 0
         self.chunk_count = 0
+        self.total_bytes_received = 0
+        self.total_content_bytes_received = 0
         self.first_token_received = False
         self._stream_finished = False
         self._smoothing_aborted = False
@@ -219,6 +225,7 @@ class StreamingDisplay:
                     True  # Prevent header from printing multiple times
                 )
             self.line_count += 1
+            self.total_bytes_received += len(line.encode("utf-8"))
             duration = (
                 self.current_request_stats.current_duration
                 if self.current_request_stats
@@ -335,6 +342,7 @@ class StreamingDisplay:
         if not chunk_text:
             return
 
+        self.total_content_bytes_received += len(chunk_text.encode("utf-8"))
         current_chunk_time = time.time()
         if self._last_token_time:
             self._inter_chunk_deltas.append(current_chunk_time - self._last_token_time)
@@ -430,11 +438,31 @@ class StreamingDisplay:
         if success and self.current_request_stats:
             stats = self.current_request_stats
             if self.debug_mode:
-                summary = (
-                    "=" * 60
-                    + f"\n🔍 DEBUG SUMMARY: {self.line_count} lines, {self.chunk_count} chunks, {stats.response_time:.2f}s\n"
-                    + "=" * 60
+                total_words = len(self.current_response.split())
+                protocol_bytes = (
+                    self.total_bytes_received - self.total_content_bytes_received
                 )
+                overhead_per_word = (
+                    protocol_bytes / total_words if total_words > 0 else 0
+                )
+                content_to_total_ratio = (
+                    self.total_content_bytes_received / self.total_bytes_received
+                    if self.total_bytes_received > 0
+                    else 0
+                )
+
+                summary_lines = [
+                    "=" * 60,
+                    f"🔍 DEBUG SUMMARY: {self.line_count} lines, {self.chunk_count} chunks, {stats.response_time:.2f}s",
+                    "-" * 20,
+                    f"  - Total Bytes Received:   {self.total_bytes_received:7d} B",
+                    f"  - Content Bytes Received: {self.total_content_bytes_received:7d} B ({content_to_total_ratio:.1%})",
+                    f"  - Protocol Overhead:      {protocol_bytes:7d} B",
+                    f"  - Total Words Received:   {total_words:7d} words",
+                    f"  - Overhead per Word:      {overhead_per_word:7.2f} bytes/word",
+                    "=" * 60,
+                ]
+                summary = "\n".join(summary_lines)
                 self._print(summary)
                 logging.info(summary)
             elif not self._is_interactive and self.first_token_received:

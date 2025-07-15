@@ -460,7 +460,19 @@ class RequestStats:
 
     @property
     def final_tok_per_sec(self) -> float:
-        """Returns the final tokens per second for the entire completed response."""
+        """
+        Returns the final tokens per second for the completed response.
+        For streaming, this is calculated from the time the first token was
+        received to the time the last token was received, excluding TTFT.
+        """
+        # For streaming responses, calculate based on stream duration.
+        if self.ttft and self.response_time:
+            stream_duration = self.response_time - self.ttft
+            if stream_duration > 0.01:
+                return self.tokens_received / stream_duration
+            # Fallback for very short streams to avoid division by zero.
+            return 0.0
+        # For non-streaming responses, use the full response time.
         if self.response_time and self.response_time > 0:
             return self.tokens_received / self.response_time
         return 0.0
@@ -510,6 +522,7 @@ class SessionStats:
     total_tokens_sent: int = 0
     total_tokens_received: int = 0
     total_response_time: float = 0.0
+    total_stream_time: float = 0.0
     total_cost: float = 0.0
     errors: int = 0
     # Holds the stats for the most recently *completed* successful request.
@@ -527,6 +540,11 @@ class SessionStats:
             self.total_cost += stats.cost.total_cost
         if stats.response_time:
             self.total_response_time += stats.response_time
+            if stats.ttft:
+                self.total_stream_time += stats.response_time - stats.ttft
+            else:
+                # For non-streaming, treat the whole response time as stream time for TPS calculation
+                self.total_stream_time += stats.response_time
 
         self.last_request_stats = stats
 
@@ -547,7 +565,7 @@ class SessionStats:
             "success_rate": f"{success_rate:.1f}%",
             "total_tokens": self.total_tokens_sent + self.total_tokens_received,
             "avg_response_time": f"{avg_response_time:.2f}s",
-            "tokens_per_second": f"{self.total_tokens_received / max(self.total_response_time, 1):.1f}",
+            "tokens_per_second": f"{self.total_tokens_received / max(self.total_stream_time, 1):.1f}",
         }
 
         if self.last_request_stats:

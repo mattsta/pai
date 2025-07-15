@@ -512,18 +512,18 @@ class InteractiveUI:
                 parts.append(f"<style fg='grey'><b>Avg Δ:</b> {mean_d_str}</style>")
 
         session_tokens = self.conversation.session_token_count
-        total_time = session_stats.total_response_time
+        total_stream_time = session_stats.total_stream_time
         total_received = session_stats.total_tokens_received
         total_cost = session_stats.total_cost
 
         if live_stats and display.status in ["Waiting...", "Streaming"]:
             session_tokens += live_stats.tokens_sent + live_stats.tokens_received
-            total_time += live_stats.current_duration
+            total_stream_time += live_stats.live_stream_duration
             total_received += live_stats.tokens_received
             if live_stats.cost:
                 total_cost += live_stats.cost.total_cost
 
-        session_tps = total_received / max(total_time, 1)
+        session_tps = total_received / max(total_stream_time, 1)
 
         parts.extend(
             [

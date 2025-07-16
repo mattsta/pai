@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from typing import Any
 
 import httpx
@@ -64,6 +65,12 @@ class OllamaAdapter(BaseProtocolAdapter):
             if not (context.tools_enabled and request.tools):
                 payload.pop("tools", None)
                 payload.pop("tool_choice", None)
+
+            if context.display.debug_mode:
+                debug_payload_str = json.dumps(payload, indent=2, ensure_ascii=False)
+                log_line = f"🔵 DEBUG: REQUEST PAYLOAD\n{debug_payload_str}"
+                context.display._print(log_line)
+                logging.info(log_line)
 
             # Ollama expects "stream": false for non-streaming
             if "stream" not in payload:

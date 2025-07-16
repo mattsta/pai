@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import time
 from typing import Any
 
@@ -82,6 +83,13 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
             payload = request.to_dict(context.config.model_name)
             payload["messages"] = messages
             final_request_payload = payload
+            if context.display.debug_mode:
+                debug_payload_str = json.dumps(
+                    final_request_payload, indent=2, ensure_ascii=False
+                )
+                log_line = f"🔵 DEBUG: REQUEST PAYLOAD\n{debug_payload_str}"
+                context.display._print(log_line)
+                logging.info(log_line)
 
             tokens_sent = sum(estimate_tokens(m.get("content", "")) for m in messages)
 

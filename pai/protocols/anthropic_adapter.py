@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from typing import Any
 
 import httpx
@@ -74,6 +75,13 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 payload["tools"] = request.tools
 
             final_request_payload = payload
+            if context.display.debug_mode:
+                debug_payload_str = json.dumps(
+                    final_request_payload, indent=2, ensure_ascii=False
+                )
+                log_line = f"🔵 DEBUG: REQUEST PAYLOAD\n{debug_payload_str}"
+                context.display._print(log_line)
+                logging.info(log_line)
             tokens_sent = estimate_tokens(system_prompt) + sum(
                 estimate_tokens(m.get("content", "")) for m in messages
             )

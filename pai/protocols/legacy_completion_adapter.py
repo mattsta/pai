@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any
 
 import httpx
@@ -27,6 +28,12 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
         # e.g., client.config -> context.config
         url = f"{context.config.base_url}/completions"
         payload = request.to_dict(context.config.model_name)
+
+        if context.display.debug_mode:
+            debug_payload_str = json.dumps(payload, indent=2, ensure_ascii=False)
+            log_line = f"🔵 DEBUG: REQUEST PAYLOAD\n{debug_payload_str}"
+            context.display._print(log_line)
+            logging.info(log_line)
         tokens_sent = estimate_tokens(request.prompt)
 
         try:

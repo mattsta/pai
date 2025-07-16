@@ -99,6 +99,54 @@ class StatsCommand(Command):
         print_stats(self.ui.client.stats, printer=self.ui.pt_printer)
 
 
+class SettingsCommand(Command):
+    @property
+    def name(self):
+        return "settings"
+
+    def execute(self, app: "Application", param: str | None = None):
+        cfg = self.ui.runtime_config
+        client = self.ui.client
+        display = client.display
+        state = self.ui.state
+
+        console = display.rich_console
+        table = Table(title="Current Runtime Settings", title_style="bold magenta")
+        table.add_column("Setting", style="cyan", no_wrap=True)
+        table.add_column("Value", style="green")
+
+        # Core settings
+        table.add_row("Endpoint", client.config.name)
+        table.add_row("Model", client.config.model_name)
+        table.add_row("Max Tokens", str(cfg.max_tokens))
+        table.add_row("Temperature", str(cfg.temperature))
+        table.add_row("Timeout", f"{client.config.timeout}s")
+
+        # Toggles
+        on_style = "[green]✓ On[/green]"
+        off_style = "[dim]✗ Off[/dim]"
+
+        table.add_row("Stream", on_style if cfg.stream else off_style)
+        table.add_row("Rich Text", on_style if cfg.rich_text else off_style)
+        table.add_row("Smooth Stream", on_style if cfg.smooth_stream else off_style)
+        table.add_row(
+            "Multiline Input", on_style if state.multiline_input else off_style
+        )
+        table.add_row("Tools Enabled", on_style if client.tools_enabled else off_style)
+        table.add_row(
+            "Confirm Tool Use", on_style if cfg.confirm_tool_use else off_style
+        )
+        table.add_row("Verbose Mode", on_style if cfg.verbose else off_style)
+        table.add_row("Debug Mode", on_style if display.debug_mode else off_style)
+
+        with console.capture() as capture:
+            console.print(table)
+
+        from prompt_toolkit.formatted_text import ANSI
+
+        self.ui.pt_printer(ANSI(capture.get()))
+
+
 class HelpCommand(Command):
     @property
     def name(self):
@@ -174,6 +222,7 @@ class HelpCommand(Command):
   /smooth                - Toggle adaptive smooth streaming
   /verbose               - Toggle verbose logging of request parameters
   /debug                 - Toggle raw protocol-level debugging
+  /settings              - Show current runtime settings
 """
         )
 

@@ -973,7 +973,7 @@ def run(
     prompt: str | None = typer.Option(
         None, "-p", "--prompt", help="Send a single prompt and exit."
     ),
-    chat: bool = typer.Option(False, help="Enable chat mode. Required for tool use."),
+    chat: bool = typer.Option(True, help="Enable chat mode. Required for tool use."),
     system: str | None = typer.Option(None, help="Set a system prompt for chat mode."),
     model: str | None = typer.Option(
         None, help="Override the default model for the session."

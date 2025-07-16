@@ -78,6 +78,7 @@ class StreamingDisplay:
         self._is_interactive = False
         self.output_buffer: Buffer | None = None
         self.actor_name = "🤖 Assistant"
+        self.current_model_name: str | None = None
         self.rich_console = Console()
         self._word_queue = asyncio.Queue()
         self._smoother_task: asyncio.Task | None = None
@@ -111,7 +112,12 @@ class StreamingDisplay:
         self._printer = printer
         self._is_interactive = is_interactive
 
-    def start_response(self, tokens_sent: int = 0, actor_name: str | None = None):
+    def start_response(
+        self,
+        tokens_sent: int = 0,
+        actor_name: str | None = None,
+        model_name: str | None = None,
+    ):
         """Prepares for a new response stream."""
         # It's critical to cancel any lingering tasks *before* creating a new one.
         if self._smoother_task and not self._smoother_task.done():
@@ -127,6 +133,7 @@ class StreamingDisplay:
         self._inter_chunk_deltas = []
 
         self.actor_name = actor_name or "🤖 Assistant"
+        self.current_model_name = model_name
         self.current_request_stats = RequestStats(tokens_sent=tokens_sent)
         self._last_token_time = None
         self.line_count = 0
@@ -354,7 +361,10 @@ class StreamingDisplay:
                 self.current_request_stats.record_first_token()
             self.first_token_received = True
             if not self._is_interactive:
-                self._print(f"\n{self.actor_name}: ", end="")
+                title = self.actor_name
+                if self.current_model_name:
+                    title += f" ({self.current_model_name})"
+                self._print(f"\n{title}: ", end="")
 
         self.chunk_count += 1
         # Immediately update the full response text for accurate token rate calculation.
@@ -450,9 +460,12 @@ class StreamingDisplay:
                 # the renderer from consuming them.
                 final_text = self._escape_html_in_markdown(self.current_response)
                 # Render final output as Markdown inside a panel for clarity
+                title = self.actor_name
+                if self.current_model_name:
+                    title += f" ({self.current_model_name})"
                 panel_to_print = Panel(
                     Markdown(final_text, code_theme="monokai"),
-                    title=self.actor_name,
+                    title=title,
                     title_align="left",
                     border_style="dim",
                 )
@@ -461,8 +474,11 @@ class StreamingDisplay:
                     self.rich_console.print(panel_to_print)
                 self._printer(ANSI(capture.get()))
             else:
+                title = self.actor_name
+                if self.current_model_name:
+                    title += f" ({self.current_model_name})"
                 self._printer(
-                    HTML(f"{escape(self.actor_name)}: {escape(self.current_response)}")
+                    HTML(f"{escape(title)}: {escape(self.current_response)}")
                 )
 
         # On success, print final stats.

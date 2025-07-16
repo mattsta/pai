@@ -81,7 +81,9 @@ class OllamaAdapter(BaseProtocolAdapter):
 
             try:
                 context.display.start_response(
-                    tokens_sent=tokens_sent, actor_name=actor_name
+                    tokens_sent=tokens_sent,
+                    actor_name=actor_name,
+                    model_name=request.model or context.config.model_name,
                 )
                 model_pricing = context.pricing_service.get_model_pricing(
                     context.config.name, request.model or context.config.model_name

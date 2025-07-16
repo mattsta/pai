@@ -39,8 +39,12 @@ class DefaultOrchestrator(BaseOrchestrator):
                 messages = self.conversation.get_messages_for_next_turn(user_input)
 
                 try:
+                    # Make tool schemas available to the template renderer.
+                    tools = get_tool_schemas() if self.client.tools_enabled else []
                     rendered_prompt = self.state.chat_template_obj.render(
-                        messages=messages, add_generation_prompt=True
+                        messages=messages,
+                        add_generation_prompt=True,
+                        tools=tools,
                     )
                     if self.runtime_config.verbose:
                         self.pt_printer(

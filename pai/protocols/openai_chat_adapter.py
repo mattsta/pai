@@ -63,16 +63,16 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 should_run = await context.confirmer(name, args)
                 if not should_run:
                     return "Tool execution cancelled by user."
-            else:
-                context.display._print(
-                    f"  - Executing: {name}({json.dumps(args, indent=2)})"
-                )
+
+            context.display.show_agent_tool_call(name, args)
             try:
                 result = await execute_tool(name, args)
                 tools_used_count += 1
+                context.display.show_agent_tool_result(name, result)
                 return result
             except (ToolNotFound, ToolArgumentError, ToolError) as e:
-                context.display._print(f"  - ❌ Tool Error: {e}")
+                error_payload = {"status": "failure", "reason": str(e)}
+                context.display.show_agent_tool_result(name, json.dumps(error_payload))
                 return f"Error: {e}"
 
         for iteration in range(max_iterations):

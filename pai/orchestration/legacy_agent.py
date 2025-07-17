@@ -69,8 +69,14 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                             if confirmer and not await confirmer(tool_name, tool_args):
                                 tool_result = "Tool execution cancelled by user."
                             else:
+                                self.client.display.show_agent_tool_call(
+                                    tool_name, tool_args
+                                )
                                 tool_result = await execute_tool(tool_name, tool_args)
                                 self.state.tools_used += 1
+                                self.client.display.show_agent_tool_result(
+                                    tool_name, tool_result
+                                )
                         except json.JSONDecodeError as e:
                             tool_result = (
                                 f"Error: Invalid JSON in <args> for {tool_name}. "
@@ -81,9 +87,6 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
 
                     tool_result_message = f"TOOL_RESULT:\n```\n{tool_result}\n```"
                     messages.append({"role": "user", "content": tool_result_message})
-                    self.pt_printer(
-                        HTML(f"  - Result: {escape(str(tool_result))[:300]}...")
-                    )
                 else:
                     if used_tools_in_loop:
                         self.pt_printer(HTML("\n✅ Agent formulated a response."))

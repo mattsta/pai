@@ -422,25 +422,19 @@ class InteractiveUI:
 
     async def _confirm_tool_call(self, tool_name: str, args: dict) -> bool:
         """Asks the user for confirmation to run a tool."""
-        json_args = json.dumps(args, indent=2)
-        self.pt_printer(
-            HTML(
-                f"\n<style fg='ansimagenta' bg='ansiblack'>🔧 Agent wants to execute: <b>{escape(tool_name)}</b></style>"
-            )
-        )
-        self.pt_printer(
-            HTML(
-                f"<style fg='ansimagenta'>   with arguments:\n{escape(json_args)}</style>"
-            )
-        )
+        self.client.display.show_tool_call_request(tool_name, args)
 
         try:
             # This modal-like prompt will temporarily take over the input line
             result = await self.confirm_session.prompt_async(
                 "Authorize this tool call? [y/N]: ",
             )
-            return result.lower().strip() == "y"
+            approved = result.lower().strip() == "y"
+            if not approved:
+                self.pt_printer(HTML("  <style fg='ansiyellow'>-> Denied.</style>"))
+            return approved
         except (EOFError, KeyboardInterrupt):
+            self.pt_printer(HTML("\n<style fg='ansiyellow'>-> Denied by user.</style>"))
             return False
 
     def _get_toolbar_line1_text(self) -> str:

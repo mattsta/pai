@@ -6,6 +6,7 @@ import re
 import statistics
 import time
 from html import escape
+from typing import Any
 
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import ANSI, HTML
@@ -244,6 +245,89 @@ class StreamingDisplay:
             log_line = f"{prefix}{repr(line)}"
             self._print(log_line)
             logging.info(log_line)
+
+    def show_tool_call_request(self, tool_name: str, tool_args: dict):
+        """Displays a formatted request for a tool call, for confirmation."""
+        import json
+        from rich.panel import Panel
+        from rich.syntax import Syntax
+        from prompt_toolkit.formatted_text import ANSI, HTML
+
+        args_json = json.dumps(tool_args, indent=2)
+        syntax = Syntax(args_json, "json", theme="monokai", word_wrap=True)
+        panel = Panel(
+            syntax,
+            title="Arguments",
+            title_align="left",
+            border_style="dim magenta",
+        )
+
+        self._print(
+            HTML(
+                f"\n<style fg='ansimagenta' bg='ansiblack'>🔧 Agent wants to execute: <b>{escape(tool_name)}</b></style>"
+            )
+        )
+        with self.rich_console.capture() as capture:
+            self.rich_console.print(panel)
+        self._print(ANSI(capture.get()))
+
+    def show_agent_tool_call(self, tool_name: str, tool_args: dict):
+        """Prints a standardized, pretty-printed representation of a tool call."""
+        import json
+        from rich.panel import Panel
+        from rich.syntax import Syntax
+        from prompt_toolkit.formatted_text import ANSI
+
+        args_json = json.dumps(tool_args, indent=2)
+        syntax = Syntax(args_json, "json", theme="monokai", word_wrap=True)
+
+        panel = Panel(
+            syntax,
+            title=f"Executing: {tool_name}",
+            title_align="left",
+            border_style="dim magenta",
+        )
+        with self.rich_console.capture() as capture:
+            self.rich_console.print(panel)
+        self._print(ANSI(capture.get()))
+
+    def show_agent_tool_result(self, tool_name: str, tool_result: Any):
+        """Prints a standardized, pretty-printed representation of a tool result."""
+        import json
+        from rich.panel import Panel
+        from rich.syntax import Syntax
+        from prompt_toolkit.formatted_text import ANSI
+
+        result_str = str(tool_result)
+
+        try:
+            # If the result is JSON, pretty-print it.
+            result_data = json.loads(result_str)
+            result_json = json.dumps(result_data, indent=2)
+            syntax = Syntax(result_json, "json", theme="monokai", word_wrap=True)
+            content = syntax
+            border_style = "dim green"
+            if (
+                isinstance(result_data, dict)
+                and result_data.get("status") == "failure"
+            ):
+                border_style = "dim red"
+
+        except (json.JSONDecodeError, TypeError):
+            # Otherwise, print as plain text.
+            syntax = Syntax(result_str, "text", theme="monokai", word_wrap=True)
+            content = syntax
+            border_style = "dim"
+
+        panel = Panel(
+            content,
+            title=f"Result from: {tool_name}",
+            title_align="left",
+            border_style=border_style,
+        )
+        with self.rich_console.capture() as capture:
+            self.rich_console.print(panel)
+        self._print(ANSI(capture.get()))
 
     async def _smoother_task_loop(self):
         """A background task that calls _render_text with tokens from a queue."""

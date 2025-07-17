@@ -9,6 +9,10 @@
         .user { background-color: #e6f3ff; }
         .assistant { background-color: #f9f9f9; }
         .tool { background-color: #fff8e1; border-left: 4px solid #ffc107; }
+        .tool-call-container { margin-top: 10px; }
+        .tool-call { border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 10px; background-color: #f7f5fa; border-left: 4px solid #673ab7; overflow: hidden; }
+        .tool-call .tool-name { padding: 8px 12px; font-weight: bold; background-color: rgba(0,0,0,0.03); border-bottom: 1px solid #e0e0e0; }
+        .tool-call pre { margin: 0; border-radius: 0 0 4px 4px; }
         .system { background-color: #e8f5e9; border-left: 4px solid #4caf50; font-style: italic;}
         strong { font-weight: 600; color: #000; }
         div, pre { white-space: pre-wrap; word-wrap: break-word; }
@@ -42,8 +46,8 @@
     {% for message in history %}
     <div class="message {{ message.role }}{% if message.participant_index is not none %} participant-{{ message.participant_index }}{% endif %}">
         {% if message.role == 'tool' %}
-            <strong>Tool: {{ message.name }}</strong>
-            <pre><code>{{ message.content }}</code></pre>
+            <strong>Tool Result: {{ message.name }}</strong>
+            <pre><code class="language-json">{{ message.content | prettyjson_str }}</code></pre>
         {% else %}
             {% if message.participant_name %}
                 <div class="participant-info">
@@ -56,9 +60,17 @@
             {% if message.content %}
             <div class="message-content">{{ message.content.strip() }}</div>
             {% endif %}
+
             {% if message.tool_calls %}
-            <div>Tool Call Request:</div>
-            <pre><code class="language-json">{{ message.tool_calls | prettyjson }}</code></pre>
+            <div class="tool-call-container">
+                <strong>Tool Call Requests:</strong>
+                {% for tc in message.tool_calls %}
+                  <div class="tool-call">
+                    <div class="tool-name">🔧 <strong>{{ tc.function.name }}</strong></div>
+                    <pre><code class="language-json">{{ tc.function.arguments | prettyjson_str }}</code></pre>
+                  </div>
+                {% endfor %}
+            </div>
             {% endif %}
         {% endif %}
         {% if message.stats %}

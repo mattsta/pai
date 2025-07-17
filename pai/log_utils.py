@@ -79,6 +79,19 @@ def save_conversation_formats(
             autoescape=select_autoescape(["html", "xml"]),
         )
         env.filters["prettyjson"] = lambda v: json.dumps(v, indent=2)
+
+        def prettyjson_str(value):
+            """A filter that safely loads a JSON string and pretty-prints it."""
+            try:
+                # Load the string to a Python object
+                data = json.loads(value)
+                # Dump it back to a string with indentation
+                return json.dumps(data, indent=2)
+            except (json.JSONDecodeError, TypeError):
+                # If it's not a valid JSON string, return it as is.
+                return value
+
+        env.filters["prettyjson_str"] = prettyjson_str
         # Use the new method to get a richer history for logging.
         history = conversation.get_rich_history_for_template()
 

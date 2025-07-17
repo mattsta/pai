@@ -249,9 +249,10 @@ class StreamingDisplay:
     def show_tool_call_request(self, tool_name: str, tool_args: dict):
         """Displays a formatted request for a tool call, for confirmation."""
         import json
+
+        from prompt_toolkit.formatted_text import ANSI, HTML
         from rich.panel import Panel
         from rich.syntax import Syntax
-        from prompt_toolkit.formatted_text import ANSI, HTML
 
         args_json = json.dumps(tool_args, indent=2)
         syntax = Syntax(args_json, "json", theme="monokai", word_wrap=True)
@@ -274,9 +275,10 @@ class StreamingDisplay:
     def show_agent_tool_call(self, tool_name: str, tool_args: dict):
         """Prints a standardized, pretty-printed representation of a tool call."""
         import json
+
+        from prompt_toolkit.formatted_text import ANSI
         from rich.panel import Panel
         from rich.syntax import Syntax
-        from prompt_toolkit.formatted_text import ANSI
 
         args_json = json.dumps(tool_args, indent=2)
         syntax = Syntax(args_json, "json", theme="monokai", word_wrap=True)
@@ -294,9 +296,10 @@ class StreamingDisplay:
     def show_agent_tool_result(self, tool_name: str, tool_result: Any):
         """Prints a standardized, pretty-printed representation of a tool result."""
         import json
+
+        from prompt_toolkit.formatted_text import ANSI
         from rich.panel import Panel
         from rich.syntax import Syntax
-        from prompt_toolkit.formatted_text import ANSI
 
         result_str = str(tool_result)
 
@@ -307,10 +310,7 @@ class StreamingDisplay:
             syntax = Syntax(result_json, "json", theme="monokai", word_wrap=True)
             content = syntax
             border_style = "dim green"
-            if (
-                isinstance(result_data, dict)
-                and result_data.get("status") == "failure"
-            ):
+            if isinstance(result_data, dict) and result_data.get("status") == "failure":
                 border_style = "dim red"
 
         except (json.JSONDecodeError, TypeError):
@@ -561,9 +561,7 @@ class StreamingDisplay:
                 title = self.actor_name
                 if self.current_model_name:
                     title += f" ({self.current_model_name})"
-                self._printer(
-                    HTML(f"{escape(title)}: {escape(self.current_response)}")
-                )
+                self._printer(HTML(f"{escape(title)}: {escape(self.current_response)}"))
 
         # On success, print final stats.
         if success and self.current_request_stats:

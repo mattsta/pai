@@ -6,7 +6,6 @@ and fixing the circular import error.
 
 import asyncio
 import importlib.metadata
-import json
 import logging
 import pathlib
 import re

@@ -114,7 +114,9 @@ class OllamaAdapter(BaseProtocolAdapter):
 
                     if error_message := response_data.get("error"):
                         pretty_details = json.dumps(response_data, indent=2)
-                        raise ValueError(f"API error: {error_message}\n{pretty_details}")
+                        raise ValueError(
+                            f"API error: {error_message}\n{pretty_details}"
+                        )
 
                     message = response_data.get("message", {})
 

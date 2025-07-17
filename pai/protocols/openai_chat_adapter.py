@@ -126,11 +126,18 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                             f"Failed to decode JSON response: {e}. Content: {response.text!r}"
                         ) from e
 
-                    if response_data.get("object") == "error" or "error" in response_data:
+                    if (
+                        response_data.get("object") == "error"
+                        or "error" in response_data
+                    ):
                         error_details = response_data.get("error", {})
-                        error_message = error_details.get("message", "Unknown API error")
+                        error_message = error_details.get(
+                            "message", "Unknown API error"
+                        )
                         pretty_details = json.dumps(error_details, indent=2)
-                        raise ValueError(f"API error: {error_message}\n{pretty_details}")
+                        raise ValueError(
+                            f"API error: {error_message}\n{pretty_details}"
+                        )
 
                     choice = response_data.get("choices", [{}])[0]
                     message = choice.get("message", {})
@@ -195,10 +202,17 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                 try:
                                     chunk_data = json.loads(data)
 
-                                    if chunk_data.get("object") == "error" or "error" in chunk_data:
+                                    if (
+                                        chunk_data.get("object") == "error"
+                                        or "error" in chunk_data
+                                    ):
                                         error_details = chunk_data.get("error", {})
-                                        error_message = error_details.get("message", "Unknown streaming error")
-                                        pretty_details = json.dumps(error_details, indent=2)
+                                        error_message = error_details.get(
+                                            "message", "Unknown streaming error"
+                                        )
+                                        pretty_details = json.dumps(
+                                            error_details, indent=2
+                                        )
                                         raise ValueError(
                                             f"Streaming error from provider: {error_message}\n{pretty_details}"
                                         )

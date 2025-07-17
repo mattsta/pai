@@ -121,9 +121,13 @@ class AnthropicAdapter(BaseProtocolAdapter):
 
                     if response_data.get("type") == "error":
                         error_details = response_data.get("error", {})
-                        error_message = error_details.get("message", "Unknown API error")
+                        error_message = error_details.get(
+                            "message", "Unknown API error"
+                        )
                         pretty_details = json.dumps(error_details, indent=2)
-                        raise ValueError(f"API error: {error_message}\n{pretty_details}")
+                        raise ValueError(
+                            f"API error: {error_message}\n{pretty_details}"
+                        )
 
                     messages.append(
                         {"role": "assistant", "content": response_data["content"]}
@@ -208,7 +212,9 @@ class AnthropicAdapter(BaseProtocolAdapter):
 
                                 if event_type == "error":
                                     error_details = chunk.get("error", {})
-                                    error_message = error_details.get("message", "Unknown streaming error")
+                                    error_message = error_details.get(
+                                        "message", "Unknown streaming error"
+                                    )
                                     pretty_details = json.dumps(error_details, indent=2)
                                     raise ValueError(
                                         f"Streaming error from provider: {error_message}\n{pretty_details}"

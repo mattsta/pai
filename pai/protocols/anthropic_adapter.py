@@ -88,7 +88,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
 
             try:
                 http_session.headers.update(headers)
-                context.display.start_response(
+                await context.display.start_response(
                     tokens_sent=tokens_sent,
                     actor_name=actor_name,
                     model_name=context.config.model_name,

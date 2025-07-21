@@ -37,7 +37,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
         tokens_sent = estimate_tokens(request.prompt)
 
         try:
-            context.display.start_response(
+            await context.display.start_response(
                 tokens_sent=tokens_sent,
                 actor_name=actor_name,
                 model_name=request.model or context.config.model_name,

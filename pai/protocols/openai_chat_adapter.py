@@ -95,7 +95,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
             try:
                 # Must start the response *before* printing the agent loop message
-                context.display.start_response(
+                await context.display.start_response(
                     tokens_sent=tokens_sent,
                     actor_name=actor_name,
                     model_name=request.model or context.config.model_name,
@@ -275,8 +275,13 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     continue
 
                 if tool_calls:
+                    # Before processing the tool call, commit any preceding reasoning.
+                    # This finalizes the "thinking" block that led to the tool use.
+                    if context.display.is_in_reasoning_block:
+                        context.display.commit_reasoning()
+
                     # The stream has ended and a tool call is requested.
-                    # First, get the partial text, then "commit" it to the display.
+                    # Get the partial text response, then commit it to the display.
                     partial_text = context.display.current_response
                     context.display.commit_partial_response()
 

@@ -121,7 +121,7 @@ class StreamingDisplay:
         self._printer = printer
         self._is_interactive = is_interactive
 
-    def start_response(
+    async def start_response(
         self,
         tokens_sent: int = 0,
         actor_name: str | None = None,
@@ -134,6 +134,10 @@ class StreamingDisplay:
             # It's critical to cancel any lingering tasks *before* creating a new one.
             if self._smoother_task and not self._smoother_task.done():
                 self._smoother_task.cancel()
+                try:
+                    await self._smoother_task
+                except asyncio.CancelledError:
+                    pass  # This is the expected outcome.
             self.current_reasoning = ""
             self.is_in_reasoning_block = False
 

@@ -80,7 +80,7 @@ class OllamaAdapter(BaseProtocolAdapter):
             tokens_sent = sum(estimate_tokens(m.get("content", "")) for m in messages)
 
             try:
-                context.display.start_response(
+                await context.display.start_response(
                     tokens_sent=tokens_sent,
                     actor_name=actor_name,
                     model_name=request.model or context.config.model_name,

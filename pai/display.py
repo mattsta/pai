@@ -503,11 +503,19 @@ class StreamingDisplay:
 
     async def show_parsed_chunk(self, chunk_data: dict, chunk_text: str):
         """Handles a parsed chunk of text from the stream."""
-        # Don't do anything for empty chunks from some providers.
-        if not chunk_text:
+        # Determine if the chunk has meaningful content (text or tool call activity)
+        has_tool_call_delta = False
+        if (choices := chunk_data.get("choices")) and isinstance(choices, list) and choices:
+            if (delta := choices[0].get("delta")) and delta.get("tool_calls"):
+                has_tool_call_delta = True
+
+        # If there's no text and no new tool call info, it's an empty chunk.
+        if not chunk_text and not has_tool_call_delta:
             return
 
-        self.total_content_bytes_received += len(chunk_text.encode("utf-8"))
+        # Only count bytes and update total text if there is text.
+        if chunk_text:
+            self.total_content_bytes_received += len(chunk_text.encode("utf-8"))
         current_chunk_time = time.time()
         if self._last_token_time:
             self._inter_chunk_deltas.append(current_chunk_time - self._last_token_time)
@@ -526,22 +534,24 @@ class StreamingDisplay:
 
         self.chunk_count += 1
         # Immediately update the full response text for accurate token rate calculation.
-        self._full_response_text += chunk_text
-        if self.current_request_stats:
-            self.current_request_stats.tokens_received = estimate_tokens(
-                self._full_response_text
-            )
+        if chunk_text:
+            # Immediately update the full response text for accurate token rate calculation.
+            self._full_response_text += chunk_text
+            if self.current_request_stats:
+                self.current_request_stats.tokens_received = estimate_tokens(
+                    self._full_response_text
+                )
 
-        if self.smooth_stream_mode and not self._smoothing_aborted:
-            # Split the text while preserving whitespace as separate tokens.
-            # This ensures that newlines and multiple spaces are handled correctly.
-            tokens = re.split(r"(\s+)", chunk_text)
-            for token in tokens:
-                if token:  # Don't queue empty strings
-                    await self._word_queue.put(token)
-        else:
-            # Non-smooth mode renders directly and updates the rendered text state.
-            self._render_text(chunk_text)
+            if self.smooth_stream_mode and not self._smoothing_aborted:
+                # Split the text while preserving whitespace as separate tokens.
+                # This ensures that newlines and multiple spaces are handled correctly.
+                tokens = re.split(r"(\s+)", chunk_text)
+                for token in tokens:
+                    if token:  # Don't queue empty strings
+                        await self._word_queue.put(token)
+            else:
+                # Non-smooth mode renders directly and updates the rendered text state.
+                self._render_text(chunk_text)
 
         if self.debug_mode:
             duration = (

@@ -226,12 +226,16 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
                                     choice = chunk_data.get("choices", [{}])[0]
                                     delta = choice.get("delta", {})
+                                    content = delta.get("content")
+                                    new_tool_calls = delta.get("tool_calls")
 
-                                    if content := delta.get("content"):
+                                    # If the chunk contains any usable data, pass to display.
+                                    if content or new_tool_calls:
                                         await context.display.show_parsed_chunk(
-                                            chunk_data, content
+                                            chunk_data, content or ""
                                         )
-                                    if new_tool_calls := delta.get("tool_calls"):
+
+                                    if new_tool_calls:
                                         for tc in new_tool_calls:
                                             if len(tool_calls) <= tc["index"]:
                                                 tool_calls.append(

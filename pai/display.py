@@ -82,6 +82,7 @@ class StreamingDisplay:
         self._printer = print  # Default to standard print
         self._is_interactive = False
         self.output_buffer: Buffer | None = None
+        self.reasoning_output_buffer: Buffer | None = None
         self.current_reasoning: str = ""
         self.actor_name = "🤖 Assistant"
         self.current_model_name: str | None = None
@@ -238,6 +239,12 @@ class StreamingDisplay:
             # For non-interactive, we can just print the character.
             self._print(text, end="", flush=True)
 
+    def _render_reasoning(self, text: str):
+        """Renders reasoning text, updating the internal state and live buffer."""
+        self.current_reasoning += text
+        if self._is_interactive and self.reasoning_output_buffer:
+            self.reasoning_output_buffer.insert_text(text)
+
 
     def show_raw_line(self, line: str):
         if self.debug_mode:
@@ -355,6 +362,8 @@ class StreamingDisplay:
         without ending the request tracking. This is used when a stream
         is interrupted by a tool call.
         """
+        # First, finalize any active reasoning block so it appears before the tool call.
+        self.commit_reasoning()
         if not self._is_interactive and self.current_response:
             self._print("\n")
         elif self._is_interactive and self.current_response:
@@ -460,6 +469,8 @@ class StreamingDisplay:
 
         # Reset for the next reasoning block in this turn.
         self.current_reasoning = ""
+        if self.reasoning_output_buffer:
+            self.reasoning_output_buffer.reset()
 
     async def _smoother_task_loop(self):
         """A background task that calls renderers with tokens from a queue."""
@@ -487,7 +498,7 @@ class StreamingDisplay:
                 if token_type == "content":
                     self._render_text(token)
                 elif token_type == "reasoning":
-                    self.current_reasoning += token
+                    self._render_reasoning(token)
 
                 self._word_queue.task_done()
                 await asyncio.sleep(delay)
@@ -501,7 +512,7 @@ class StreamingDisplay:
                         if token_type == "content":
                             self._render_text(token)
                         elif token_type == "reasoning":
-                            self.current_reasoning += token
+                            self._render_reasoning(token)
                     self._word_queue.task_done()
                 except asyncio.QueueEmpty:
                     break
@@ -573,12 +584,25 @@ class StreamingDisplay:
         self, chunk_data: dict, content: str, reasoning: str | None = None
     ):
         """Handles a parsed chunk of a stream, separating content and reasoning."""
-        # Note: A previous version filtered out "meaningless" chunks here.
-        # This was incorrect for enhanced debug mode, which needs to see every
-        # chunk to calculate a diff. The logic was removed. The rest of the
-        # function handles empty text chunks gracefully.
+        # Identify the start of a new reasoning block to set the header.
+        is_new_reasoning_block = reasoning is not None and not self.current_reasoning
+
+        if self._is_interactive and self.reasoning_output_buffer and is_new_reasoning_block:
+            title = self.actor_name
+            if self.current_model_name:
+                title += f" ({self.current_model_name})"
+            header = f"🤔 {title} (Thinking)\n"
+            self.reasoning_output_buffer.text = header
+
         if reasoning is not None:
-            self.current_reasoning += reasoning
+            if self.smooth_stream_mode and not self._smoothing_aborted:
+                tokens = re.split(r"(\s+)", reasoning)
+                for token in tokens:
+                    if token:
+                        await self._word_queue.put(("reasoning", token))
+            else:
+                self._render_reasoning(reasoning)
+
         elif self.current_reasoning:
             # A chunk with no reasoning key (e.g., `reasoning: null`) terminates
             # the current reasoning block. We commit it to the display and log.

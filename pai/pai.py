@@ -140,6 +140,8 @@ class InteractiveUI:
 
         self.streaming_output_buffer = Buffer()
         self.client.display.output_buffer = self.streaming_output_buffer
+        self.reasoning_output_buffer = Buffer()
+        self.client.display.reasoning_output_buffer = self.reasoning_output_buffer
 
         self.input_buffer = Buffer(
             name="input_buffer",
@@ -260,6 +262,17 @@ class InteractiveUI:
 
         waiting_ui = Window(FormattedTextControl(get_status_text), height=1)
 
+        reasoning_window = ConditionalContainer(
+            Window(
+                content=BufferControl(buffer=self.reasoning_output_buffer),
+                wrap_lines=True,
+                style="fg:grey",
+            ),
+            # Show the reasoning window whenever it has content.
+            # It's cleared at the start of the next user prompt.
+            filter=Condition(lambda: bool(self.reasoning_output_buffer.text)),
+        )
+
         live_output_window = ConditionalContainer(
             Window(
                 content=BufferControl(buffer=self.streaming_output_buffer),
@@ -281,6 +294,7 @@ class InteractiveUI:
         layout = Layout(
             HSplit(
                 [
+                    reasoning_window,
                     live_output_window,
                     ConditionalContainer(
                         prompt_ui,
@@ -403,6 +417,9 @@ class InteractiveUI:
         if lstripped_input.startswith("/"):
             self.command_handler.handle(lstripped_input, self.app)
         else:
+            # A new prompt from the user means we should clear the previous turn's reasoning view.
+            if self.reasoning_output_buffer:
+                self.reasoning_output_buffer.reset()
             # It's a prompt, so dispatch to an orchestrator.
             orchestrator = self._get_orchestrator()
             if orchestrator:

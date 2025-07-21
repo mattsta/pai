@@ -692,6 +692,8 @@ class ClearCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         self.ui.conversation.clear()
+        if self.ui.reasoning_output_buffer:
+            self.ui.reasoning_output_buffer.reset()
         self.ui.pt_printer("🧹 History cleared.")
 
 
@@ -1987,6 +1989,8 @@ class LoadCommand(Command):
             # Reset state before loading
             self.ui.enter_mode(UIMode.CHAT, clear_history=False)
             self.ui.conversation = loaded_conversation
+            if self.ui.reasoning_output_buffer:
+                self.ui.reasoning_output_buffer.reset()
 
             # Print last few messages to give context
             history = self.ui.conversation.get_history()

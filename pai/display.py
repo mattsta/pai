@@ -144,9 +144,6 @@ class StreamingDisplay:
 
         # Create a new queue, discarding the old one, to prevent processing stale data.
         self._word_queue = asyncio.Queue()
-
-        # Create a new queue, discarding the old one, to prevent processing stale data.
-        self._word_queue = asyncio.Queue()
         self._inter_chunk_deltas = []
 
         self.actor_name = actor_name or "🤖 Assistant"

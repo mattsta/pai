@@ -417,6 +417,8 @@ class InteractiveUI:
         if lstripped_input.startswith("/"):
             self.command_handler.handle(lstripped_input, self.app)
         else:
+            # A new prompt from the user means we should clear the previous turn's reasoning view.
+            self.reasoning_output_buffer.reset()
             # It's a prompt, so dispatch to an orchestrator.
             orchestrator = self._get_orchestrator()
             if orchestrator:

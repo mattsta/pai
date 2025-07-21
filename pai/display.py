@@ -498,6 +498,7 @@ class StreamingDisplay:
 
     async def _smoother_task_loop(self):
         """A background task that calls renderers with tokens from a queue."""
+        logging.info("SMOOTHER_TASK: Loop started.")
         try:
             while True:
                 item = await self._word_queue.get()
@@ -508,6 +509,7 @@ class StreamingDisplay:
                 token_type, token = item
 
                 if not self._smoother:
+                    logging.warning("SMOOTHER_TASK: No smoother available, sleeping.")
                     await asyncio.sleep(0.01)  # Should not happen
                     continue
 
@@ -527,6 +529,7 @@ class StreamingDisplay:
                 self._word_queue.task_done()
                 await asyncio.sleep(delay)
         except asyncio.CancelledError:
+            logging.info("SMOOTHER_TASK: Task cancelled. Draining queue.")
             # On cancellation, immediately render any remaining text.
             while not self._word_queue.empty():
                 try:
@@ -540,10 +543,17 @@ class StreamingDisplay:
                     self._word_queue.task_done()
                 except asyncio.QueueEmpty:
                     break
+            # Re-raise CancelledError to allow the awaiting coroutine to handle it.
+            # Swallowing this error can lead to hangs.
+            raise
         except Exception as e:
             # Log any other exceptions that occur to avoid "Exception None" errors.
-            logging.error(f"Unhandled exception in smoother task: {e!r}", exc_info=True)
+            logging.error(
+                f"SMOOTHER_TASK: Unhandled exception in loop: {e!r}", exc_info=True
+            )
             self._printer(f"\n--- FATAL STREAMING RENDERER ERROR ---\n{e!r}\n")
+        finally:
+            logging.info("SMOOTHER_TASK: Loop finished.")
 
     async def abort_smoothing(self):
         """
@@ -718,17 +728,27 @@ class StreamingDisplay:
         If a 'usage' dict from the provider is passed, it will be used for exact
         token counts.
         """
+        logging.info(
+            f"DISPLAY: finish_response called with success={success}, "
+            f"smoother_task is {'set' if self._smoother_task else 'None'}."
+        )
         self._stream_finished = True
+
         # In smooth mode, signal the renderer to stop and wait for it to finish.
-        if self.smooth_stream_mode and self._smoother_task:
+        smoother_task = self._smoother_task  # Use a local variable for safety
+        if self.smooth_stream_mode and smoother_task:
+            logging.info("DISPLAY: Waiting for smoother task to finish.")
             try:
                 # Send sentinel and wait for the task to finish.
-                # If the task raised an exception, it will be re-raised here.
                 await self._word_queue.put(None)
-                await self._smoother_task
+                await smoother_task
+                logging.info("DISPLAY: Smoother task finished cleanly.")
+            except Exception as e:
+                logging.error(f"DISPLAY: Error awaiting smoother task: {e!r}", exc_info=True)
+                # Re-raise to ensure the orchestrator catches it
+                raise
             finally:
                 # Always clear the task handle to prevent it from leaking
-                # if it failed and the exception was caught by an upstream handler.
                 self._smoother_task = None
 
         # Sync the rendered text with the full text to ensure nothing is missed.

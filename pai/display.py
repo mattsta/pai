@@ -544,20 +544,6 @@ class StreamingDisplay:
             # Log any other exceptions that occur to avoid "Exception None" errors.
             logging.error(f"Unhandled exception in smoother task: {e!r}", exc_info=True)
             self._printer(f"\n--- FATAL STREAMING RENDERER ERROR ---\n{e!r}\n")
-        except asyncio.CancelledError:
-            # On cancellation, immediately render any remaining text.
-            while not self._word_queue.empty():
-                try:
-                    item = self._word_queue.get_nowait()
-                    if item:
-                        token_type, token = item
-                        if token_type == "content":
-                            self._render_text(token)
-                        elif token_type == "reasoning":
-                            self._render_reasoning(token)
-                    self._word_queue.task_done()
-                except asyncio.QueueEmpty:
-                    break
 
     async def abort_smoothing(self):
         """

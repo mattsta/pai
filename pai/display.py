@@ -84,6 +84,7 @@ class StreamingDisplay:
         self.output_buffer: Buffer | None = None
         self.reasoning_output_buffer: Buffer | None = None
         self.current_reasoning: str = ""
+        self.is_in_reasoning_block: bool = False
         self.actor_name = "🤖 Assistant"
         self.current_model_name: str | None = None
         self.rich_console = Console()
@@ -137,6 +138,7 @@ class StreamingDisplay:
 
         self.current_response = ""
         self.current_reasoning = ""
+        self.is_in_reasoning_block = False
         self._full_response_text = ""
         if self.output_buffer:
             self.output_buffer.reset()
@@ -478,6 +480,7 @@ class StreamingDisplay:
 
         # Reset for the next reasoning block in this turn.
         self.current_reasoning = ""
+        self.is_in_reasoning_block = False
         if self.reasoning_output_buffer:
             self.reasoning_output_buffer.reset()
 
@@ -594,19 +597,24 @@ class StreamingDisplay:
     ):
         """Handles a parsed chunk of a stream, separating content and reasoning."""
         # The logic to detect termination vs. continuation must be robust against
-        # interleaved content chunks. We inspect the raw chunk for the presence and
-        # value of the 'reasoning' key.
+        # interleaved content chunks. A state machine (`is_in_reasoning_block`)
+        # is used to track whether we are actively processing a thought block.
         delta = chunk_data.get("choices", [{}])[0].get("delta", {})
         has_reasoning_key = "reasoning" in delta
 
         if has_reasoning_key:
             reasoning_value = delta.get("reasoning")
+
             if reasoning_value is None:
-                # This is the explicit `reasoning: null` signal. Terminate the block
-                # only if there is content to commit.
-                if self.current_reasoning:
+                # This is the explicit `reasoning: null` signal.
+                # Terminate the active block if we are in one.
+                if self.is_in_reasoning_block:
                     self.commit_reasoning()
-            elif isinstance(reasoning_value, str):
+            elif isinstance(reasoning_value, str) and reasoning_value:
+                # A non-empty reasoning string continues or starts a thought process.
+                if not self.is_in_reasoning_block:
+                    self.is_in_reasoning_block = True
+
                 # Stream the reasoning token.
                 if self.smooth_stream_mode and not self._smoothing_aborted:
                     tokens = re.split(r"(\s+)", reasoning_value)
@@ -615,6 +623,8 @@ class StreamingDisplay:
                             await self._word_queue.put(("reasoning", token))
                 else:
                     self._render_reasoning(reasoning_value)
+        # If a chunk has no `reasoning` key, we do NOT terminate a block. This
+        # correctly handles interleaved content chunks during a thought process.
 
         # Only count bytes and update total text if there is text.
         if content:

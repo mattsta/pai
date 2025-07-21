@@ -134,14 +134,22 @@ class AnthropicAdapter(BaseProtocolAdapter):
                     )
 
                     if response_data.get("stop_reason") == "tool_use":
+                        # If the model provides text before the tool call, render it.
+                        if text_blocks := [
+                            block
+                            for block in response_data.get("content", [])
+                            if block["type"] == "text"
+                        ]:
+                            leading_text = "".join(b["text"] for b in text_blocks)
+                            await context.display.show_parsed_chunk(
+                                response_data, leading_text
+                            )
+
                         tool_use_blocks = [
                             block
                             for block in response_data["content"]
                             if block["type"] == "tool_use"
                         ]
-                        context.display._print(
-                            f"\n🔧 [Agent Action] Model requested {len(tool_use_blocks)} tool calls..."
-                        )
                         tasks = [
                             _execute_with_confirmation(
                                 tool_block["name"], tool_block["input"]

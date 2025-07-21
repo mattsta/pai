@@ -144,9 +144,12 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     finish_reason = choice.get("finish_reason")
 
                     if tool_calls_data := message.get("tool_calls"):
-                        context.display._print(
-                            f"\n🔧 [Agent Action] Model requested {len(tool_calls_data)} tool calls..."
-                        )
+                        # If the model provides text before the tool call, render it.
+                        if leading_text := message.get("content"):
+                            await context.display.show_parsed_chunk(
+                                response_data, leading_text
+                            )
+
                         messages.append(message)
                         tasks = [
                             _execute_and_format_tool_call(tc) for tc in tool_calls_data

@@ -240,29 +240,11 @@ class StreamingDisplay:
             self._print(text, end="", flush=True)
 
     def _render_reasoning(self, text: str):
-        """Renders reasoning text by rebuilding the panel on each update."""
-        if not self._is_interactive or not self.reasoning_output_buffer:
-            return
-
-        # Append the new text to our internal state.
+        """Renders reasoning text, updating the internal state and live buffer."""
+        # This is called for each token in smooth streaming mode.
         self.current_reasoning += text
-
-        # Re-render the entire panel with the updated content. This is the only
-        # robust way to ensure text streams *inside* the panel border.
-        title = self.actor_name
-        if self.current_model_name:
-            title += f" ({self.current_model_name})"
-
-        panel = Panel(
-            Markdown(self.current_reasoning, code_theme="monokai"),
-            title=f"🤔 {title} (Thinking)",
-            title_align="left",
-            border_style="grey50",
-        )
-        with self.rich_console.capture() as capture:
-            self.rich_console.print(panel)
-        # prompt-toolkit requires us to set the entire buffer text.
-        self.reasoning_output_buffer.text = capture.get()
+        if self._is_interactive and self.reasoning_output_buffer:
+            self.reasoning_output_buffer.insert_text(text)
 
 
     def show_raw_line(self, line: str):
@@ -603,20 +585,39 @@ class StreamingDisplay:
         self, chunk_data: dict, content: str, reasoning: str | None = None
     ):
         """Handles a parsed chunk of a stream, separating content and reasoning."""
-        # A non-empty reasoning string is part of a thought process.
-        if reasoning:
-            if self.smooth_stream_mode and not self._smoothing_aborted:
-                tokens = re.split(r"(\s+)", reasoning)
-                for token in tokens:
-                    if token:
-                        await self._word_queue.put(("reasoning", token))
-            else:
-                self._render_reasoning(reasoning)
+        # The logic to detect termination vs. continuation must be robust against
+        # interleaved content chunks. We inspect the raw chunk for the presence and
+        # value of the 'reasoning' key.
+        delta = chunk_data.get("choices", [{}])[0].get("delta", {})
+        has_reasoning_key = "reasoning" in delta
 
-        elif self.current_reasoning:
-            # A chunk with no reasoning key (e.g., `reasoning: null`) terminates
-            # the current reasoning block. We commit it to the display and log.
-            self.commit_reasoning()
+        if has_reasoning_key:
+            reasoning_value = delta.get("reasoning")
+            if reasoning_value is None:
+                # This is the explicit `reasoning: null` signal. Terminate the block.
+                self.commit_reasoning()
+            elif isinstance(reasoning_value, str):
+                # Start a new block if this is the first reasoning token.
+                is_new_block = not self.current_reasoning
+                if (
+                    self._is_interactive
+                    and self.reasoning_output_buffer
+                    and is_new_block
+                ):
+                    title = self.actor_name
+                    if self.current_model_name:
+                        title += f" ({self.current_model_name})"
+                    header = f"🤔 {title} (Thinking)\n"
+                    self.reasoning_output_buffer.text = header
+
+                # Stream the reasoning token.
+                if self.smooth_stream_mode and not self._smoothing_aborted:
+                    tokens = re.split(r"(\s+)", reasoning_value)
+                    for token in tokens:
+                        if token:
+                            await self._word_queue.put(("reasoning", token))
+                else:
+                    self._render_reasoning(reasoning_value)
 
         # Only count bytes and update total text if there is text.
         if content:

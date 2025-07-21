@@ -451,12 +451,7 @@ class StreamingDisplay:
 
     def commit_reasoning(self):
         """Commits the current reasoning block to the display and resets it."""
-        # Check if there is substantial content to commit.
-        if not self.current_reasoning.strip() or not self._is_interactive:
-            # If there's nothing to print, just ensure state is clean and return.
-            self.current_reasoning = ""
-            if self.reasoning_output_buffer:
-                self.reasoning_output_buffer.reset()
+        if not self.current_reasoning or not self._is_interactive:
             return
 
         title = self.actor_name
@@ -607,8 +602,10 @@ class StreamingDisplay:
         if has_reasoning_key:
             reasoning_value = delta.get("reasoning")
             if reasoning_value is None:
-                # This is the explicit `reasoning: null` signal. Terminate the block.
-                self.commit_reasoning()
+                # This is the explicit `reasoning: null` signal. Terminate the block
+                # only if there is content to commit.
+                if self.current_reasoning:
+                    self.commit_reasoning()
             elif isinstance(reasoning_value, str):
                 # Stream the reasoning token.
                 if self.smooth_stream_mode and not self._smoothing_aborted:

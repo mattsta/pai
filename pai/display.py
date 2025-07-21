@@ -521,21 +521,10 @@ class StreamingDisplay:
 
     async def show_parsed_chunk(self, chunk_data: dict, chunk_text: str):
         """Handles a parsed chunk of text from the stream."""
-        # Determine if the chunk has meaningful content (text, tool call, or finish reason)
-        is_meaningful_chunk = bool(chunk_text)
-        if not is_meaningful_chunk:
-            if (choices := chunk_data.get("choices")) and isinstance(choices, list) and choices:
-                choice = choices[0]
-                # Check for tool call activity
-                if (delta := choice.get("delta")) and delta.get("tool_calls"):
-                    is_meaningful_chunk = True
-                # Check for a finish reason, which is a significant event.
-                elif choice.get("finish_reason"):
-                    is_meaningful_chunk = True
-
-        # If it's not a meaningful chunk, we can ignore it.
-        if not is_meaningful_chunk:
-            return
+        # Note: A previous version filtered out "meaningless" chunks here.
+        # This was incorrect for enhanced debug mode, which needs to see every
+        # chunk to calculate a diff. The logic was removed. The rest of the
+        # function handles empty text chunks gracefully.
 
         # Only count bytes and update total text if there is text.
         if chunk_text:

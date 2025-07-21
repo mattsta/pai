@@ -82,7 +82,6 @@ class StreamingDisplay:
         self._printer = print  # Default to standard print
         self._is_interactive = False
         self.output_buffer: Buffer | None = None
-        self.reasoning_output_buffer: Buffer | None = None
         self.current_reasoning: str = ""
         self.actor_name = "🤖 Assistant"
         self.current_model_name: str | None = None
@@ -136,8 +135,6 @@ class StreamingDisplay:
         self._full_response_text = ""
         if self.output_buffer:
             self.output_buffer.reset()
-        if self.reasoning_output_buffer:
-            self.reasoning_output_buffer.reset()
 
         # Create a new queue, discarding the old one, to prevent processing stale data.
         self._word_queue = asyncio.Queue()
@@ -237,13 +234,6 @@ class StreamingDisplay:
     def _render_reasoning(self, text: str):
         """Internal helper to render reasoning text."""
         self.current_reasoning += text
-        if self._is_interactive and self.reasoning_output_buffer:
-            self.reasoning_output_buffer.text = (
-                f"🤔 Thinking: {self.current_reasoning}"
-            )
-            self.reasoning_output_buffer.cursor_position = len(
-                self.reasoning_output_buffer.text
-            )
 
     def show_raw_line(self, line: str):
         if self.debug_mode:
@@ -664,6 +654,23 @@ class StreamingDisplay:
                 self.current_request_stats.tokens_received = estimate_tokens(
                     self.current_response
                 )
+
+        # If there is reasoning text, render it to the scrollback buffer as a
+        # permanent part of the log before the final response.
+        if self._is_interactive and self.current_reasoning:
+            title = self.actor_name
+            if self.current_model_name:
+                title += f" ({self.current_model_name})"
+            # Use a distinct style for the reasoning panel.
+            reasoning_panel = Panel(
+                Markdown(self.current_reasoning, code_theme="monokai"),
+                title=f"🤔 {title} (Thinking)",
+                title_align="left",
+                border_style="grey50",
+            )
+            with self.rich_console.capture() as capture:
+                self.rich_console.print(reasoning_panel)
+            self._printer(ANSI(capture.get()))
 
         # In interactive mode, if we have a response, print it to the scrollback
         # history. This "finalizes" it, moving it from the temporary live

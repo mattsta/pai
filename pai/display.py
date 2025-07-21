@@ -379,35 +379,45 @@ class StreamingDisplay:
     def _get_dict_diff(self, d1: dict, d2: dict) -> dict:
         """
         Recursively finds differences between two dictionaries.
-        Handles nested dicts and reports added, removed, and changed keys.
+        Handles nested dicts and lists of dicts by diffing corresponding items.
         """
         if not isinstance(d1, dict) or not isinstance(d2, dict):
             return d2 if d1 != d2 else {}
 
         diff = {}
-        # Union of keys from both dictionaries to catch additions and removals
         all_keys = set(d1.keys()) | set(d2.keys())
 
-        for k in sorted(list(all_keys)):  # Sort for consistent output
+        for k in sorted(list(all_keys)):
             v1 = d1.get(k)
             v2 = d2.get(k)
 
             if k not in d1:
-                # Key was added. Only show if value is not null, to keep it clean.
+                # Key was added and is not None
                 if v2 is not None:
                     diff[k] = v2
             elif k not in d2:
-                # Key was removed. Use None to signify removal.
-                diff[k] = None
+                # Key was removed
+                diff[k] = None  # Represent removal with None
             elif v1 != v2:
-                # Key's value changed.
+                # Value changed
                 if isinstance(v1, dict) and isinstance(v2, dict):
                     sub_diff = self._get_dict_diff(v1, v2)
                     if sub_diff:
                         diff[k] = sub_diff
+                elif (
+                    isinstance(v1, list)
+                    and isinstance(v2, list)
+                    and len(v1) == len(v2)
+                    and all(isinstance(i, dict) for i in v1 + v2)
+                ):
+                    # It's a list of dicts of the same length, diff them item by item.
+                    list_diffs = [self._get_dict_diff(i1, i2) for i1, i2 in zip(v1, v2)]
+                    # Only include if there's at least one non-empty diff
+                    if any(list_diffs):
+                        # Don't show empty dicts from unchanged items in the list
+                        diff[k] = [ld for ld in list_diffs if ld]
                 else:
-                    # For lists or simple values, just show the new value.
-                    # A complex list diff is overkill for SSE stream debugging.
+                    # For simple values, or lists that changed structure, show the new value.
                     diff[k] = v2
         return diff
 

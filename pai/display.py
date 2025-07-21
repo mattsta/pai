@@ -126,19 +126,18 @@ class StreamingDisplay:
         tokens_sent: int = 0,
         actor_name: str | None = None,
         model_name: str | None = None,
+        is_continuation: bool = False,
     ):
         """Prepares for a new response stream."""
-        # It's critical to cancel any lingering tasks *before* creating a new one.
-        if self._smoother_task and not self._smoother_task.done():
-            self._smoother_task.cancel()
-
-        # It's critical to cancel any lingering tasks *before* creating a new one.
-        if self._smoother_task and not self._smoother_task.done():
-            self._smoother_task.cancel()
+        # For a continuation (e.g., in an agent loop), we preserve the reasoning state.
+        if not is_continuation:
+            # It's critical to cancel any lingering tasks *before* creating a new one.
+            if self._smoother_task and not self._smoother_task.done():
+                self._smoother_task.cancel()
+            self.current_reasoning = ""
+            self.is_in_reasoning_block = False
 
         self.current_response = ""
-        self.current_reasoning = ""
-        self.is_in_reasoning_block = False
         self._full_response_text = ""
         if self.output_buffer:
             self.output_buffer.reset()

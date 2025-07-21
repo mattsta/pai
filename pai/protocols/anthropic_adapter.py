@@ -92,6 +92,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
                     tokens_sent=tokens_sent,
                     actor_name=actor_name,
                     model_name=context.config.model_name,
+                    is_continuation=iteration > 0,
                 )
                 model_pricing = context.pricing_service.get_model_pricing(
                     context.config.name, context.config.model_name

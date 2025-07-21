@@ -108,9 +108,7 @@ class DefaultOrchestrator(BaseOrchestrator):
                         request_data=result.get("request", {}),
                         response_data=result.get("response", {}),
                         assistant_message=result.get("text", ""),
-                        # Reasoning is now logged directly by the display layer when a
-                        # block is committed, so we don't pass it from the final result.
-                        assistant_reasoning=None,
+                        assistant_reasoning=result.get("reasoning"),
                         mode=self.state.mode,
                         stats=self.client.stats.last_request_stats,
                     )

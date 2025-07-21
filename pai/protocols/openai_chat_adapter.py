@@ -99,6 +99,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     tokens_sent=tokens_sent,
                     actor_name=actor_name,
                     model_name=request.model or context.config.model_name,
+                    is_continuation=iteration > 0,
                 )
                 # Create and attach the cost tracker to the request stats
                 model_pricing = context.pricing_service.get_model_pricing(

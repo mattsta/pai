@@ -329,6 +329,43 @@ class StreamingDisplay:
             self.rich_console.print(panel)
         self._print(ANSI(capture.get()))
 
+    def commit_partial_response(self):
+        """
+        Commits the currently streamed response to the scrollback buffer
+        without ending the request tracking. This is used when a stream
+        is interrupted by a tool call.
+        """
+        if not self._is_interactive and self.current_response:
+            self._print("\n")
+        elif self._is_interactive and self.current_response:
+            # Essentially a stripped-down version of finish_response's rendering part.
+            if self.rich_text_mode:
+                final_text = self._escape_html_in_markdown(self.current_response)
+                title = self.actor_name
+                if self.current_model_name:
+                    title += f" ({self.current_model_name})"
+                panel_to_print = Panel(
+                    Markdown(final_text, code_theme="monokai"),
+                    title=title,
+                    title_align="left",
+                    border_style="dim",
+                )
+                with self.rich_console.capture() as capture:
+                    self.rich_console.print(panel_to_print)
+                self._printer(ANSI(capture.get()))
+            else:
+                title = self.actor_name
+                if self.current_model_name:
+                    title += f" ({self.current_model_name})"
+                self._printer(HTML(f"{escape(title)}: {escape(self.current_response)}"))
+
+        # Reset the text buffers for the next part of the turn (the tool call/result).
+        # But DON'T reset the stats or other state.
+        self.current_response = ""
+        self._full_response_text = ""
+        if self.output_buffer:
+            self.output_buffer.reset()
+
     async def _smoother_task_loop(self):
         """A background task that calls _render_text with tokens from a queue."""
         try:

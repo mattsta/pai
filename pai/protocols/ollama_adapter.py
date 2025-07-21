@@ -121,9 +121,12 @@ class OllamaAdapter(BaseProtocolAdapter):
                     message = response_data.get("message", {})
 
                     if tool_calls := message.get("tool_calls"):
-                        context.display._print(
-                            f"\n🔧 [Agent Action] Model requested {len(tool_calls)} tool calls..."
-                        )
+                        # If the model provides text before the tool call, render it.
+                        if leading_text := message.get("content"):
+                            await context.display.show_parsed_chunk(
+                                response_data, leading_text
+                            )
+
                         messages.append(message)  # Add assistant's tool call request
                         tasks = [_execute_and_format_tool_call(tc) for tc in tool_calls]
                         tool_results = await asyncio.gather(*tasks)

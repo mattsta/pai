@@ -227,17 +227,14 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     choice = chunk_data.get("choices", [{}])[0]
                                     delta = choice.get("delta", {})
                                     content = delta.get("content")
-                                    new_tool_calls = delta.get("tool_calls")
-                                    # A chunk is meaningful if it has content, a new tool call, or a finish reason.
-                                    has_finish_reason = choice.get("finish_reason") is not None
 
-                                    # If the chunk contains any usable data, pass to display.
-                                    if content or new_tool_calls or has_finish_reason:
-                                        await context.display.show_parsed_chunk(
-                                            chunk_data, content or ""
-                                        )
+                                    # Always pass the chunk to the display. It handles diffing
+                                    # and decides whether to render any text content.
+                                    await context.display.show_parsed_chunk(
+                                        chunk_data, content or ""
+                                    )
 
-                                    if new_tool_calls:
+                                    if new_tool_calls := delta.get("tool_calls"):
                                         for tc in new_tool_calls:
                                             if len(tool_calls) <= tc["index"]:
                                                 tool_calls.append(

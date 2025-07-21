@@ -379,28 +379,36 @@ class StreamingDisplay:
     def _get_dict_diff(self, d1: dict, d2: dict) -> dict:
         """
         Recursively finds differences between two dictionaries.
-        Handles nested dicts and lists of dicts by diffing corresponding items.
+        Handles nested dicts and reports added, removed, and changed keys.
         """
         if not isinstance(d1, dict) or not isinstance(d2, dict):
             return d2 if d1 != d2 else {}
 
         diff = {}
-        for k, v2 in d2.items():
-            v1 = d1.get(k)
-            if isinstance(v2, dict):
-                sub_diff = self._get_dict_diff(v1 or {}, v2)
-                if sub_diff:
-                    diff[k] = sub_diff
-            elif isinstance(v2, list) and isinstance(v1, list):
-                if len(v1) == len(v2) and all(isinstance(i, dict) for i in v1 + v2):
-                    list_diff = [self._get_dict_diff(i1, i2) for i1, i2 in zip(v1, v2)]
-                    if any(list_diff):
-                        diff[k] = [d for d in list_diff if d]
-                elif v1 != v2:
-                    diff[k] = v2
-            elif v1 != v2:
-                diff[k] = v2
+        # Union of keys from both dictionaries to catch additions and removals
+        all_keys = set(d1.keys()) | set(d2.keys())
 
+        for k in sorted(list(all_keys)):  # Sort for consistent output
+            v1 = d1.get(k)
+            v2 = d2.get(k)
+
+            if k not in d1:
+                # Key was added. Only show if value is not null, to keep it clean.
+                if v2 is not None:
+                    diff[k] = v2
+            elif k not in d2:
+                # Key was removed. Use None to signify removal.
+                diff[k] = None
+            elif v1 != v2:
+                # Key's value changed.
+                if isinstance(v1, dict) and isinstance(v2, dict):
+                    sub_diff = self._get_dict_diff(v1, v2)
+                    if sub_diff:
+                        diff[k] = sub_diff
+                else:
+                    # For lists or simple values, just show the new value.
+                    # A complex list diff is overkill for SSE stream debugging.
+                    diff[k] = v2
         return diff
 
     async def _smoother_task_loop(self):

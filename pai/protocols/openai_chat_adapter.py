@@ -266,10 +266,20 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     continue
 
                 if tool_calls:
-                    context.display._print(
-                        f"\n🔧 [Agent Action] Model requested {len(tool_calls)} tool calls..."
-                    )
-                    messages.append({"role": "assistant", "tool_calls": tool_calls})
+                    # The stream has ended and a tool call is requested.
+                    # First, get the partial text, then "commit" it to the display.
+                    partial_text = context.display.current_response
+                    context.display.commit_partial_response()
+
+                    # Now, message history *must* be updated with the partial text *and* the tool call.
+                    # This ensures the model sees its own preceding text.
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": partial_text or None,
+                        "tool_calls": tool_calls,
+                    }
+                    messages.append(assistant_message)
+
                     tasks = [_execute_and_format_tool_call(tc) for tc in tool_calls]
                     tool_results = await asyncio.gather(*tasks)
                     messages.extend(tool_results)

@@ -129,15 +129,22 @@ class StreamingDisplay:
         is_continuation: bool = False,
     ):
         """Prepares for a new response stream."""
+        # It's critical to cancel any lingering smoother tasks *before* creating
+        # a new one. This must happen on EVERY new response, continuation or not,
+        # to prevent orphaned tasks which can cause hangs or "Exception None" errors.
+        if self._smoother_task and not self._smoother_task.done():
+            logging.info("DISPLAY: Cancelling previous smoother task.")
+            self._smoother_task.cancel()
+            try:
+                await self._smoother_task
+            except asyncio.CancelledError:
+                pass  # This is the expected outcome.
+            finally:
+                logging.info("DISPLAY: Previous smoother task cancelled.")
+                self._smoother_task = None
+
         # For a continuation (e.g., in an agent loop), we preserve the reasoning state.
         if not is_continuation:
-            # It's critical to cancel any lingering tasks *before* creating a new one.
-            if self._smoother_task and not self._smoother_task.done():
-                self._smoother_task.cancel()
-                try:
-                    await self._smoother_task
-                except asyncio.CancelledError:
-                    pass  # This is the expected outcome.
             self.current_reasoning = ""
             self.is_in_reasoning_block = False
 

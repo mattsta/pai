@@ -76,6 +76,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 return f"Error: {e}"
 
         for iteration in range(max_iterations):
+            logging.info(f"AGENT: OpenAI adapter starting iteration {iteration + 1}/{max_iterations}.")
             finish_reason = None
             url = f"{context.config.base_url}/chat/completions"
             # The request object now correctly includes tools in its dictionary representation.
@@ -145,6 +146,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     finish_reason = choice.get("finish_reason")
 
                     if tool_calls_data := message.get("tool_calls"):
+                        logging.info(
+                            f"AGENT: Model requested {len(tool_calls_data)} tool calls (non-streaming). Executing now."
+                        )
                         # If the model provides text before the tool call, render it.
                         if leading_text := message.get("content"):
                             await context.display.show_parsed_chunk(
@@ -157,6 +161,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         ]
                         tool_results = await asyncio.gather(*tasks)
                         messages.extend(tool_results)
+                        logging.info(
+                            "AGENT: Finished executing tool calls (non-streaming). Preparing for next iteration."
+                        )
                         continue  # Next agent iteration
 
                     # No tool calls, regular response
@@ -275,6 +282,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     continue
 
                 if tool_calls:
+                    logging.info(
+                        f"AGENT: Model requested {len(tool_calls)} tool calls (streaming). Executing now."
+                    )
                     # The stream has ended and a tool call is requested.
                     # The `reasoning: null` signal in the stream should have already
                     # committed any reasoning block. We now just commit any partial text.
@@ -293,6 +303,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     tasks = [_execute_and_format_tool_call(tc) for tc in tool_calls]
                     tool_results = await asyncio.gather(*tasks)
                     messages.extend(tool_results)
+                    logging.info(
+                        "AGENT: Finished executing tool calls (streaming). Preparing for next iteration."
+                    )
                     continue
 
                 request_stats = await context.display.finish_response(

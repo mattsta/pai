@@ -63,6 +63,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
         http_session = context.http_session
 
         for iteration in range(max_iterations):
+            logging.info(f"AGENT: Anthropic adapter starting iteration {iteration + 1}/{max_iterations}.")
             payload = {
                 "model": context.config.model_name,
                 "system": system_prompt,
@@ -135,6 +136,14 @@ class AnthropicAdapter(BaseProtocolAdapter):
                     )
 
                     if response_data.get("stop_reason") == "tool_use":
+                        tool_use_blocks = [
+                            block
+                            for block in response_data["content"]
+                            if block["type"] == "tool_use"
+                        ]
+                        logging.info(
+                            f"AGENT: Model requested {len(tool_use_blocks)} tool calls (non-streaming). Executing now."
+                        )
                         # If the model provides text before the tool call, render it.
                         if text_blocks := [
                             block
@@ -146,11 +155,6 @@ class AnthropicAdapter(BaseProtocolAdapter):
                                 response_data, content=leading_text
                             )
 
-                        tool_use_blocks = [
-                            block
-                            for block in response_data["content"]
-                            if block["type"] == "tool_use"
-                        ]
                         tasks = [
                             _execute_with_confirmation(
                                 tool_block["name"], tool_block["input"]
@@ -158,6 +162,9 @@ class AnthropicAdapter(BaseProtocolAdapter):
                             for tool_block in tool_use_blocks
                         ]
                         results = await asyncio.gather(*tasks)
+                        logging.info(
+                            "AGENT: Finished executing tool calls (non-streaming). Preparing for next iteration."
+                        )
 
                         tool_results_content = [
                             {

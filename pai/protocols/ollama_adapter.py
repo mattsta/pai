@@ -58,6 +58,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                 return f"Error: {e}"
 
         for iteration in range(max_iterations):
+            logging.info(f"AGENT: Ollama adapter starting iteration {iteration + 1}/{max_iterations}.")
             url = f"{context.config.base_url}/chat"
             payload = request.to_dict(context.config.model_name)
             payload["messages"] = messages
@@ -121,6 +122,9 @@ class OllamaAdapter(BaseProtocolAdapter):
                     message = response_data.get("message", {})
 
                     if tool_calls := message.get("tool_calls"):
+                        logging.info(
+                            f"AGENT: Model requested {len(tool_calls)} tool calls (non-streaming). Executing now."
+                        )
                         # If the model provides text before the tool call, render it.
                         if leading_text := message.get("content"):
                             await context.display.show_parsed_chunk(
@@ -131,6 +135,9 @@ class OllamaAdapter(BaseProtocolAdapter):
                         tasks = [_execute_and_format_tool_call(tc) for tc in tool_calls]
                         tool_results = await asyncio.gather(*tasks)
                         messages.extend(tool_results)
+                        logging.info(
+                            "AGENT: Finished executing tool calls (non-streaming). Preparing for next iteration."
+                        )
                         continue  # Next agent iteration
 
                     final_text = message.get("content", "")

@@ -240,10 +240,29 @@ class StreamingDisplay:
             self._print(text, end="", flush=True)
 
     def _render_reasoning(self, text: str):
-        """Renders reasoning text, updating the internal state and live buffer."""
+        """Renders reasoning text by rebuilding the panel on each update."""
+        if not self._is_interactive or not self.reasoning_output_buffer:
+            return
+
+        # Append the new text to our internal state.
         self.current_reasoning += text
-        if self._is_interactive and self.reasoning_output_buffer:
-            self.reasoning_output_buffer.insert_text(text)
+
+        # Re-render the entire panel with the updated content. This is the only
+        # robust way to ensure text streams *inside* the panel border.
+        title = self.actor_name
+        if self.current_model_name:
+            title += f" ({self.current_model_name})"
+
+        panel = Panel(
+            Markdown(self.current_reasoning, code_theme="monokai"),
+            title=f"🤔 {title} (Thinking)",
+            title_align="left",
+            border_style="grey50",
+        )
+        with self.rich_console.capture() as capture:
+            self.rich_console.print(panel)
+        # prompt-toolkit requires us to set the entire buffer text.
+        self.reasoning_output_buffer.text = capture.get()
 
 
     def show_raw_line(self, line: str):
@@ -584,17 +603,8 @@ class StreamingDisplay:
         self, chunk_data: dict, content: str, reasoning: str | None = None
     ):
         """Handles a parsed chunk of a stream, separating content and reasoning."""
-        # Identify the start of a new reasoning block to set the header.
-        is_new_reasoning_block = reasoning is not None and not self.current_reasoning
-
-        if self._is_interactive and self.reasoning_output_buffer and is_new_reasoning_block:
-            title = self.actor_name
-            if self.current_model_name:
-                title += f" ({self.current_model_name})"
-            header = f"🤔 {title} (Thinking)\n"
-            self.reasoning_output_buffer.text = header
-
-        if reasoning is not None:
+        # A non-empty reasoning string is part of a thought process.
+        if reasoning:
             if self.smooth_stream_mode and not self._smoothing_aborted:
                 tokens = re.split(r"(\s+)", reasoning)
                 for token in tokens:

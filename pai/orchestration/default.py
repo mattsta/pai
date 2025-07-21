@@ -108,12 +108,10 @@ class DefaultOrchestrator(BaseOrchestrator):
                         request_data=result.get("request", {}),
                         response_data=result.get("response", {}),
                         assistant_message=result.get("text", ""),
-                        # Reasoning is now logged from the display, not the result dict.
-                        assistant_reasoning=None,
+                        assistant_reasoning=result.get("reasoning"),
                         mode=self.state.mode,
                         stats=self.client.stats.last_request_stats,
                     )
-                    self.conversation.add_turn(turn)
 
                     # For completion mode, we need to add a "user" message to the
                     # conversation explicitly, since it's not part of the request payload.
@@ -123,6 +121,7 @@ class DefaultOrchestrator(BaseOrchestrator):
                         pass  # No, I will modify add_turn. The request_data has the prompt.
 
                     request_stats = self.client.stats.last_request_stats
+                    self.conversation.add_turn(turn, request_stats)
                     try:
                         turn_file = self.log_dir / f"{turn.turn_id}-turn.json"
                         turn_file.write_text(

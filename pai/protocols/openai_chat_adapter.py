@@ -183,6 +183,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                         "request": final_request_payload,
                         "response": response_data,
                         "text": context.display.current_response,
+                        "reasoning": context.display.current_reasoning,
                         "tools_used": tools_used_count,
                         "agent_loops": iteration + 1,
                     }
@@ -339,6 +340,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     "request": final_request_payload,
                     "response": response_data,
                     "text": context.display.current_response,
+                    "reasoning": context.display.current_reasoning,
                     "tools_used": tools_used_count,
                     "agent_loops": iteration + 1,
                 }

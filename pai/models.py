@@ -71,6 +71,7 @@ class Turn:
     request_data: dict[str, Any] = field(default_factory=dict)
     response_data: dict[str, Any] = field(default_factory=dict)
     assistant_message: str = ""
+    assistant_reasoning: str | None = None
     # Arena mode fields
     participant_name: str | None = None
     model_name: str | None = None
@@ -88,6 +89,7 @@ class Turn:
             "request_data": self.request_data,
             "response_data": self.response_data,
             "assistant_message": self.assistant_message,
+            "assistant_reasoning": self.assistant_reasoning,
             "participant_name": self.participant_name,
             "model_name": self.model_name,
         }
@@ -265,6 +267,24 @@ class Conversation:
         participant_index_map = {name: i for i, name in enumerate(participant_names)}
 
         for turn in self.turns:
+            # If the turn has reasoning, create a distinct message block for it.
+            if turn.assistant_reasoning:
+                participant_index = (
+                    participant_index_map.get(turn.participant_name)
+                    if turn.participant_name
+                    else None
+                )
+                history.append(
+                    {
+                        "role": "assistant",
+                        "reasoning": turn.assistant_reasoning,
+                        "participant_name": turn.participant_name,
+                        "model_name": turn.model_name,
+                        "participant_index": participant_index,
+                        # Note: reasoning blocks don't have stats attached.
+                    }
+                )
+
             # For agentic turns, the full message history is in request_data.
             # For simple turns, it's just the user prompt.
             turn_messages = [
@@ -355,6 +375,7 @@ class Conversation:
                 request_data=t["request_data"],
                 response_data=t["response_data"],
                 assistant_message=t["assistant_message"],
+                assistant_reasoning=t.get("assistant_reasoning"),
                 participant_name=t.get("participant_name"),
                 model_name=t.get("model_name"),
             )

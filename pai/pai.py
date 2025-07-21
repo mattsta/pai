@@ -268,10 +268,9 @@ class InteractiveUI:
                 wrap_lines=True,
                 style="fg:grey",
             ),
-            filter=Condition(
-                lambda: self.generation_in_progress.is_set()
-                and self.reasoning_output_buffer.text
-            ),
+            # Show the reasoning window whenever it has content.
+            # It's cleared at the start of the next turn.
+            filter=Condition(lambda: bool(self.reasoning_output_buffer.text)),
         )
 
         live_output_window = ConditionalContainer(
@@ -719,10 +718,8 @@ class InteractiveUI:
         """Toggles enhanced debug mode."""
         self.runtime_config.enhanced_debug = not self.runtime_config.enhanced_debug
         self.client.display.enhanced_debug_mode = self.runtime_config.enhanced_debug
-        # When turning on enhanced debug, also turn on regular debug.
-        # Turning it off does not affect regular debug.
-        if self.runtime_config.enhanced_debug:
-            self.client.display.debug_mode = True
+        # Enhanced debug implies regular debug. This makes the command a master toggle for this view.
+        self.client.display.debug_mode = self.runtime_config.enhanced_debug
         self.pt_printer(
             f"✅ Enhanced debug mode {'enabled' if self.runtime_config.enhanced_debug else 'disabled'}."
         )

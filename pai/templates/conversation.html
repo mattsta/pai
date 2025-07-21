@@ -8,6 +8,8 @@
         .message { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 18px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; }
         .user { background-color: #e6f3ff; }
         .assistant { background-color: #f9f9f9; }
+        .reasoning { background-color: #f0f0f0; border-left: 4px solid #9e9e9e; color: #424242; }
+        .reasoning-content { font-family: monospace; font-size: 0.9em; padding-top: 10px; margin-top: 10px; border-top: 1px dashed #ccc; }
         .tool { background-color: #fff8e1; border-left: 4px solid #ffc107; }
         .tool-call-container { margin-top: 10px; }
         .tool-call { border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 10px; background-color: #f7f5fa; border-left: 4px solid #673ab7; overflow: hidden; }
@@ -44,6 +46,21 @@
     <h1>PAI Conversation ({{ conversation_id }})</h1>
 
     {% for message in history %}
+    {% if message.reasoning %}
+    <div class="message reasoning{% if message.participant_index is not none %} participant-{{ message.participant_index }}{% endif %}">
+        {% if message.participant_name %}
+            <div class="participant-info">
+                <strong>{{ message.participant_name }}</strong> ({{ message.model_name }})
+            </div>
+        {% else %}
+            <strong>Assistant</strong>
+        {% endif %}
+        <div class="reasoning-content">
+            <strong>Thinking:</strong>
+            <div class="message-content">{{ message.reasoning.strip() }}</div>
+        </div>
+    </div>
+    {% else %}
     <div class="message {{ message.role }}{% if message.participant_index is not none %} participant-{{ message.participant_index }}{% endif %}">
         {% if message.role == 'tool' %}
             <strong>Tool Result: {{ message.name }}</strong>
@@ -89,6 +106,7 @@
         </details>
         {% endif %}
     </div>
+    {% endif %}
     {% endfor %}
 
     <script>

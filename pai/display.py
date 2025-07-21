@@ -451,7 +451,12 @@ class StreamingDisplay:
 
     def commit_reasoning(self):
         """Commits the current reasoning block to the display and resets it."""
-        if not self.current_reasoning or not self._is_interactive:
+        # Check if there is substantial content to commit.
+        if not self.current_reasoning.strip() or not self._is_interactive:
+            # If there's nothing to print, just ensure state is clean and return.
+            self.current_reasoning = ""
+            if self.reasoning_output_buffer:
+                self.reasoning_output_buffer.reset()
             return
 
         title = self.actor_name

@@ -191,6 +191,9 @@ class OllamaAdapter(BaseProtocolAdapter):
 
                             if chunk_data.get("done"):
                                 final_response_object = chunk_data
+                                # This final chunk contains stats and the finish reason.
+                                # It's critical for the debug view.
+                                await context.display.show_parsed_chunk(chunk_data, "")
                                 break
 
                             message_chunk = chunk_data.get("message", {})

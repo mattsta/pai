@@ -245,6 +245,10 @@ class AnthropicAdapter(BaseProtocolAdapter):
                                         chunk, chunk_text
                                     )
                                 elif event_type == "message_delta":
+                                    # This event contains the final stop reason and usage stats.
+                                    # It's a critical event for debugging and must be shown.
+                                    await context.display.show_parsed_chunk(chunk, "")
+
                                     delta = chunk.get("delta", {})
                                     finish_reason = delta.get("stop_reason")
                                     # Anthropic streaming tool use is complex. If detected, we note it.

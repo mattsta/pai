@@ -597,19 +597,6 @@ class StreamingDisplay:
                 # This is the explicit `reasoning: null` signal. Terminate the block.
                 self.commit_reasoning()
             elif isinstance(reasoning_value, str):
-                # Start a new block if this is the first reasoning token.
-                is_new_block = not self.current_reasoning
-                if (
-                    self._is_interactive
-                    and self.reasoning_output_buffer
-                    and is_new_block
-                ):
-                    title = self.actor_name
-                    if self.current_model_name:
-                        title += f" ({self.current_model_name})"
-                    header = f"🤔 {title} (Thinking)\n"
-                    self.reasoning_output_buffer.text = header
-
                 # Stream the reasoning token.
                 if self.smooth_stream_mode and not self._smoothing_aborted:
                     tokens = re.split(r"(\s+)", reasoning_value)

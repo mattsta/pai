@@ -373,10 +373,10 @@ class StreamingDisplay:
         without ending the request tracking. This is used when a stream
         is interrupted by a tool call.
         """
-        # First, finalize any active reasoning block so it appears before the tool call.
-        if self.is_in_reasoning_block:
-            self.commit_reasoning()
-
+        # When a tool call happens, we commit the text content but *preserve*
+        # the reasoning block, as the agent may continue thinking after the
+        # tool result comes back. The full reasoning block is committed only
+        # at the end of the turn.
         if not self._is_interactive and self.current_response:
             self._print("\n")
         elif self._is_interactive and self.current_response:

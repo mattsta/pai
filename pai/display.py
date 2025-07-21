@@ -601,9 +601,11 @@ class StreamingDisplay:
         # The logic to detect termination vs. continuation must be robust against
         # interleaved content chunks. A state machine (`is_in_reasoning_block`)
         # is used to track whether we are actively processing a thought block.
-        delta = chunk_data.get("choices", [{}])[0].get("delta", {})
-        # The presence of the `reasoning` key in the delta is the most reliable signal.
-        has_reasoning_key_in_delta = "reasoning" in delta
+        choice = chunk_data.get("choices", [{}])[0]
+        # Check for streaming delta first, fall back to full message for non-streaming.
+        payload_obj = choice.get("delta", choice.get("message", {})) or {}
+        # The presence of the `reasoning` key is the most reliable signal.
+        has_reasoning_key = "reasoning" in payload_obj
 
         # A non-empty reasoning string continues or starts a thought process.
         if reasoning:
@@ -619,11 +621,10 @@ class StreamingDisplay:
             else:
                 self._render_reasoning(reasoning)
 
-        # Termination condition for streaming: The key was present, but the value is None.
-        # This is the explicit `reasoning: null` signal.
-        elif has_reasoning_key_in_delta and reasoning is None:
-            has_tool_calls = bool(delta.get("tool_calls"))
-            if self.is_in_reasoning_block and not has_tool_calls:
+        # Termination condition: The `reasoning` key was present, but its value is null.
+        # This is the explicit `reasoning: null` termination signal for a thought block.
+        elif has_reasoning_key and reasoning is None:
+            if self.is_in_reasoning_block:
                 self.commit_reasoning()
         # If a chunk has no `reasoning` key, we do NOT terminate a block. This
         # correctly handles interleaved content chunks during a thought process.

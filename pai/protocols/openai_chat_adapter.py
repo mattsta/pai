@@ -275,13 +275,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     continue
 
                 if tool_calls:
-                    # Before processing the tool call, commit any preceding reasoning.
-                    # This finalizes the "thinking" block that led to the tool use.
-                    if context.display.is_in_reasoning_block:
-                        context.display.commit_reasoning()
-
                     # The stream has ended and a tool call is requested.
-                    # Get the partial text response, then commit it to the display.
+                    # The `reasoning: null` signal in the stream should have already
+                    # committed any reasoning block. We now just commit any partial text.
                     partial_text = context.display.current_response
                     context.display.commit_partial_response()
 

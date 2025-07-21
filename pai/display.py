@@ -82,7 +82,6 @@ class StreamingDisplay:
         self._printer = print  # Default to standard print
         self._is_interactive = False
         self.output_buffer: Buffer | None = None
-        self.reasoning_output_buffer: Buffer | None = None
         self.current_reasoning: str = ""
         self.actor_name = "🤖 Assistant"
         self.current_model_name: str | None = None
@@ -239,26 +238,6 @@ class StreamingDisplay:
             # For non-interactive, we can just print the character.
             self._print(text, end="", flush=True)
 
-    def _render_reasoning(self, text: str):
-        """Internal helper to render reasoning text."""
-        self.current_reasoning += text
-        if self._is_interactive and self.reasoning_output_buffer:
-            # Start a new reasoning block if the buffer is empty.
-            if not self.reasoning_output_buffer.text:
-                title = self.actor_name
-                if self.current_model_name:
-                    title += f" ({self.current_model_name})"
-                header = f"🤔 {title} (Thinking)"
-                # Use rich Panel for consistent styling.
-                panel = Panel(
-                    "", title=header, title_align="left", border_style="grey50"
-                )
-                with self.rich_console.capture() as capture:
-                    self.rich_console.print(panel)
-                # Set initial text, removing the final newline from the panel capture
-                self.reasoning_output_buffer.text = capture.get().rstrip()
-
-            self.reasoning_output_buffer.insert_text(text)
 
     def show_raw_line(self, line: str):
         if self.debug_mode:
@@ -452,6 +431,36 @@ class StreamingDisplay:
                     diff[k] = v2
         return diff
 
+    def commit_reasoning(self):
+        """Commits the current reasoning block to the display and resets it."""
+        if not self.current_reasoning or not self._is_interactive:
+            return
+
+        title = self.actor_name
+        if self.current_model_name:
+            title += f" ({self.current_model_name})"
+
+        panel = Panel(
+            Markdown(self.current_reasoning, code_theme="monokai"),
+            title=f"🤔 {title} (Thinking)",
+            title_align="left",
+            border_style="grey50",
+        )
+        with self.rich_console.capture() as capture:
+            self.rich_console.print(panel)
+        self._printer(ANSI(capture.get()))
+
+        # Add to the turn's permanent reasoning log
+        if self.ui and self.ui.conversation.turns:
+            last_turn = self.ui.conversation.turns[-1]
+            if last_turn.assistant_reasoning:
+                last_turn.assistant_reasoning += f"\n\n---\n\n{self.current_reasoning}"
+            else:
+                last_turn.assistant_reasoning = self.current_reasoning
+
+        # Reset for the next reasoning block in this turn.
+        self.current_reasoning = ""
+
     async def _smoother_task_loop(self):
         """A background task that calls renderers with tokens from a queue."""
         try:
@@ -478,7 +487,7 @@ class StreamingDisplay:
                 if token_type == "content":
                     self._render_text(token)
                 elif token_type == "reasoning":
-                    self._render_reasoning(token)
+                    self.current_reasoning += token
 
                 self._word_queue.task_done()
                 await asyncio.sleep(delay)
@@ -492,7 +501,7 @@ class StreamingDisplay:
                         if token_type == "content":
                             self._render_text(token)
                         elif token_type == "reasoning":
-                            self._render_reasoning(token)
+                            self.current_reasoning += token
                     self._word_queue.task_done()
                 except asyncio.QueueEmpty:
                     break
@@ -568,14 +577,12 @@ class StreamingDisplay:
         # This was incorrect for enhanced debug mode, which needs to see every
         # chunk to calculate a diff. The logic was removed. The rest of the
         # function handles empty text chunks gracefully.
-        if reasoning and self._is_interactive:
-            if self.smooth_stream_mode and not self._smoothing_aborted:
-                tokens = re.split(r"(\s+)", reasoning)
-                for token in tokens:
-                    if token:
-                        await self._word_queue.put(("reasoning", token))
-            else:
-                self._render_reasoning(reasoning)
+        if reasoning is not None:
+            self.current_reasoning += reasoning
+        elif self.current_reasoning:
+            # A chunk with no reasoning key (e.g., `reasoning: null`) terminates
+            # the current reasoning block. We commit it to the display and log.
+            self.commit_reasoning()
 
         # Only count bytes and update total text if there is text.
         if content:
@@ -693,6 +700,10 @@ class StreamingDisplay:
                 self.current_request_stats.tokens_received = estimate_tokens(
                     self.current_response
                 )
+
+        # If any reasoning text is lingering, commit it.
+        # This handles cases where the stream ends with a reasoning block.
+        self.commit_reasoning()
 
         # In interactive mode, if we have a response, print it to the scrollback
         # history. This "finalizes" it, moving it from the temporary live

@@ -565,9 +565,14 @@ class StreamingDisplay:
         # Immediately render any text remaining in the queue.
         while not self._word_queue.empty():
             try:
-                token = self._word_queue.get_nowait()
-                if token is not None:
-                    self._render_text(token)
+                item = self._word_queue.get_nowait()
+                if item is not None:
+                    token_type, token = item
+                    if token_type == "content":
+                        self._render_text(token)
+                    elif token_type == "reasoning":
+                        self._render_reasoning(token)
+                    self._word_queue.task_done()
             except asyncio.QueueEmpty:
                 break
 

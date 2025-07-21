@@ -367,12 +367,17 @@ class StreamingDisplay:
             self.rich_console.print(panel)
         self._print(ANSI(capture.get()))
 
-    def commit_partial_response(self):
+    async def commit_partial_response(self):
         """
         Commits the currently streamed response to the scrollback buffer
         without ending the request tracking. This is used when a stream
         is interrupted by a tool call.
         """
+        # In smooth mode, we must wait for the render queue to drain before
+        # committing the output to prevent visual truncation.
+        if self.smooth_stream_mode:
+            await self._word_queue.join()
+
         # When a tool call happens, we commit the text content but *preserve*
         # the reasoning block, as the agent may continue thinking after the
         # tool result comes back. The full reasoning block is committed only
@@ -453,8 +458,13 @@ class StreamingDisplay:
                     diff[k] = v2
         return diff
 
-    def commit_reasoning(self):
+    async def commit_reasoning(self):
         """Commits the current reasoning block to the display and resets it."""
+        # In smooth mode, we must wait for the render queue to drain before
+        # committing the output to prevent visual truncation.
+        if self.smooth_stream_mode:
+            await self._word_queue.join()
+
         if not self.current_reasoning or not self._is_interactive:
             return
 
@@ -625,7 +635,7 @@ class StreamingDisplay:
         # This is the explicit `reasoning: null` termination signal for a thought block.
         elif has_reasoning_key and reasoning is None:
             if self.is_in_reasoning_block:
-                self.commit_reasoning()
+                await self.commit_reasoning()
         # If a chunk has no `reasoning` key, we do NOT terminate a block. This
         # correctly handles interleaved content chunks during a thought process.
 
@@ -748,7 +758,7 @@ class StreamingDisplay:
 
         # If any reasoning text is lingering, commit it.
         # This handles cases where the stream ends with a reasoning block.
-        self.commit_reasoning()
+        await self.commit_reasoning()
 
         # In interactive mode, if we have a response, print it to the scrollback
         # history. This "finalizes" it, moving it from the temporary live

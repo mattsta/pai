@@ -279,7 +279,7 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     # The `reasoning: null` signal in the stream should have already
                     # committed any reasoning block. We now just commit any partial text.
                     partial_text = context.display.current_response
-                    context.display.commit_partial_response()
+                    await context.display.commit_partial_response()
 
                     # Now, message history *must* be updated with the partial text *and* the tool call.
                     # This ensures the model sees its own preceding text.

@@ -70,11 +70,15 @@ class StreamingDisplay:
         debug_mode: bool = False,
         rich_text_mode: bool = True,
         smooth_stream_mode: bool = False,
+        enhanced_debug_mode: bool = False,
     ):
         self.ui = None  # Will be set by InteractiveUI
         self.debug_mode = debug_mode
         self.rich_text_mode = rich_text_mode
         self.smooth_stream_mode = smooth_stream_mode
+        self.enhanced_debug_mode = enhanced_debug_mode
+        if self.enhanced_debug_mode:
+            self.debug_mode = True
         self._printer = print  # Default to standard print
         self._is_interactive = False
         self.output_buffer: Buffer | None = None
@@ -87,6 +91,7 @@ class StreamingDisplay:
         self._inter_chunk_deltas: list[float] = []
         self._stream_finished: bool = False
         self._smoothing_aborted: bool = False
+        self._last_debug_chunk: dict | None = None
 
         # Debugging stats
         self.total_bytes_received: int = 0
@@ -145,6 +150,7 @@ class StreamingDisplay:
         self._stream_finished = False
         self._smoothing_aborted = False
         self.status = "Waiting..."
+        self._last_debug_chunk = None
 
         # Start the new renderer task *after* all state is reset.
         if self.smooth_stream_mode:
@@ -225,6 +231,10 @@ class StreamingDisplay:
 
     def show_raw_line(self, line: str):
         if self.debug_mode:
+            if self.enhanced_debug_mode and line.startswith("data: "):
+                # In enhanced mode, the diff from parsed chunks is shown instead,
+                # so we suppress the raw line to avoid noise.
+                return
             if not self.first_token_received:
                 header = "🔍 DEBUG MODE: Showing raw protocol traffic\n" + "=" * 60
                 self._print(header)
@@ -365,6 +375,33 @@ class StreamingDisplay:
         self._full_response_text = ""
         if self.output_buffer:
             self.output_buffer.reset()
+
+    def _get_dict_diff(self, d1: dict, d2: dict) -> dict:
+        """
+        Recursively finds differences between two dictionaries.
+        Handles nested dicts and lists of dicts by diffing corresponding items.
+        """
+        if not isinstance(d1, dict) or not isinstance(d2, dict):
+            return d2 if d1 != d2 else {}
+
+        diff = {}
+        for k, v2 in d2.items():
+            v1 = d1.get(k)
+            if isinstance(v2, dict):
+                sub_diff = self._get_dict_diff(v1 or {}, v2)
+                if sub_diff:
+                    diff[k] = sub_diff
+            elif isinstance(v2, list) and isinstance(v1, list):
+                if len(v1) == len(v2) and all(isinstance(i, dict) for i in v1 + v2):
+                    list_diff = [self._get_dict_diff(i1, i2) for i1, i2 in zip(v1, v2)]
+                    if any(list_diff):
+                        diff[k] = [d for d in list_diff if d]
+                elif v1 != v2:
+                    diff[k] = v2
+            elif v1 != v2:
+                diff[k] = v2
+
+        return diff
 
     async def _smoother_task_loop(self):
         """A background task that calls _render_text with tokens from a queue."""
@@ -512,9 +549,21 @@ class StreamingDisplay:
                 if self.current_request_stats
                 else 0
             )
-            log_line = f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
-            self._print(log_line)
-            logging.info(log_line)
+            if self.enhanced_debug_mode:
+                import json
+
+                diff = self._get_dict_diff(self._last_debug_chunk or {}, chunk_data)
+                if diff:  # Only print if there are changes
+                    # compact, single-line JSON format
+                    diff_str = json.dumps(diff, separators=(",", ":"))
+                    log_line = f"🔵 [{duration:6.2f}s] C{self.chunk_count:03d} DIFF: {diff_str}"
+                    self._print(log_line)
+                    logging.info(log_line)
+                self._last_debug_chunk = chunk_data
+            else:
+                log_line = f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
+                self._print(log_line)
+                logging.info(log_line)
 
     async def finish_response(
         self, success: bool = True, usage: dict | None = None

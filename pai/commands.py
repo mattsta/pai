@@ -222,6 +222,7 @@ class HelpCommand(Command):
   /smooth                - Toggle adaptive smooth streaming
   /verbose               - Toggle verbose logging of request parameters
   /debug                 - Toggle raw protocol-level debugging
+  /enhanced-debug        - Toggle enhanced diff-based debug mode
   /settings              - Show current runtime settings
 """
         )
@@ -585,6 +586,19 @@ class ToggleDebugCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         self.ui.toggle_debug()
+
+
+class ToggleEnhancedDebugCommand(Command):
+    @property
+    def name(self):
+        return "enhanced-debug"
+
+    @property
+    def aliases(self):
+        return ["edebug"]
+
+    def execute(self, app: "Application", param: str | None = None):
+        self.ui.toggle_enhanced_debug()
 
 
 class ToggleRichTextCommand(Command):

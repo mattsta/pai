@@ -615,6 +615,7 @@ class InteractiveUI:
             f"Tools: {on if self.client.tools_enabled else off}",
             f"Confirm: {yellow_on if self.runtime_config.confirm_tool_use else off}",
             f"Debug: {yellow_on if display.debug_mode else off}",
+            f"EDebug: {yellow_on if self.runtime_config.enhanced_debug else off}",
             f"Verbose: {yellow_on if self.runtime_config.verbose else off}",
         ]
         log_part = f"Log: {escape(str(self.log_dir))}"
@@ -697,6 +698,18 @@ class InteractiveUI:
         self.client.display.debug_mode = not self.client.display.debug_mode
         self.pt_printer(
             f"✅ Debug mode {'enabled' if self.client.display.debug_mode else 'disabled'}."
+        )
+
+    def toggle_enhanced_debug(self):
+        """Toggles enhanced debug mode."""
+        self.runtime_config.enhanced_debug = not self.runtime_config.enhanced_debug
+        self.client.display.enhanced_debug_mode = self.runtime_config.enhanced_debug
+        # When turning on enhanced debug, also turn on regular debug.
+        # Turning it off does not affect regular debug.
+        if self.runtime_config.enhanced_debug:
+            self.client.display.debug_mode = True
+        self.pt_printer(
+            f"✅ Enhanced debug mode {'enabled' if self.runtime_config.enhanced_debug else 'disabled'}."
         )
 
     def toggle_rich_text(self):
@@ -990,6 +1003,11 @@ def run(
     debug: bool = typer.Option(
         False, "--debug", help="Enable raw protocol debug mode for streaming."
     ),
+    enhanced_debug: bool = typer.Option(
+        False,
+        "--enhanced-debug",
+        help="Enable enhanced, diff-based debug mode. Implies --debug.",
+    ),
     tools: bool = typer.Option(
         False,
         "--tools",
@@ -1055,6 +1073,7 @@ def run(
         stream=stream,
         verbose=verbose,
         debug=debug,
+        enhanced_debug=enhanced_debug,
         tools=tools,
         rich_text=rich_text,
         confirm_tool_use=confirm_tool_use,

@@ -888,6 +888,7 @@ class RuntimeConfig(BaseModel):
     stream: bool = True
     verbose: bool = False
     debug: bool = False
+    enhanced_debug: bool = False
     tools: bool = False
     rich_text: bool = True
     log_file: str | None = None

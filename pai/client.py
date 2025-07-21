@@ -48,6 +48,7 @@ class PolyglotClient:
             debug_mode=runtime_config.debug,
             rich_text_mode=runtime_config.rich_text,
             smooth_stream_mode=runtime_config.smooth_stream,
+            enhanced_debug_mode=runtime_config.enhanced_debug,
         )
         self.http_session = http_session
         self._cache_dir = self._get_cache_dir()

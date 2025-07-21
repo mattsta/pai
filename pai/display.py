@@ -721,9 +721,15 @@ class StreamingDisplay:
         self._stream_finished = True
         # In smooth mode, signal the renderer to stop and wait for it to finish.
         if self.smooth_stream_mode and self._smoother_task:
-            await self._word_queue.put(None)  # Send sentinel
-            await self._smoother_task
-            self._smoother_task = None
+            try:
+                # Send sentinel and wait for the task to finish.
+                # If the task raised an exception, it will be re-raised here.
+                await self._word_queue.put(None)
+                await self._smoother_task
+            finally:
+                # Always clear the task handle to prevent it from leaking
+                # if it failed and the exception was caught by an upstream handler.
+                self._smoother_task = None
 
         # Sync the rendered text with the full text to ensure nothing is missed.
         self.current_response = self._full_response_text

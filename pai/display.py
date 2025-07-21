@@ -241,10 +241,18 @@ class StreamingDisplay:
 
     def _render_reasoning(self, text: str):
         """Renders reasoning text, updating the internal state and live buffer."""
-        # This is called for each token in smooth streaming mode.
         self.current_reasoning += text
         if self._is_interactive and self.reasoning_output_buffer:
-            self.reasoning_output_buffer.insert_text(text)
+            # We must update the full buffer text each time for prompt_toolkit.
+            title = self.actor_name
+            if self.current_model_name:
+                title += f" ({self.current_model_name})"
+            header = f"🤔 {title} (Thinking)"
+            self.reasoning_output_buffer.text = f"{header}: {self.current_reasoning}"
+            # Move the cursor to the end of the buffer to ensure scrolling.
+            self.reasoning_output_buffer.cursor_position = len(
+                self.reasoning_output_buffer.text
+            )
 
 
     def show_raw_line(self, line: str):

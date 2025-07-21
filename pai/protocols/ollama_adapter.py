@@ -124,7 +124,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                         # If the model provides text before the tool call, render it.
                         if leading_text := message.get("content"):
                             await context.display.show_parsed_chunk(
-                                response_data, leading_text
+                                response_data, content=leading_text
                             )
 
                         messages.append(message)  # Add assistant's tool call request
@@ -134,7 +134,7 @@ class OllamaAdapter(BaseProtocolAdapter):
                         continue  # Next agent iteration
 
                     final_text = message.get("content", "")
-                    await context.display.show_parsed_chunk(response_data, final_text)
+                    await context.display.show_parsed_chunk(response_data, content=final_text)
                     request_stats = await context.display.finish_response(success=True)
                     if request_stats:
                         request_stats.tokens_sent = response_data.get(
@@ -193,13 +193,13 @@ class OllamaAdapter(BaseProtocolAdapter):
                                 final_response_object = chunk_data
                                 # This final chunk contains stats and the finish reason.
                                 # It's critical for the debug view.
-                                await context.display.show_parsed_chunk(chunk_data, "")
+                                await context.display.show_parsed_chunk(chunk_data, content="")
                                 break
 
                             message_chunk = chunk_data.get("message", {})
                             if content := message_chunk.get("content"):
                                 await context.display.show_parsed_chunk(
-                                    chunk_data, content
+                                    chunk_data, content=content
                                 )
 
                         except json.JSONDecodeError as e:

@@ -82,6 +82,8 @@ class StreamingDisplay:
         self._printer = print  # Default to standard print
         self._is_interactive = False
         self.output_buffer: Buffer | None = None
+        self.reasoning_output_buffer: Buffer | None = None
+        self.current_reasoning: str = ""
         self.actor_name = "🤖 Assistant"
         self.current_model_name: str | None = None
         self.rich_console = Console()
@@ -130,9 +132,12 @@ class StreamingDisplay:
             self._smoother_task.cancel()
 
         self.current_response = ""
+        self.current_reasoning = ""
         self._full_response_text = ""
         if self.output_buffer:
             self.output_buffer.reset()
+        if self.reasoning_output_buffer:
+            self.reasoning_output_buffer.reset()
 
         # Create a new queue, discarding the old one, to prevent processing stale data.
         self._word_queue = asyncio.Queue()
@@ -228,6 +233,17 @@ class StreamingDisplay:
         elif not self._is_interactive:
             # For non-interactive, we can just print the character.
             self._print(text, end="", flush=True)
+
+    def _render_reasoning(self, text: str):
+        """Internal helper to render reasoning text."""
+        self.current_reasoning += text
+        if self._is_interactive and self.reasoning_output_buffer:
+            self.reasoning_output_buffer.text = (
+                f"🤔 Thinking: {self.current_reasoning}"
+            )
+            self.reasoning_output_buffer.cursor_position = len(
+                self.reasoning_output_buffer.text
+            )
 
     def show_raw_line(self, line: str):
         if self.debug_mode:
@@ -519,16 +535,22 @@ class StreamingDisplay:
 
         return escaped_text
 
-    async def show_parsed_chunk(self, chunk_data: dict, chunk_text: str):
-        """Handles a parsed chunk of text from the stream."""
+    async def show_parsed_chunk(
+        self, chunk_data: dict, content: str, reasoning: str | None = None
+    ):
+        """Handles a parsed chunk of a stream, separating content and reasoning."""
         # Note: A previous version filtered out "meaningless" chunks here.
         # This was incorrect for enhanced debug mode, which needs to see every
         # chunk to calculate a diff. The logic was removed. The rest of the
         # function handles empty text chunks gracefully.
+        if reasoning:
+            # Don't render reasoning in non-interactive mode for now.
+            if self._is_interactive:
+                self._render_reasoning(reasoning)
 
         # Only count bytes and update total text if there is text.
-        if chunk_text:
-            self.total_content_bytes_received += len(chunk_text.encode("utf-8"))
+        if content:
+            self.total_content_bytes_received += len(content.encode("utf-8"))
         current_chunk_time = time.time()
         if self._last_token_time:
             self._inter_chunk_deltas.append(current_chunk_time - self._last_token_time)
@@ -547,9 +569,9 @@ class StreamingDisplay:
 
         self.chunk_count += 1
         # Immediately update the full response text for accurate token rate calculation.
-        if chunk_text:
+        if content:
             # Immediately update the full response text for accurate token rate calculation.
-            self._full_response_text += chunk_text
+            self._full_response_text += content
             if self.current_request_stats:
                 self.current_request_stats.tokens_received = estimate_tokens(
                     self._full_response_text
@@ -558,13 +580,13 @@ class StreamingDisplay:
             if self.smooth_stream_mode and not self._smoothing_aborted:
                 # Split the text while preserving whitespace as separate tokens.
                 # This ensures that newlines and multiple spaces are handled correctly.
-                tokens = re.split(r"(\s+)", chunk_text)
+                tokens = re.split(r"(\s+)", content)
                 for token in tokens:
                     if token:  # Don't queue empty strings
                         await self._word_queue.put(token)
             else:
                 # Non-smooth mode renders directly and updates the rendered text state.
-                self._render_text(chunk_text)
+                self._render_text(content)
 
         if self.debug_mode:
             duration = (
@@ -584,7 +606,7 @@ class StreamingDisplay:
                     logging.info(log_line)
                 self._last_debug_chunk = chunk_data
             else:
-                log_line = f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(chunk_text)}"
+                log_line = f"🟢 [{duration:6.2f}s] C{self.chunk_count:03d} TEXT: {repr(content)}"
                 self._print(log_line)
                 logging.info(log_line)
 

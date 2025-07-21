@@ -142,7 +142,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
                         ]:
                             leading_text = "".join(b["text"] for b in text_blocks)
                             await context.display.show_parsed_chunk(
-                                response_data, leading_text
+                                response_data, content=leading_text
                             )
 
                         tool_use_blocks = [
@@ -174,7 +174,7 @@ class AnthropicAdapter(BaseProtocolAdapter):
                     text = "".join(
                         c.get("text", "") for c in response_data.get("content", [])
                     )
-                    await context.display.show_parsed_chunk(response_data, text)
+                    await context.display.show_parsed_chunk(response_data, content=text)
                     request_stats = await context.display.finish_response(success=True)
                     if request_stats:
                         usage = response_data.get("usage", {})
@@ -242,12 +242,12 @@ class AnthropicAdapter(BaseProtocolAdapter):
                                 elif event_type == "content_block_delta":
                                     chunk_text = chunk.get("delta", {}).get("text", "")
                                     await context.display.show_parsed_chunk(
-                                        chunk, chunk_text
+                                        chunk, content=chunk_text
                                     )
                                 elif event_type == "message_delta":
                                     # This event contains the final stop reason and usage stats.
                                     # It's a critical event for debugging and must be shown.
-                                    await context.display.show_parsed_chunk(chunk, "")
+                                    await context.display.show_parsed_chunk(chunk, content="")
 
                                     delta = chunk.get("delta", {})
                                     finish_reason = delta.get("stop_reason")

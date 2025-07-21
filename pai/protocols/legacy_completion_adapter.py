@@ -71,7 +71,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                     raise ValueError(f"API error: {error_message}\n{pretty_details}")
 
                 text = response_data.get("choices", [{}])[0].get("text", "")
-                await context.display.show_parsed_chunk(response_data, text)
+                await context.display.show_parsed_chunk(response_data, content=text)
 
                 request_stats = await context.display.finish_response(success=True)
                 if request_stats:
@@ -119,7 +119,7 @@ class LegacyCompletionAdapter(BaseProtocolAdapter):
                                     "text", ""
                                 )
                                 await context.display.show_parsed_chunk(
-                                    chunk_data, chunk_text
+                                    chunk_data, content=chunk_text
                                 )  # This also accumulates the response
                             except (json.JSONDecodeError, IndexError) as e:
                                 context.display._print(

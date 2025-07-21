@@ -160,7 +160,10 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
 
                     # No tool calls, regular response
                     final_text = message.get("content", "")
-                    await context.display.show_parsed_chunk(response_data, final_text)
+                    final_reasoning = message.get("reasoning")
+                    await context.display.show_parsed_chunk(
+                        response_data, content=final_text or "", reasoning=final_reasoning
+                    )
                     request_stats = await context.display.finish_response(success=True)
                     if request_stats:
                         usage = response_data.get("usage", {})
@@ -227,11 +230,12 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     choice = chunk_data.get("choices", [{}])[0]
                                     delta = choice.get("delta", {})
                                     content = delta.get("content")
+                                    reasoning = delta.get("reasoning")
 
                                     # Always pass the chunk to the display. It handles diffing
                                     # and decides whether to render any text content.
                                     await context.display.show_parsed_chunk(
-                                        chunk_data, content or ""
+                                        chunk_data, content=content or "", reasoning=reasoning
                                     )
 
                                     if new_tool_calls := delta.get("tool_calls"):

@@ -373,6 +373,10 @@ class StreamingDisplay:
         without ending the request tracking. This is used when a stream
         is interrupted by a tool call.
         """
+        # First, finalize any active reasoning block so it appears before the tool call.
+        if self.is_in_reasoning_block:
+            self.commit_reasoning()
+
         if not self._is_interactive and self.current_response:
             self._print("\n")
         elif self._is_interactive and self.current_response:
@@ -602,11 +606,13 @@ class StreamingDisplay:
 
         if has_reasoning_key:
             reasoning_value = delta.get("reasoning")
+            has_tool_calls = bool(delta.get("tool_calls"))
 
             if reasoning_value is None:
-                # This is the explicit `reasoning: null` signal.
-                # Terminate the active block if we are in one.
-                if self.is_in_reasoning_block:
+                # This is the explicit `reasoning: null` signal. Terminate the block.
+                # However, if a tool call is also present in this same chunk, we
+                # defer the commit to `commit_partial_response` to avoid a double-commit.
+                if self.is_in_reasoning_block and not has_tool_calls:
                     self.commit_reasoning()
             elif isinstance(reasoning_value, str) and reasoning_value:
                 # A non-empty reasoning string continues or starts a thought process.

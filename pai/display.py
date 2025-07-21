@@ -373,8 +373,6 @@ class StreamingDisplay:
         without ending the request tracking. This is used when a stream
         is interrupted by a tool call.
         """
-        # First, finalize any active reasoning block so it appears before the tool call.
-        self.commit_reasoning()
         if not self._is_interactive and self.current_response:
             self._print("\n")
         elif self._is_interactive and self.current_response:

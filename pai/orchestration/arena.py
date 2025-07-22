@@ -208,6 +208,30 @@ class ArenaOrchestrator(BaseOrchestrator):
             self.pt_printer(
                 HTML(f"<style fg='ansired'>❌ ARENA ERROR: {escape(str(e))}</style>")
             )
+            if request:
+                # Log a failed turn to preserve history so the user's prompt isn't lost.
+                request_data = request.to_dict(self.client.config.model_name)
+                error_text = f"Error during generation: {str(e)}"
+                response_data = {"error": {"message": error_text}}
+                turn = Turn(
+                    request_data=request_data,
+                    response_data=response_data,
+                    assistant_message=error_text,
+                    mode=self.state.mode,
+                    stats=self.client.stats.last_request_stats,
+                )
+                self.conversation.add_turn(turn, self.client.stats.last_request_stats)
+                try:
+                    save_conversation_formats(
+                        self.conversation,
+                        self.log_dir,
+                        printer=self.pt_printer,
+                        arena_state=self.state.arena,
+                    )
+                except Exception as log_e:
+                    self.pt_printer(
+                        f"\n⚠️  Warning: Could not save failed session turn: {log_e}"
+                    )
         finally:
             if self.state.arena:
                 await self._run_arena_judge()

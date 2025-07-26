@@ -28,14 +28,13 @@ from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
 from prompt_toolkit.layout.containers import (
     ConditionalContainer,
-    Frame,
     HSplit,
     VSplit,
     Window,
 )
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
-from prompt_toolkit.widgets import SearchToolbar
+from prompt_toolkit.widgets import Frame, SearchToolbar
 
 from .client import APIError, PolyglotClient
 from .commands import CommandHandler

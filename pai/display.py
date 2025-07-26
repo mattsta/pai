@@ -81,8 +81,8 @@ class StreamingDisplay:
             self.debug_mode = True
         self._printer = print  # Default to standard print
         self._is_interactive = False
-        self.output_buffer: Buffer | None = None
-        self.reasoning_output_buffer: Buffer | None = None
+        self.output_buffer: Buffer = Buffer()
+        self.reasoning_output_buffer: Buffer = Buffer()
         self.current_reasoning: str = ""
         self.is_in_reasoning_block: bool = False
         self.actor_name = "🤖 Assistant"

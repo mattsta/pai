@@ -145,8 +145,9 @@ class InteractiveUI:
                 rich_text_mode=runtime_config.rich_text,
                 smooth_stream_mode=runtime_config.smooth_stream,
                 enhanced_debug_mode=runtime_config.enhanced_debug,
+                clone_id=i,
             )
-            for _ in range(self.MAX_CONCURRENT)
+            for i in range(self.MAX_CONCURRENT)
         ]
         # Set main default display and link all displays to the UI
         self.client.display = self.displays[0]

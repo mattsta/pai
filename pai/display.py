@@ -71,8 +71,10 @@ class StreamingDisplay:
         rich_text_mode: bool = True,
         smooth_stream_mode: bool = False,
         enhanced_debug_mode: bool = False,
+        clone_id: int | None = None,
     ):
         self.ui = None  # Will be set by InteractiveUI
+        self.clone_id = clone_id
         self.debug_mode = debug_mode
         self.rich_text_mode = rich_text_mode
         self.smooth_stream_mode = smooth_stream_mode
@@ -807,14 +809,22 @@ class StreamingDisplay:
         # buffer to the main conversation transcript. This happens regardless
         # of success to ensure partial/cancelled outputs are preserved.
         if self._is_interactive and self.current_response:
+            # Create title with optional clone ID.
+            title = self.actor_name
+            if self.current_model_name:
+                title += f" ({self.current_model_name})"
+            if (
+                self.ui
+                and self.ui.active_concurrent_count > 1
+                and self.clone_id is not None
+            ):
+                title += f" (Clone #{self.clone_id + 1})"
+
             if self.rich_text_mode:
                 # Escape HTML tags but preserve markdown code blocks to prevent
                 # the renderer from consuming them.
                 final_text = self._escape_html_in_markdown(self.current_response)
                 # Render final output as Markdown inside a panel for clarity
-                title = self.actor_name
-                if self.current_model_name:
-                    title += f" ({self.current_model_name})"
                 panel_to_print = Panel(
                     Markdown(final_text, code_theme="monokai"),
                     title=title,
@@ -826,9 +836,6 @@ class StreamingDisplay:
                     self.rich_console.print(panel_to_print)
                 self._printer(ANSI(capture.get()))
             else:
-                title = self.actor_name
-                if self.current_model_name:
-                    title += f" ({self.current_model_name})"
                 self._printer(HTML(f"{escape(title)}: {escape(self.current_response)}"))
 
         # On success, print final stats.

@@ -28,6 +28,7 @@ from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
 from prompt_toolkit.layout.containers import (
     ConditionalContainer,
+    Frame,
     HSplit,
     VSplit,
     Window,
@@ -302,10 +303,12 @@ class InteractiveUI:
         concurrent_output_windows = HSplit(
             [
                 ConditionalContainer(
-                    Window(
-                        content=BufferControl(buffer=self.displays[i].output_buffer),
-                        wrap_lines=True,
-                        get_title=lambda i=i: f"Response {i + 1} ({self.displays[i].status})",
+                    Frame(
+                        body=Window(
+                            content=BufferControl(buffer=self.displays[i].output_buffer),
+                            wrap_lines=True,
+                        ),
+                        title=lambda i=i: f"Response {i + 1} ({self.displays[i].status})",
                     ),
                     filter=Condition(
                         lambda i=i: i < self.active_concurrent_count

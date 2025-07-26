@@ -102,7 +102,7 @@ class InteractiveUI:
         UIMode.COMPLETION: DefaultOrchestrator,
         UIMode.TEMPLATE_COMPLETION: DefaultOrchestrator,
     }
-    MAX_CONCURRENT = 10
+    MAX_CONCURRENT = 50
 
     def __init__(self, client: "PolyglotClient", runtime_config: RuntimeConfig):
         self.client = client

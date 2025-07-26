@@ -155,7 +155,7 @@ class DefaultOrchestrator(BaseOrchestrator):
         except Exception as e:
             await self.client.display.finish_response(success=False)
             self.pt_printer(
-                HTML(f"<style fg='ansired'>❌ ERROR: {escape(str(e))}</style>")
+                HTML(f"<style fg='ansired'>❌ ERROR: {escape(str(e), quote=False)}</style>")
             )
             if request:
                 # Log a failed turn to preserve history so the user's prompt isn't lost.

@@ -77,7 +77,13 @@ class MultiplyOrchestrator(BaseOrchestrator):
         # --- Process and log results ---
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                self.pt_printer(f"❌ Request {i + 1} failed: {escape(str(result))}")
+                # Use HTML to ensure consistent coloring and escape to prevent tag injection.
+                # quote=False prevents mangling of apostrophes.
+                self.pt_printer(
+                    HTML(
+                        f"<style fg='ansired'>❌ Request {i + 1} failed: {escape(str(result), quote=False)}</style>"
+                    )
+                )
                 continue
 
             display = self.ui.displays[i]

@@ -701,7 +701,7 @@ class InteractiveUI:
         except Exception as e:
             # If any rendering fails, return a safe, minimal toolbar to prevent crashing.
             return HTML(
-                f"<style bg='ansired' fg='white'>[Toolbar Error: {escape(str(e))}]</style>"
+                f"<style bg='ansired' fg='white'>[Toolbar Error: {escape(str(e), quote=False)}]</style>"
             )
 
     def enter_mode(self, mode: UIMode, clear_history: bool = True):

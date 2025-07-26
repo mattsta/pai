@@ -2037,6 +2037,46 @@ class ToggleMultilineCommand(Command):
             self.ui.pt_printer("✅ Multiline input disabled.")
 
 
+class MultiplyCommand(Command):
+    @property
+    def name(self):
+        return "multiply"
+
+    @property
+    def requires_param(self):
+        return True
+
+    @property
+    def help_text(self) -> str:
+        return "Usage: /multiply <count>. Runs the next prompt <count> times concurrently."
+
+    def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(self.help_text)
+            return
+
+        try:
+            count = int(param.strip())
+            if count <= 0:
+                self.ui.pt_printer("❌ Count must be a positive integer.")
+                return
+            if count > self.ui.MAX_CONCURRENT:
+                self.ui.pt_printer(
+                    f"❌ Count cannot exceed the maximum of {self.ui.MAX_CONCURRENT}."
+                )
+                return
+
+            self.ui.state.multiplier = count
+            if count == 1:
+                self.ui.pt_printer("✅ Multiplier reset to 1.")
+            else:
+                self.ui.pt_printer(
+                    f"✅ The next prompt will be sent {count} times concurrently."
+                )
+        except (ValueError, TypeError):
+            self.ui.pt_printer("❌ Invalid value. Please provide an integer.")
+
+
 # --- Command Handler ---
 class CommandHandler:
     """Parses and executes slash commands by dispatching to Command objects."""

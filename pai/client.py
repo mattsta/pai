@@ -258,6 +258,7 @@ class PolyglotClient:
         verbose: bool,
         actor_name: str | None = None,
         confirmer: Callable[[str, dict], Awaitable[bool]] | None = None,
+        display_override: StreamingDisplay | None = None,
     ) -> dict[str, Any]:
         is_chat = isinstance(request, ChatRequest)
         adapter = (
@@ -278,9 +279,10 @@ class PolyglotClient:
             logging.info(msg2)
             logging.info(msg3)
 
+        display_to_use = display_override or self.display
         context = ProtocolContext(
             http_session=self.http_session,
-            display=self.display,
+            display=display_to_use,
             stats=self.stats,
             config=self.config,
             tools_enabled=self.tools_enabled,

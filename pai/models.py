@@ -54,6 +54,8 @@ class UIState:
     # Holds the state for the *active* arena session, if any.
     arena: Optional["ArenaState"] = None
     multiline_input: bool = False
+    # For running the next prompt multiple times.
+    multiplier: int = 1
     # Agent-specific stats
     tools_used: int = 0
     agent_loops: int = 0

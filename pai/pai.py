@@ -55,6 +55,7 @@ from .orchestration import (
     LegacyAgentOrchestrator,
 )
 from .pricing import PricingService
+from .display import StreamingDisplay
 
 # --- Protocol Adapter Imports ---
 from .protocols import load_protocol_adapters
@@ -101,6 +102,7 @@ class InteractiveUI:
         UIMode.COMPLETION: DefaultOrchestrator,
         UIMode.TEMPLATE_COMPLETION: DefaultOrchestrator,
     }
+    MAX_CONCURRENT = 10
 
     def __init__(self, client: "PolyglotClient", runtime_config: RuntimeConfig):
         self.client = client
@@ -130,18 +132,30 @@ class InteractiveUI:
 
         # Setup UI components
         self.pt_printer = print_formatted_text
-        self.client.display.set_printer(self.pt_printer, is_interactive=True)
-        self.client.display.ui = self  # Give display access to UI state
         self.history = FileHistory(str(pai_user_dir / "history.txt"))
 
         # Command handler must be created before the input buffer that uses it.
         self.command_handler = CommandHandler(self)
         command_completer = CommandCompleter(self.command_handler.completion_list)
 
-        self.streaming_output_buffer = Buffer()
-        self.client.display.output_buffer = self.streaming_output_buffer
-        self.reasoning_output_buffer = Buffer()
-        self.client.display.reasoning_output_buffer = self.reasoning_output_buffer
+        self.active_concurrent_count = 0
+        self.displays = [
+            StreamingDisplay(
+                debug_mode=runtime_config.debug,
+                rich_text_mode=runtime_config.rich_text,
+                smooth_stream_mode=runtime_config.smooth_stream,
+                enhanced_debug_mode=runtime_config.enhanced_debug,
+            )
+            for _ in range(self.MAX_CONCURRENT)
+        ]
+        # Set main default display and link all displays to the UI
+        self.client.display = self.displays[0]
+        for display in self.displays:
+            display.set_printer(self.pt_printer, is_interactive=True)
+            display.ui = self
+
+        self.streaming_output_buffer = self.client.display.output_buffer
+        self.reasoning_output_buffer = self.client.display.reasoning_output_buffer
 
         self.input_buffer = Buffer(
             name="input_buffer",
@@ -280,7 +294,32 @@ class InteractiveUI:
             ),
             filter=Condition(
                 lambda: self.generation_in_progress.is_set()
+                and self.active_concurrent_count <= 1
                 and self.streaming_output_buffer.text
+            ),
+        )
+
+        concurrent_output_windows = HSplit(
+            [
+                ConditionalContainer(
+                    Window(
+                        content=BufferControl(buffer=self.displays[i].output_buffer),
+                        wrap_lines=True,
+                        get_title=lambda i=i: f"Response {i + 1} ({self.displays[i].status})",
+                    ),
+                    filter=Condition(
+                        lambda i=i: i < self.active_concurrent_count
+                        and bool(self.displays[i].output_buffer.text)
+                    ),
+                )
+                for i in range(self.MAX_CONCURRENT)
+            ]
+        )
+        concurrent_output_container = ConditionalContainer(
+            concurrent_output_windows,
+            filter=Condition(
+                lambda: self.generation_in_progress.is_set()
+                and self.active_concurrent_count > 1
             ),
         )
 
@@ -296,6 +335,7 @@ class InteractiveUI:
                 [
                     reasoning_window,
                     live_output_window,
+                    concurrent_output_container,
                     ConditionalContainer(
                         prompt_ui,
                         filter=Condition(
@@ -420,9 +460,16 @@ class InteractiveUI:
             # A new prompt from the user means we should clear the previous turn's reasoning view.
             if self.reasoning_output_buffer:
                 self.reasoning_output_buffer.reset()
-            # It's a prompt, so dispatch to an orchestrator.
+
             orchestrator = self._get_orchestrator()
             if orchestrator:
+                if self.state.multiplier > 1:
+                    from .orchestration.multiply import MultiplyOrchestrator
+
+                    orchestrator = MultiplyOrchestrator(self)
+                else:
+                    self.active_concurrent_count = 1
+
                 self.generation_in_progress.set()
                 self.generation_task = asyncio.create_task(orchestrator.run(user_input))
 
@@ -459,6 +506,8 @@ class InteractiveUI:
         mode_str = escape(self._get_mode_display_name())
         if prompt_count > 1:
             mode_str += f" <style fg='ansicyan'>Sys[{prompt_count}]</style>"
+        if self.state.multiplier > 1:
+            mode_str += f" <style fg='ansired' bold='true'>x{self.state.multiplier}</style>"
 
         if self.state.mode == UIMode.ARENA_SETUP and self.state.arena:
             arena_name = self.state.arena.arena_config.name

@@ -10,10 +10,12 @@ from .arena import ArenaOrchestrator
 from .base import BaseOrchestrator
 from .default import DefaultOrchestrator
 from .legacy_agent import LegacyAgentOrchestrator
+from .multiply import MultiplyOrchestrator
 
 __all__ = [
     "ArenaOrchestrator",
     "BaseOrchestrator",
     "DefaultOrchestrator",
     "LegacyAgentOrchestrator",
+    "MultiplyOrchestrator",
 ]

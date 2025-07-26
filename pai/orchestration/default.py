@@ -181,5 +181,6 @@ class DefaultOrchestrator(BaseOrchestrator):
                         f"\n⚠️  Warning: Could not save failed session turn: {log_e}"
                     )
         finally:
+            self.ui.active_concurrent_count = 0
             self.ui.generation_in_progress.clear()
             self.ui.generation_task = None

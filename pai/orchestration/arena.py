@@ -244,6 +244,7 @@ class ArenaOrchestrator(BaseOrchestrator):
                 )
                 self.client.switch_endpoint(original_endpoint_name)
             self.ui.enter_mode(UIMode.CHAT, clear_history=False)
+            self.ui.active_concurrent_count = 0
             self.ui.generation_in_progress.clear()
             self.ui.generation_task = None
 

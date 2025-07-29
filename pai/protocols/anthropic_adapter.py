@@ -309,6 +309,17 @@ class AnthropicAdapter(BaseProtocolAdapter):
                 raise ConnectionError(
                     f"Request failed with status {e.response.status_code}: {error_message}"
                 ) from e
+            except httpx.RequestError as e:
+                request_stats = await context.display.finish_response(success=False)
+                if request_stats:
+                    request_stats.tokens_sent = tokens_sent
+                    context.stats.add_completed_request(request_stats)
+                # This catches timeouts, connection errors, etc.
+                error_message = (
+                    f"Network request to {e.request.url} failed. "
+                    f"Error: {e.__class__.__name__}: {e}"
+                )
+                raise ConnectionError(error_message) from e
             except Exception as e:
                 request_stats = await context.display.finish_response(success=False)
                 if request_stats:

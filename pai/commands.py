@@ -6,6 +6,8 @@ class-based approach where each command is a self-contained object.
 import asyncio
 import inspect
 import json
+import os
+import re
 import shlex
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
@@ -724,6 +726,28 @@ class CurlCommand(Command):
         from prompt_toolkit.formatted_text import ANSI
 
         ui.pt_printer(ANSI(capture.get()))
+
+        # --- Write to file ---
+        try:
+            # Sanitize model name for filename
+            model_name = client.config.model_name
+            # Replace slashes and other non-alphanumeric chars with underscores
+            safe_model_name = re.sub(r"[^a-zA-Z0-9._-]", "_", model_name)
+            # Truncate to a reasonable length to avoid OS limits
+            safe_model_name = safe_model_name[:64]
+            filename = f"curl.{safe_model_name}.sh"
+
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write("#!/bin/bash\n\n")
+                f.write(final_cmd)
+
+            # Make the file executable
+            os.chmod(filename, 0o755)
+
+            ui.pt_printer(f"\n✅ Command saved to executable file: ./{filename}")
+
+        except Exception as e:
+            ui.pt_printer(f"❌ Error writing curl command to file: {e}")
 
 
 class ToggleRichTextCommand(Command):

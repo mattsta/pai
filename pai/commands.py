@@ -27,6 +27,8 @@ from .models import (
     ArenaParticipant,
     ArenaState,
     ArenaTurnOrder,
+    ChatRequest,
+    CompletionRequest,
     Conversation,
     TomlJudge,
     TomlParticipant,
@@ -223,6 +225,7 @@ class HelpCommand(Command):
   /verbose               - Toggle verbose logging of request parameters
   /debug                 - Toggle raw protocol-level debugging
   /enhanced-debug        - Toggle enhanced diff-based debug mode
+  /curl <prompt>         - Generate a cURL command for a streaming request
   /settings              - Show current runtime settings
 """
         )
@@ -599,6 +602,128 @@ class ToggleEnhancedDebugCommand(Command):
 
     def execute(self, app: "Application", param: str | None = None):
         self.ui.toggle_enhanced_debug()
+
+
+class CurlCommand(Command):
+    @property
+    def name(self):
+        return "curl"
+
+    @property
+    def requires_param(self):
+        return True
+
+    @property
+    def help_text(self) -> str:
+        return (
+            "Usage: /curl <prompt text>. Generates a curl command for a streaming request."
+        )
+
+    def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(self.help_text)
+            return
+
+        user_input = param
+        # The type annotation helps with static analysis but isn't strictly necessary.
+        request: "ChatRequest | CompletionRequest | None" = None
+        ui = self.ui
+        state = ui.state
+        client = ui.client
+        runtime_config = ui.runtime_config
+        conversation = ui.conversation
+
+        # --- Build request payload ---
+        if state.mode == UIMode.TEMPLATE_COMPLETION:
+            if not state.chat_template_obj:
+                ui.pt_printer("❌ No chat template loaded to generate curl command.")
+                return
+            messages = conversation.get_messages_for_next_turn(user_input)
+            try:
+                tools = get_tool_schemas() if client.tools_enabled else []
+                rendered_prompt = state.chat_template_obj.render(
+                    messages=messages, add_generation_prompt=True, tools=tools
+                )
+                request = CompletionRequest(
+                    prompt=rendered_prompt,
+                    model=client.config.model_name,
+                    max_tokens=runtime_config.max_tokens,
+                    temperature=runtime_config.temperature,
+                    stream=True,  # Force stream for curl command
+                )
+            except Exception as e:
+                ui.pt_printer(f"❌ Error rendering chat template for curl: {e}")
+                return
+
+        elif state.mode == UIMode.COMPLETION:
+            request = CompletionRequest(
+                prompt=user_input,
+                model=client.config.model_name,
+                max_tokens=runtime_config.max_tokens,
+                temperature=runtime_config.temperature,
+                stream=True,
+            )
+        else:  # CHAT or NATIVE_AGENT
+            messages = conversation.get_messages_for_next_turn(user_input)
+            request = ChatRequest(
+                messages=messages,
+                model=client.config.model_name,
+                max_tokens=runtime_config.max_tokens,
+                temperature=runtime_config.temperature,
+                stream=True,
+                tools=get_tool_schemas() if client.tools_enabled else [],
+            )
+
+        if not request:
+            ui.pt_printer("❌ Could not generate a request payload for curl command.")
+            return
+
+        # --- Determine endpoint path ---
+        is_chat = isinstance(request, ChatRequest)
+        endpoint_path = ""
+        if is_chat:
+            adapter = client.config.chat_adapter
+            # Use adapter class name to avoid circular import.
+            if adapter and type(adapter).__name__ == "OllamaAdapter":
+                endpoint_path = "/chat"
+            else:
+                endpoint_path = "/chat/completions"
+        else:  # CompletionRequest
+            endpoint_path = "/completions"
+
+        full_url = f"{client.config.base_url.rstrip('/')}{endpoint_path}"
+        payload = request.to_dict(client.config.model_name)
+        payload_str = json.dumps(payload, indent=2, ensure_ascii=False)
+
+        # --- Build cURL command string ---
+        # shlex.quote is the safest way to handle URLs and headers with special chars.
+        curl_cmd_parts = [f"curl --no-buffer {shlex.quote(full_url)} \\"]
+        for key, value in client.http_session.headers.items():
+            # Skip Host, Accept-Encoding, Connection as curl handles them.
+            if key.lower() in ["host", "accept-encoding", "connection"]:
+                continue
+            curl_cmd_parts.append(f"  -H {shlex.quote(f'{key}: {value}')} \\")
+
+        # Use $'...' to handle JSON with single quotes, which is common.
+        # Inside $'string', only '\' and `'` need escaping.
+        escaped_payload = payload_str.replace("\\", "\\\\").replace("'", "\\'")
+        curl_cmd_parts.append(f"  --data-raw $'{escaped_payload}'")
+
+        final_cmd = "\n".join(curl_cmd_parts)
+
+        # Print the command in a rich panel.
+        syntax = Syntax(final_cmd, "bash", theme="monokai", word_wrap=True)
+        panel = Panel(
+            syntax,
+            title="cURL Command",
+            title_align="left",
+            border_style="dim",
+        )
+        with ui.client.display.rich_console.capture() as capture:
+            ui.client.display.rich_console.print(panel)
+        from prompt_toolkit.formatted_text import ANSI
+
+        ui.pt_printer(ANSI(capture.get()))
 
 
 class ToggleRichTextCommand(Command):

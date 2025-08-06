@@ -127,6 +127,7 @@ class DefaultOrchestrator(BaseOrchestrator):
                         assistant_reasoning=assistant_reasoning,
                         mode=self.state.mode,
                         stats=self.client.stats.last_request_stats,
+                        endpoint_name=self.client.config.name,
                     )
 
                     # For completion mode, we need to add a "user" message to the
@@ -184,6 +185,7 @@ class DefaultOrchestrator(BaseOrchestrator):
                     assistant_message=error_text,
                     mode=self.state.mode,
                     stats=self.client.stats.last_request_stats,
+                    endpoint_name=self.client.config.name,
                 )
                 self.conversation.add_turn(turn, self.client.stats.last_request_stats)
                 try:

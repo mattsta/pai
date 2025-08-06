@@ -179,6 +179,7 @@ class ArenaOrchestrator(BaseOrchestrator):
                     model_name=participant.model,
                     mode=self.state.mode,
                     stats=self.client.stats.last_request_stats,
+                    endpoint_name=participant.endpoint,
                 )
                 stats = self.client.stats.last_request_stats
                 self.conversation.add_turn(turn, stats)
@@ -233,6 +234,11 @@ class ArenaOrchestrator(BaseOrchestrator):
                     assistant_message=error_text,
                     mode=self.state.mode,
                     stats=self.client.stats.last_request_stats,
+                    # We may not have a participant here if the error was early.
+                    # Fallback to the client's current endpoint.
+                    endpoint_name=participant.endpoint
+                    if "participant" in locals()
+                    else self.client.config.name,
                 )
                 self.conversation.add_turn(turn, self.client.stats.last_request_stats)
                 try:
@@ -305,6 +311,7 @@ class ArenaOrchestrator(BaseOrchestrator):
             model_name=judge.model,
             mode=self.state.mode,
             stats=self.client.stats.last_request_stats,
+            endpoint_name=judge.endpoint,
         )
         self.conversation.add_turn(turn, self.client.stats.last_request_stats)
         save_conversation_formats(

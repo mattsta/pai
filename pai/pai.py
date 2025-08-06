@@ -43,6 +43,7 @@ from .models import (
     ChatRequest,
     CompletionRequest,
     Conversation,
+    LogManifest,
     PolyglotConfig,
     RuntimeConfig,
     UIMode,
@@ -113,6 +114,7 @@ class InteractiveUI:
         self.state = UIState(mode=initial_mode)
 
         self.conversation = Conversation()
+        self._create_log_manifest()
         if self.state.mode != UIMode.COMPLETION and self.runtime_config.system:
             self.conversation.set_system_prompt(self.runtime_config.system)
 
@@ -178,6 +180,69 @@ class InteractiveUI:
 
         # Build the application
         self.app = self._create_application()
+
+    def _create_log_manifest(self):
+        """Initializes the log manifest for the session."""
+        self.log_manifest = LogManifest(
+            session_id=str(self.conversation.conversation_id),
+            start_time=self.client.stats.start_time,
+        )
+
+    def save_log_manifest(self, finish_reason: str):
+        """Populates and saves the final log manifest for the session."""
+        manifest = self.log_manifest
+        stats = self.client.stats
+
+        manifest.end_time = datetime.now()
+        manifest.duration_seconds = (
+            manifest.end_time - manifest.start_time
+        ).total_seconds()
+        manifest.finish_reason = finish_reason
+        manifest.total_turns = len(self.conversation.turns)
+        manifest.total_cost = stats.total_cost
+        manifest.total_requests = stats.requests_sent
+        manifest.successful_requests = stats.requests_sent - stats.errors
+        manifest.failed_requests = stats.errors
+        manifest.total_tokens_sent = stats.total_tokens_sent
+        manifest.total_tokens_received = stats.total_tokens_received
+
+        endpoints = set()
+        models = set()
+        for turn in self.conversation.turns:
+            if turn.endpoint_name:
+                endpoints.add(turn.endpoint_name)
+            if turn.model_name:
+                models.add(turn.model_name)
+        manifest.endpoints_used = sorted(list(endpoints))
+        manifest.models_used = sorted(list(models))
+
+        # Get initial prompt from the first turn if it exists
+        if self.conversation.turns:
+            first_turn = self.conversation.turns[0]
+            if "messages" in first_turn.request_data:
+                user_msg = next(
+                    (
+                        m["content"]
+                        for m in first_turn.request_data["messages"]
+                        if m["role"] == "user"
+                    ),
+                    None,
+                )
+                manifest.initial_prompt = user_msg
+            elif "prompt" in first_turn.request_data:
+                manifest.initial_prompt = first_turn.request_data["prompt"]
+
+        # Save to file
+        manifest_path = self.log_dir / "manifest.yaml"
+        try:
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                # Use Pydantic's model_dump to get a dict, then use yaml.dump
+                manifest_dict = manifest.model_dump(
+                    mode="json"
+                )  # mode='json' converts datetimes to iso strings
+                yaml.dump(manifest_dict, f, sort_keys=False, default_flow_style=False)
+        except Exception as e:
+            self.pt_printer(f"⚠️  Warning: Could not save log manifest: {e}")
 
     def _get_mode_display_name(self) -> str:
         """Returns the string name of the current interaction mode."""

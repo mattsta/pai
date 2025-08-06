@@ -95,6 +95,7 @@ class MultiplyOrchestrator(BaseOrchestrator):
                     assistant_message=result.get("text", ""),
                     mode=self.state.mode,
                     stats=display.current_request_stats,
+                    endpoint_name=self.client.config.name,
                 )
                 self.conversation.add_turn(turn, turn.stats)
             else:

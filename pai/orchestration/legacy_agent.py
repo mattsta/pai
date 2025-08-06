@@ -100,6 +100,7 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                         assistant_message=assistant_response,
                         mode=self.state.mode,
                         stats=self.client.stats.last_request_stats,
+                        endpoint_name=self.client.config.name,
                     )
                     self.conversation.add_turn(
                         turn, self.client.stats.last_request_stats
@@ -137,6 +138,7 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
                     assistant_message=error_text,
                     mode=self.state.mode,
                     stats=self.client.stats.last_request_stats,
+                    endpoint_name=self.client.config.name,
                 )
                 self.conversation.add_turn(turn, self.client.stats.last_request_stats)
                 try:

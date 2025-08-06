@@ -44,6 +44,7 @@ class BaseOrchestrator(ABC):
             assistant_message=partial_text,
             mode=self.state.mode,
             stats=self.client.stats.last_request_stats,
+            endpoint_name=self.client.config.name,
         )
         self.conversation.add_turn(turn)
         try:

@@ -78,6 +78,7 @@ class Turn:
     participant_name: str | None = None
     model_name: str | None = None
     # Context fields for logging
+    endpoint_name: str | None = None
     mode: "UIMode | None" = None
     stats: "RequestStats | None" = None
 
@@ -94,6 +95,7 @@ class Turn:
             "assistant_reasoning": self.assistant_reasoning,
             "participant_name": self.participant_name,
             "model_name": self.model_name,
+            "endpoint_name": self.endpoint_name,
         }
 
 
@@ -694,6 +696,29 @@ class Arena:
         """Returns the participant designated to start the conversation."""
         # This assumes the initiator_id from the config is always valid.
         return self.participants[self.initiator_id]
+
+
+# --- Session Logging Manifest ---
+class LogManifest(BaseModel):
+    """A summary of a session, saved as manifest.yaml in the log directory."""
+
+    model_config = ConfigDict(extra="allow")
+
+    session_id: str
+    start_time: datetime
+    end_time: datetime | None = None
+    duration_seconds: float = 0.0
+    total_turns: int = 0
+    total_cost: float = 0.0
+    endpoints_used: list[str] = Field(default_factory=list)
+    models_used: list[str] = Field(default_factory=list)
+    finish_reason: str = "unknown"
+    initial_prompt: str | None = None
+    total_requests: int = 0
+    successful_requests: int = 0
+    failed_requests: int = 0
+    total_tokens_sent: int = 0
+    total_tokens_received: int = 0
 
 
 @dataclass

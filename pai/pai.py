@@ -683,6 +683,7 @@ class InteractiveUI:
         agent_toggles = [
             f"Tools: {on if self.client.tools_enabled else off}",
             f"Confirm: {yellow_on if self.runtime_config.confirm_tool_use else off}",
+            f"Keep Reasoning: {yellow_on if self.runtime_config.keep_reasoning else off}",
             f"Debug: {yellow_on if display.debug_mode else off}",
             f"EDebug: {yellow_on if self.runtime_config.enhanced_debug else off}",
             f"Verbose: {yellow_on if self.runtime_config.verbose else off}",
@@ -746,6 +747,13 @@ class InteractiveUI:
         self.runtime_config.confirm_tool_use = confirm
         self.pt_printer(
             f"✅ Tool confirmation mode {'enabled' if self.runtime_config.confirm_tool_use else 'disabled'}."
+        )
+
+    def toggle_keep_reasoning(self):
+        """Toggles keeping reasoning in history."""
+        self.runtime_config.keep_reasoning = not self.runtime_config.keep_reasoning
+        self.pt_printer(
+            f"✅ Keep reasoning {'enabled' if self.runtime_config.keep_reasoning else 'disabled'}."
         )
 
     def toggle_stream(self):
@@ -1088,6 +1096,11 @@ def run(
         "--confirm",
         help="Require user confirmation before executing a tool.",
     ),
+    keep_reasoning: bool = typer.Option(
+        False,
+        "--keep-reasoning",
+        help="Include model's reasoning in the assistant's message history.",
+    ),
     smooth_stream: bool = typer.Option(
         True,
         "--smooth-stream/--no-smooth-stream",
@@ -1144,6 +1157,7 @@ def run(
         tools=tools,
         rich_text=rich_text,
         confirm_tool_use=confirm_tool_use,
+        keep_reasoning=keep_reasoning,
         smooth_stream=smooth_stream,
         log_file=log_file,
         config=config,

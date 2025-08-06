@@ -876,6 +876,7 @@ class TomlProfile(BaseModel):
     system: str | None = None
     rich_text: bool | None = None
     confirm_tool_use: bool | None = None
+    keep_reasoning: bool | None = None
 
 
 class TomlToolConfig(BaseModel):
@@ -925,5 +926,6 @@ class RuntimeConfig(BaseModel):
     rich_text: bool = True
     log_file: str | None = None
     confirm_tool_use: bool = False
+    keep_reasoning: bool = False
     smooth_stream: bool = True
     custom_pricing_file: str | None = Field(None, alias="custom-pricing-file")

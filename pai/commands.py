@@ -140,6 +140,9 @@ class SettingsCommand(Command):
         table.add_row(
             "Confirm Tool Use", on_style if cfg.confirm_tool_use else off_style
         )
+        table.add_row(
+            "Keep Reasoning", on_style if cfg.keep_reasoning else off_style
+        )
         table.add_row("Verbose Mode", on_style if cfg.verbose else off_style)
         table.add_row("Debug Mode", on_style if display.debug_mode else off_style)
 
@@ -180,6 +183,7 @@ class HelpCommand(Command):
   /template              - Enable chat template completion for debugging
   /tools                 - Toggle tool-use capability on/off for the session
   /confirm on|off        - Toggle user confirmation for tool execution
+  /keep-reasoning        - Toggle including model reasoning in history
 
 --- CHAT & HISTORY ---
   /mode                  - Toggle between chat and completion modes
@@ -778,6 +782,19 @@ class ToggleConfirmCommand(Command):
             self.ui.pt_printer("❌ Usage: /confirm on|off")
             return
         self.ui.set_confirm_tool_use(param.strip().lower() == "on")
+
+
+class ToggleKeepReasoningCommand(Command):
+    @property
+    def name(self):
+        return "keep-reasoning"
+
+    @property
+    def aliases(self):
+        return ["kr"]
+
+    def execute(self, app: "Application", param: str | None = None):
+        self.ui.toggle_keep_reasoning()
 
 
 class ToggleToolsCommand(Command):

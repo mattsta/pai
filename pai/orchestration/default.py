@@ -104,11 +104,27 @@ class DefaultOrchestrator(BaseOrchestrator):
                     self.state.agent_loops = loops
 
                 if result:
+                    assistant_text = result.get("text", "")
+                    assistant_reasoning = result.get("reasoning")
+                    response_data = result.get("response", {})
+                    request_data = result.get("request", {})
+
+                    final_assistant_message = assistant_text
+                    # Prepend reasoning to the final message if the setting is enabled.
+                    if self.runtime_config.keep_reasoning and assistant_reasoning:
+                        final_assistant_message = f"<thinking>\n{assistant_reasoning}\n</thinking>\n{assistant_text}"
+                        # Also update the response data that gets logged
+                        if rd_choices := response_data.get("choices"):
+                            if rd_choices and rd_choices[0].get("message"):
+                                rd_choices[0]["message"][
+                                    "content"
+                                ] = final_assistant_message
+
                     turn = Turn(
-                        request_data=result.get("request", {}),
-                        response_data=result.get("response", {}),
-                        assistant_message=result.get("text", ""),
-                        assistant_reasoning=result.get("reasoning"),
+                        request_data=request_data,
+                        response_data=response_data,
+                        assistant_message=final_assistant_message,
+                        assistant_reasoning=assistant_reasoning,
                         mode=self.state.mode,
                         stats=self.client.stats.last_request_stats,
                     )

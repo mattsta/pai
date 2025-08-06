@@ -157,10 +157,24 @@ class ArenaOrchestrator(BaseOrchestrator):
                     actor_name=f"🤖 {participant.name}",
                 )
                 assistant_message = result.get("text", "")
+                assistant_reasoning = result.get("reasoning")
+                response_data = result.get("response", {})
+
+                final_assistant_message = assistant_message
+                if self.runtime_config.keep_reasoning and assistant_reasoning:
+                    final_assistant_message = f"<thinking>\n{assistant_reasoning}\n</thinking>\n{assistant_message}"
+                    # Also update the response data that gets logged for history persistence
+                    if rd_choices := response_data.get("choices"):
+                        if rd_choices and rd_choices[0].get("message"):
+                            rd_choices[0]["message"][
+                                "content"
+                            ] = final_assistant_message
+
                 turn = Turn(
                     request_data=result.get("request", {}),
-                    response_data=result.get("response", {}),
-                    assistant_message=assistant_message,
+                    response_data=response_data,
+                    assistant_message=final_assistant_message,
+                    assistant_reasoning=assistant_reasoning,
                     participant_name=participant.name,
                     model_name=participant.model,
                     mode=self.state.mode,

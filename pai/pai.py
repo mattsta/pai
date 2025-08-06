@@ -890,17 +890,21 @@ class InteractiveUI:
         self.pt_printer("Type '/help' for commands, '/quit' to exit.")
         self.pt_printer("-" * 60)
 
-        # This try/finally ensures that closing stats are printed even if the app
-        # exits with an exception (e.g., Ctrl+C/Ctrl+D). The exceptions are
-        # allowed to propagate up to main() where they are handled for a clean exit.
+        # The reason for the session ending is tracked so the manifest can be saved correctly.
+        finish_reason = "crashed"
         try:
-            # run_async() returns the value from app.exit(). The default Ctrl+D
-            # handler passes an EOFError. We handle it here to prevent it from
-            # propagating to Typer, which would cause an "Aborted." message.
             result = await self.app.run_async()
             if isinstance(result, EOFError):
-                return  # This triggers the finally block and exits cleanly.
+                finish_reason = "eof"
+            else:
+                finish_reason = "quit"
+        except Exception:
+            # The exception will be caught and handled by main(), but we set the
+            # reason here so the 'finally' block can log it correctly.
+            finish_reason = "error"
+            raise  # Re-raise to allow main() to handle the exit.
         finally:
+            self.save_log_manifest(finish_reason)
             closing(self.client.stats, printer=self.pt_printer)
 
 

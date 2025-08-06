@@ -396,7 +396,7 @@ class StreamingDisplay:
         elif self._is_interactive and self.current_response:
             # Essentially a stripped-down version of finish_response's rendering part.
             if self.rich_text_mode:
-                final_text = self._escape_html_in_markdown(self.current_response)
+                final_text = self.current_response
                 title = self.actor_name
                 if self.current_model_name:
                     title += f" ({self.current_model_name})"
@@ -595,42 +595,6 @@ class StreamingDisplay:
             except asyncio.QueueEmpty:
                 break
 
-    def _escape_html_in_markdown(self, text: str) -> str:
-        """
-        Escapes HTML entities in a Markdown string, but preserves content within
-        backticks (inline code) and triple-backticks (fenced code blocks).
-        """
-        code_blocks: list[str] = []
-
-        def replace_with_placeholder(match: re.Match) -> str:
-            # Use a unique, unlikely-to-be-typed placeholder
-            placeholder = f"__PAI_CODE_BLOCK_PLACEHOLDER_{len(code_blocks)}__"
-            code_blocks.append(match.group(0))
-            return placeholder
-
-        # 1. First, find and replace all fenced code blocks.
-        #    The (?s) flag is equivalent to re.DOTALL, making . match newlines.
-        text_no_fences = re.sub(r"(?s)```.*?```", replace_with_placeholder, text)
-
-        # 2. Then, find and replace all inline code blocks in the remaining text.
-        #    This regex is safer as it won't match across newlines for inline code.
-        text_no_code = re.sub(r"`[^`\n\r]*`", replace_with_placeholder, text_no_fences)
-
-        # 3. Escape all HTML special characters in the text that remains.
-        #    The placeholders themselves won't be escaped.
-        escaped_text = escape(text_no_code)
-
-        # For Markdown, a single newline is treated as a space. To force a hard
-        # line break, we must replace newlines with two spaces followed by a newline.
-        # This is done here, before code blocks are restored, so it doesn't affect their content.
-        escaped_text = escaped_text.replace("\n", "  \n")
-
-        # 4. Restore the code blocks.
-        for i, block in enumerate(code_blocks):
-            placeholder = f"__PAI_CODE_BLOCK_PLACEHOLDER_{i}__"
-            escaped_text = escaped_text.replace(placeholder, block, 1)
-
-        return escaped_text
 
     async def show_parsed_chunk(
         self, chunk_data: dict, content: str, reasoning: str | None = None
@@ -821,9 +785,7 @@ class StreamingDisplay:
                 title += f" (Clone #{self.clone_id + 1})"
 
             if self.rich_text_mode:
-                # Escape HTML tags but preserve markdown code blocks to prevent
-                # the renderer from consuming them.
-                final_text = self._escape_html_in_markdown(self.current_response)
+                final_text = self.current_response
                 # Render final output as Markdown inside a panel for clarity
                 panel_to_print = Panel(
                     Markdown(final_text, code_theme="monokai"),

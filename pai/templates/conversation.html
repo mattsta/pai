@@ -55,9 +55,9 @@
         {% else %}
             <strong>Assistant</strong>
         {% endif %}
-        <div class="reasoning-content">
+        <div class.reasoning-content">
             <strong>Thinking:</strong>
-            <div class="message-content">{{ message.reasoning.strip() }}</div>
+            <div class="message-content">{{ message.reasoning.strip() | safe }}</div>
         </div>
     </div>
     {% else %}
@@ -75,7 +75,7 @@
             {% endif %}
 
             {% if message.content %}
-            <div class="message-content">{{ message.content.strip() }}</div>
+            <div class="message-content">{{ message.content.strip() | safe }}</div>
             {% endif %}
 
             {% if message.tool_calls %}

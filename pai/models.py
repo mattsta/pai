@@ -108,6 +108,7 @@ class RequestCost:
     # State
     input_tokens: int = 0
     output_tokens: int = 0
+    provider_reported_cost: Optional[float] = None
 
     # Calculated properties
     input_cost: float = 0.0
@@ -115,13 +116,16 @@ class RequestCost:
 
     def to_dict(self) -> dict[str, Any]:
         """Serializes the cost breakdown into a dictionary."""
-        return {
+        data = {
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "input_cost": self.input_cost,
             "output_cost": self.output_cost,
             "total_cost": self.total_cost,
         }
+        if self.provider_reported_cost is not None:
+            data["provider_reported_cost"] = self.provider_reported_cost
+        return data
 
     def update(self, input_tokens: int | None = None, output_tokens: int | None = None):
         """
@@ -144,7 +148,9 @@ class RequestCost:
 
     @property
     def total_cost(self) -> float:
-        """The total cost of the request."""
+        """The total cost of the request. Overridden by provider_reported_cost if available."""
+        if self.provider_reported_cost is not None:
+            return self.provider_reported_cost
         return self.input_cost + self.output_cost
 
 
@@ -594,8 +600,11 @@ class SessionStats:
         if self.last_request_stats:
             last = self.last_request_stats
             last_req_cost = last.cost.total_cost if last.cost else 0.0
+            cost_str = f"${last_req_cost:.5f}"
+            if last.cost and last.cost.provider_reported_cost is not None:
+                cost_str += " (provider)"
             stats["last_request"] = {
-                "cost": f"${last_req_cost:.5f}",
+                "cost": cost_str,
                 "ttft": f"{last.ttft:.2f}s" if last.ttft else "N/A",
                 "response_time": f"{last.response_time:.2f}s"
                 if last.response_time

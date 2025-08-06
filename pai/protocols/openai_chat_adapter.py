@@ -235,8 +235,19 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     # Some providers (e.g., Groq) send a final usage chunk.
                                     if usage := chunk_data.get("usage"):
                                         final_usage = usage
+                                        # NEW: Check for provider-reported cost and update stats
+                                        if (cost := final_usage.get("cost")) is not None:
+                                            if stats := context.display.current_request_stats:
+                                                if stats.cost:
+                                                    stats.cost.provider_reported_cost = cost
 
-                                    choice = chunk_data.get("choices", [{}])[0]
+                                    choices = chunk_data.get("choices")
+                                    # If there are no choices, it might be a final metadata/usage chunk.
+                                    # We've already processed usage, so we can just skip to the next line.
+                                    if not choices:
+                                        continue
+
+                                    choice = choices[0]
                                     delta = choice.get("delta", {})
                                     content = delta.get("content")
                                     reasoning = delta.get("reasoning")

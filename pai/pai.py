@@ -114,16 +114,13 @@ class InteractiveUI:
         initial_mode = UIMode.CHAT if runtime_config.chat else UIMode.COMPLETION
         self.state = UIState(mode=initial_mode)
 
-        self.conversation = Conversation()
-        self._create_log_manifest()
+        self.log_manifest = None  # Initialize before use by start_new_log_session
+        self.start_new_log_session()
+
         if self.state.mode != UIMode.COMPLETION and self.runtime_config.system:
             self.conversation.set_system_prompt(self.runtime_config.system)
 
         # Setup directories
-        self.log_dir = pathlib.Path("logs") / datetime.now().strftime(
-            "%Y-%m-%d_%H-%M-%S-interactive"
-        )
-        self.log_dir.mkdir(parents=True, exist_ok=True)
         pai_user_dir = pathlib.Path.home() / ".pai"
         pai_user_dir.mkdir(exist_ok=True)
         self.prompts_dir = pathlib.Path("prompts")
@@ -181,6 +178,74 @@ class InteractiveUI:
 
         # Build the application
         self.app = self._create_application()
+
+    def _sanitize_for_path(self, title: str) -> str:
+        """Sanitizes a string to be safe for use in a file path."""
+        # Remove invalid characters
+        sanitized = re.sub(r'[<>:"/\\|?*]', "_", title)
+        # Replace spaces with underscores
+        sanitized = sanitized.replace(" ", "_")
+        # Truncate to a reasonable length
+        return sanitized[:100]
+
+    def start_new_log_session(self, title: str | None = None):
+        """Starts a new conversation and a new log directory."""
+        # Save the manifest for the previous session if it exists.
+        if self.log_manifest:
+            self.save_log_manifest("new_session")
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        dir_name = f"{timestamp}-interactive"
+        if title:
+            sanitized_title = self._sanitize_for_path(title)
+            dir_name = f"{timestamp}-{sanitized_title}"
+
+        self.log_dir = pathlib.Path("logs") / dir_name
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Reset conversation and UI state for the new session
+        self.conversation = Conversation()
+        if self.reasoning_output_buffer:
+            self.reasoning_output_buffer.reset()
+        if self.streaming_output_buffer:
+            self.streaming_output_buffer.reset()
+
+        self._create_log_manifest()
+        self.pt_printer(
+            f"\n✨ New session started. Logs will be saved to: {self.log_dir}"
+        )
+
+    def rename_log_session(self, title: str):
+        """Renames the current log directory by appending a title."""
+        if not hasattr(self, "log_dir") or not self.log_dir.exists():
+            self.pt_printer("❌ No active log session to rename.")
+            return
+
+        sanitized_title = self._sanitize_for_path(title)
+        current_name = self.log_dir.name
+        match = re.match(r"(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})", current_name)
+        if not match:
+            self.pt_printer(
+                "❌ Could not find timestamp prefix in log directory name. Cannot rename."
+            )
+            return
+
+        timestamp_prefix = match.group(1)
+        new_dir_name = f"{timestamp_prefix}-{sanitized_title}"
+        new_log_dir = self.log_dir.parent / new_dir_name
+
+        if new_log_dir.exists():
+            self.pt_printer(f"❌ A directory named '{new_dir_name}' already exists.")
+            return
+
+        try:
+            self.log_dir.rename(new_log_dir)
+            self.log_dir = new_log_dir
+            self.pt_printer(
+                f"✅ Session renamed. Logs are now being saved to: {self.log_dir}"
+            )
+        except Exception as e:
+            self.pt_printer(f"❌ Failed to rename log directory: {e}")
 
     def _create_log_manifest(self):
         """Initializes the log manifest for the session."""

@@ -186,6 +186,8 @@ class HelpCommand(Command):
   /keep-reasoning        - Toggle including model reasoning in history
 
 --- CHAT & HISTORY ---
+  /new [title]           - Start a new conversation in a new log directory
+  /rename <title>        - Rename the current session's log directory
   /mode                  - Toggle between chat and completion modes
   /system <text>         - Replace the system prompt stack with new text
   /system add <text>     - Add a prompt to the system stack
@@ -861,6 +863,36 @@ class ClearCommand(Command):
         if self.ui.reasoning_output_buffer:
             self.ui.reasoning_output_buffer.reset()
         self.ui.pt_printer("🧹 History cleared.")
+
+
+class NewCommand(Command):
+    @property
+    def name(self):
+        return "new"
+
+    def execute(self, app: "Application", param: str | None = None):
+        """Starts a new chat session with a new log directory."""
+        self.ui.start_new_log_session(title=param)
+
+
+class RenameCommand(Command):
+    @property
+    def name(self):
+        return "rename"
+
+    @property
+    def requires_param(self):
+        return True
+
+    @property
+    def help_text(self) -> str:
+        return "Usage: /rename <new-title-for-log-dir>"
+
+    def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(self.help_text)
+            return
+        self.ui.rename_log_session(title=param)
 
 
 class SystemCommand(Command):

@@ -110,7 +110,7 @@ class RequestCost:
     # State
     input_tokens: int = 0
     output_tokens: int = 0
-    provider_reported_cost: Optional[float] = None
+    provider_reported_cost: float | None = None
 
     # Calculated properties
     input_cost: float = 0.0

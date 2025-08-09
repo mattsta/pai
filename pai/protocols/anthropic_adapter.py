@@ -63,7 +63,9 @@ class AnthropicAdapter(BaseProtocolAdapter):
         http_session = context.http_session
 
         for iteration in range(max_iterations):
-            logging.info(f"AGENT: Anthropic adapter starting iteration {iteration + 1}/{max_iterations}.")
+            logging.info(
+                f"AGENT: Anthropic adapter starting iteration {iteration + 1}/{max_iterations}."
+            )
             payload = {
                 "model": context.config.model_name,
                 "system": system_prompt,
@@ -255,7 +257,9 @@ class AnthropicAdapter(BaseProtocolAdapter):
                                 elif event_type == "message_delta":
                                     # This event contains the final stop reason and usage stats.
                                     # It's a critical event for debugging and must be shown.
-                                    await context.display.show_parsed_chunk(chunk, content="")
+                                    await context.display.show_parsed_chunk(
+                                        chunk, content=""
+                                    )
 
                                     delta = chunk.get("delta", {})
                                     finish_reason = delta.get("stop_reason")

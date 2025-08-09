@@ -166,9 +166,9 @@ class ArenaOrchestrator(BaseOrchestrator):
                     # Also update the response data that gets logged for history persistence
                     if rd_choices := response_data.get("choices"):
                         if rd_choices and rd_choices[0].get("message"):
-                            rd_choices[0]["message"][
-                                "content"
-                            ] = final_assistant_message
+                            rd_choices[0]["message"]["content"] = (
+                                final_assistant_message
+                            )
 
                 turn = Turn(
                     request_data=result.get("request", {}),
@@ -221,7 +221,9 @@ class ArenaOrchestrator(BaseOrchestrator):
             if self.client.display.current_request_stats:
                 await self.client.display.finish_response(success=False)
             self.pt_printer(
-                HTML(f"<style fg='ansired'>❌ ARENA ERROR: {escape(str(e), quote=False)}</style>")
+                HTML(
+                    f"<style fg='ansired'>❌ ARENA ERROR: {escape(str(e), quote=False)}</style>"
+                )
             )
             if request:
                 # Log a failed turn to preserve history so the user's prompt isn't lost.

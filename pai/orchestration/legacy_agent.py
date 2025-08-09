@@ -126,7 +126,9 @@ class LegacyAgentOrchestrator(BaseOrchestrator):
             )
         except Exception as e:
             await self.client.display.finish_response(success=False)
-            self.pt_printer(HTML(f"❌ LEGACY AGENT ERROR: {escape(str(e), quote=False)}"))
+            self.pt_printer(
+                HTML(f"❌ LEGACY AGENT ERROR: {escape(str(e), quote=False)}")
+            )
             if request:
                 # Log a failed turn to preserve history so the user's prompt isn't lost.
                 request_data = request.to_dict(self.client.config.model_name)

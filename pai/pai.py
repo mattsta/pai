@@ -39,6 +39,7 @@ from prompt_toolkit.widgets import Frame, SearchToolbar
 
 from .client import APIError, PolyglotClient
 from .commands import CommandHandler
+from .display import StreamingDisplay
 from .log_utils import closing, print_stats
 from .models import (
     ChatRequest,
@@ -57,7 +58,6 @@ from .orchestration import (
     LegacyAgentOrchestrator,
 )
 from .pricing import PricingService
-from .display import StreamingDisplay
 
 # --- Protocol Adapter Imports ---
 from .protocols import load_protocol_adapters
@@ -436,7 +436,9 @@ class InteractiveUI:
                 ConditionalContainer(
                     Frame(
                         body=Window(
-                            content=BufferControl(buffer=self.displays[i].output_buffer),
+                            content=BufferControl(
+                                buffer=self.displays[i].output_buffer
+                            ),
                             wrap_lines=True,
                         ),
                         title=lambda i=i: f"Response {i + 1} ({self.displays[i].status})",
@@ -641,7 +643,9 @@ class InteractiveUI:
         if prompt_count > 1:
             mode_str += f" <style fg='ansicyan'>Sys[{prompt_count}]</style>"
         if self.state.multiplier > 1:
-            mode_str += f" <style fg='ansired' bold='true'>x{self.state.multiplier}</style>"
+            mode_str += (
+                f" <style fg='ansired' bold='true'>x{self.state.multiplier}</style>"
+            )
 
         if self.state.mode == UIMode.ARENA_SETUP and self.state.arena:
             arena_name = self.state.arena.arena_config.name

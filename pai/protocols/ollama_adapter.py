@@ -58,7 +58,9 @@ class OllamaAdapter(BaseProtocolAdapter):
                 return f"Error: {e}"
 
         for iteration in range(max_iterations):
-            logging.info(f"AGENT: Ollama adapter starting iteration {iteration + 1}/{max_iterations}.")
+            logging.info(
+                f"AGENT: Ollama adapter starting iteration {iteration + 1}/{max_iterations}."
+            )
             url = f"{context.config.base_url}/chat"
             payload = request.to_dict(context.config.model_name)
             payload["messages"] = messages
@@ -141,7 +143,9 @@ class OllamaAdapter(BaseProtocolAdapter):
                         continue  # Next agent iteration
 
                     final_text = message.get("content", "")
-                    await context.display.show_parsed_chunk(response_data, content=final_text)
+                    await context.display.show_parsed_chunk(
+                        response_data, content=final_text
+                    )
                     request_stats = await context.display.finish_response(success=True)
                     if request_stats:
                         request_stats.tokens_sent = response_data.get(
@@ -200,7 +204,9 @@ class OllamaAdapter(BaseProtocolAdapter):
                                 final_response_object = chunk_data
                                 # This final chunk contains stats and the finish reason.
                                 # It's critical for the debug view.
-                                await context.display.show_parsed_chunk(chunk_data, content="")
+                                await context.display.show_parsed_chunk(
+                                    chunk_data, content=""
+                                )
                                 break
 
                             message_chunk = chunk_data.get("message", {})

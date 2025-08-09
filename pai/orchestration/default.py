@@ -116,9 +116,9 @@ class DefaultOrchestrator(BaseOrchestrator):
                         # Also update the response data that gets logged
                         if rd_choices := response_data.get("choices"):
                             if rd_choices and rd_choices[0].get("message"):
-                                rd_choices[0]["message"][
-                                    "content"
-                                ] = final_assistant_message
+                                rd_choices[0]["message"]["content"] = (
+                                    final_assistant_message
+                                )
 
                     turn = Turn(
                         request_data=request_data,
@@ -172,7 +172,9 @@ class DefaultOrchestrator(BaseOrchestrator):
         except Exception as e:
             await self.client.display.finish_response(success=False)
             self.pt_printer(
-                HTML(f"<style fg='ansired'>❌ ERROR: {escape(str(e), quote=False)}</style>")
+                HTML(
+                    f"<style fg='ansired'>❌ ERROR: {escape(str(e), quote=False)}</style>"
+                )
             )
             if request:
                 # Log a failed turn to preserve history so the user's prompt isn't lost.

@@ -76,7 +76,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                 return f"Error: {e}"
 
         for iteration in range(max_iterations):
-            logging.info(f"AGENT: OpenAI adapter starting iteration {iteration + 1}/{max_iterations}.")
+            logging.info(
+                f"AGENT: OpenAI adapter starting iteration {iteration + 1}/{max_iterations}."
+            )
             finish_reason = None
             url = f"{context.config.base_url}/chat/completions"
             # The request object now correctly includes tools in its dictionary representation.
@@ -170,7 +172,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     final_text = message.get("content", "")
                     final_reasoning = message.get("reasoning")
                     await context.display.show_parsed_chunk(
-                        response_data, content=final_text or "", reasoning=final_reasoning
+                        response_data,
+                        content=final_text or "",
+                        reasoning=final_reasoning,
                     )
                     request_stats = await context.display.finish_response(success=True)
                     if request_stats:
@@ -236,8 +240,13 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     if usage := chunk_data.get("usage"):
                                         final_usage = usage
                                         # NEW: Check for provider-reported cost and update stats
-                                        if (cost := final_usage.get("cost")) is not None:
-                                            if stats := context.display.current_request_stats:
+                                        if (
+                                            cost := final_usage.get("cost")
+                                        ) is not None:
+                                            if (
+                                                stats
+                                                := context.display.current_request_stats
+                                            ):
                                                 if stats.cost:
                                                     stats.cost.provider_reported_cost = cost
 
@@ -255,7 +264,9 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                                     # Always pass the chunk to the display. It handles diffing
                                     # and decides whether to render any text content.
                                     await context.display.show_parsed_chunk(
-                                        chunk_data, content=content or "", reasoning=reasoning
+                                        chunk_data,
+                                        content=content or "",
+                                        reasoning=reasoning,
                                     )
 
                                     if new_tool_calls := delta.get("tool_calls"):

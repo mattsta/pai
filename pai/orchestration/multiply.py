@@ -5,7 +5,6 @@ from copy import deepcopy
 from html import escape
 
 from prompt_toolkit.formatted_text import HTML
-from rich.panel import Panel
 
 from ..log_utils import save_conversation_formats
 from ..models import ChatRequest, CompletionRequest, Turn, UIMode

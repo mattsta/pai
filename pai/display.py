@@ -265,7 +265,6 @@ class StreamingDisplay:
                 self.reasoning_output_buffer.text
             )
 
-
     def show_raw_line(self, line: str):
         if self.debug_mode:
             if self.enhanced_debug_mode and line.startswith("data: "):
@@ -595,7 +594,6 @@ class StreamingDisplay:
             except asyncio.QueueEmpty:
                 break
 
-
     async def show_parsed_chunk(
         self, chunk_data: dict, content: str, reasoning: str | None = None
     ):
@@ -717,7 +715,9 @@ class StreamingDisplay:
                 await smoother_task
                 logging.info("DISPLAY: Smoother task finished cleanly.")
             except Exception as e:
-                logging.error(f"DISPLAY: Error awaiting smoother task: {e!r}", exc_info=True)
+                logging.error(
+                    f"DISPLAY: Error awaiting smoother task: {e!r}", exc_info=True
+                )
                 # Re-raise to ensure the orchestrator catches it
                 raise
             finally:

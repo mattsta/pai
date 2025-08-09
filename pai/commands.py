@@ -140,9 +140,7 @@ class SettingsCommand(Command):
         table.add_row(
             "Confirm Tool Use", on_style if cfg.confirm_tool_use else off_style
         )
-        table.add_row(
-            "Keep Reasoning", on_style if cfg.keep_reasoning else off_style
-        )
+        table.add_row("Keep Reasoning", on_style if cfg.keep_reasoning else off_style)
         table.add_row("Verbose Mode", on_style if cfg.verbose else off_style)
         table.add_row("Debug Mode", on_style if display.debug_mode else off_style)
 
@@ -623,9 +621,7 @@ class CurlCommand(Command):
 
     @property
     def help_text(self) -> str:
-        return (
-            "Usage: /curl <prompt text>. Generates a curl command for a streaming request."
-        )
+        return "Usage: /curl <prompt text>. Generates a curl command for a streaming request."
 
     def execute(self, app: "Application", param: str | None = None):
         if not param:
@@ -634,7 +630,7 @@ class CurlCommand(Command):
 
         user_input = param
         # The type annotation helps with static analysis but isn't strictly necessary.
-        request: "ChatRequest | CompletionRequest | None" = None
+        request: ChatRequest | CompletionRequest | None = None
         ui = self.ui
         state = ui.state
         client = ui.client
@@ -2246,7 +2242,9 @@ class MultiplyCommand(Command):
 
     @property
     def help_text(self) -> str:
-        return "Usage: /multiply <count>. Runs the next prompt <count> times concurrently."
+        return (
+            "Usage: /multiply <count>. Runs the next prompt <count> times concurrently."
+        )
 
     def execute(self, app: "Application", param: str | None = None):
         if not param:

@@ -114,9 +114,6 @@ class InteractiveUI:
         initial_mode = UIMode.CHAT if runtime_config.chat else UIMode.COMPLETION
         self.state = UIState(mode=initial_mode)
 
-        self.log_manifest = None  # Initialize before use by start_new_log_session
-        self.start_new_log_session()
-
         if self.state.mode != UIMode.COMPLETION and self.runtime_config.system:
             self.conversation.set_system_prompt(self.runtime_config.system)
 
@@ -157,6 +154,9 @@ class InteractiveUI:
 
         self.streaming_output_buffer = self.client.display.output_buffer
         self.reasoning_output_buffer = self.client.display.reasoning_output_buffer
+
+        self.log_manifest = None  # Initialize before use by start_new_log_session
+        self.start_new_log_session()
 
         self.input_buffer = Buffer(
             name="input_buffer",

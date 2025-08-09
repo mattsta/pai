@@ -811,16 +811,17 @@ class InteractiveUI:
         on = "<style fg='ansigreen'>ON</style>"
         off = "<style fg='default'>OFF</style>"
         yellow_on = "<style fg='ansiyellow'>ON</style>"
+        # Use compact labels to save space
         agent_toggles = [
-            f"Tools: {on if self.client.tools_enabled else off}",
-            f"Confirm: {yellow_on if self.runtime_config.confirm_tool_use else off}",
-            f"Keep Reasoning: {yellow_on if self.runtime_config.keep_reasoning else off}",
-            f"Debug: {yellow_on if display.debug_mode else off}",
-            f"EDebug: {yellow_on if self.runtime_config.enhanced_debug else off}",
-            f"Verbose: {yellow_on if self.runtime_config.verbose else off}",
+            f"T: {on if self.client.tools_enabled else off}",
+            f"Cf: {yellow_on if self.runtime_config.confirm_tool_use else off}",
+            f"KR: {yellow_on if self.runtime_config.keep_reasoning else off}",
+            f"D: {yellow_on if display.debug_mode else off}",
+            f"ED: {yellow_on if self.runtime_config.enhanced_debug else off}",
+            f"V: {yellow_on if self.runtime_config.verbose else off}",
         ]
         log_part = f"Log: {escape(str(self.log_dir))}"
-        agent_part = f"<b>Agent Toggles</b> | {' | '.join(agent_toggles)}"
+        agent_part = f"<b>Agent:</b> {' | '.join(agent_toggles)}"
         return f"{log_part}    {agent_part}"
 
     def _get_toolbar_text(self) -> HTML:
@@ -1232,8 +1233,8 @@ def run(
         help="Require user confirmation before executing a tool.",
     ),
     keep_reasoning: bool = typer.Option(
-        False,
-        "--keep-reasoning",
+        True,
+        "--keep-reasoning/--no-keep-reasoning",
         help="Include model's reasoning in the assistant's message history.",
     ),
     smooth_stream: bool = typer.Option(

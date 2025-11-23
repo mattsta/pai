@@ -92,6 +92,18 @@ Polyglot AI (PAI) is a well-architected, provider-agnostic CLI for AI model inte
 | **Cache invalidation** | Auto-invalidate when tools/servers change | ✅ Complete |
 | **Buffered audit writes** | Batch file writes (10 entries) | ✅ Complete |
 
+### ✅ /models Command UX Improvements - NEW
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Default limit (25)** | Fast response for large model lists (10,000+) | ✅ Complete |
+| **Multi-term filtering** | `/models llama 70b` (AND logic) | ✅ Complete |
+| **Count display** | Shows "25 of 10,247" with total context | ✅ Complete |
+| **`--all` flag** | Show all models when needed | ✅ Complete |
+| **`--limit N` flag** | Custom pagination | ✅ Complete |
+| **`--count` flag** | Count-only mode for scripts | ✅ Complete |
+| **Smart hints** | Suggests filtering for large lists | ✅ Complete |
+
 ### New Features Added
 
 - **`/help <command>`** - Detailed help with examples for any command

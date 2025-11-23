@@ -363,6 +363,11 @@ class SwitchCommand(Command):
 
 
 class ModelsCommand(Command):
+    """List and filter available models with smart defaults for large lists."""
+
+    # Default number of models to show (prevents terminal flooding)
+    DEFAULT_LIMIT = 25
+
     @property
     def name(self):
         return "models"
@@ -373,57 +378,146 @@ class ModelsCommand(Command):
 
     @property
     def help_text(self):
-        return "Usage: /models [search_term] [refresh]"
+        return """Usage: /models [terms...] [options]
+
+Options:
+  --all        Show all models (no limit)
+  --limit N    Show first N models (default: 25)
+  --count      Show count only, no list
+  refresh      Refresh from API (bypass cache)
+
+Filter Terms:
+  Multiple terms use AND logic (all must match).
+  Matching is case-insensitive."""
 
     @property
     def examples(self):
         return [
-            "/models              - List all available models",
-            "/models gpt          - List models containing 'gpt'",
-            "/models claude       - List models containing 'claude'",
-            "/models refresh      - Force refresh the model list from API",
-            "/models gpt refresh  - Search for 'gpt' and refresh from API",
+            "/models              - Show first 25 models",
+            "/models gpt          - Models containing 'gpt'",
+            "/models llama 70b    - Models containing 'llama' AND '70b'",
+            "/models --all        - Show ALL models (may be slow)",
+            "/models --limit 50   - Show first 50 models",
+            "/models --count      - Just show count",
+            "/models refresh      - Refresh cache, show first 25",
+            "/models gpt --all    - All models containing 'gpt'",
         ]
 
     def execute(self, app: "Application", param: str | None = None):
-        """Fetches and displays available models for the current endpoint."""
+        """Fetches and displays available models with filtering and limiting."""
+        # Parse arguments
         force_refresh = False
-        search_term: str | None = None
+        show_all = False
+        count_only = False
+        limit = self.DEFAULT_LIMIT
+        search_terms: list[str] = []
+
         if param:
             parts = param.strip().split()
-            if "refresh" in [p.lower() for p in parts]:
-                force_refresh = True
-                parts = [p for p in parts if p.lower() != "refresh"]
-            if parts:
-                search_term = parts[0]
+            i = 0
+            while i < len(parts):
+                part = parts[i].lower()
+                if part == "refresh":
+                    force_refresh = True
+                elif part == "--all":
+                    show_all = True
+                elif part == "--count":
+                    count_only = True
+                elif part == "--limit":
+                    if i + 1 < len(parts):
+                        try:
+                            limit = int(parts[i + 1])
+                            i += 1
+                        except ValueError:
+                            self.ui.pt_printer(f"❌ Invalid limit value: {parts[i + 1]}")
+                            return
+                    else:
+                        self.ui.pt_printer("❌ --limit requires a number")
+                        return
+                elif not part.startswith("--"):
+                    # It's a search term (preserve original case for display)
+                    search_terms.append(parts[i])
+                i += 1
+
+        # Determine effective limit
+        effective_limit: int | None = None if show_all else limit
 
         async def _fetch_and_print_models():
             """The async part of the command's execution."""
             action_desc = "Loading"
-            source_desc = "from cache or API"
+            source_desc = "(cached)"
             if force_refresh:
                 action_desc = "Fetching"
-                source_desc = "from API"
+                source_desc = "(from API)"
 
-            search_desc = f" matching '{search_term}'" if search_term else ""
+            filter_desc = f" matching '{' '.join(search_terms)}'" if search_terms else ""
             self.ui.pt_printer(
-                f"⏳ {action_desc} models{search_desc} for '{self.ui.client.config.name}' {source_desc}..."
+                f"⏳ {action_desc} models{filter_desc} for '{self.ui.client.config.name}' {source_desc}..."
             )
 
-            models = await self.ui.client.list_models(
-                force_refresh=force_refresh, search_term=search_term
+            models, total_count, filtered_count = await self.ui.client.list_models(
+                force_refresh=force_refresh,
+                search_terms=search_terms if search_terms else None,
+                limit=None if count_only else effective_limit,
             )
-            if models:
-                self.ui.pt_printer("\nAvailable Models:")
-                for m in models:
-                    self.ui.pt_printer(f"  - {m}")
-            else:
-                if search_term:
+
+            if total_count == 0:
+                self.ui.pt_printer("No models available from this endpoint.")
+                return
+
+            # Build header
+            endpoint_name = self.ui.client.config.name
+            if search_terms:
+                if filtered_count == 0:
                     self.ui.pt_printer(
-                        f"\nNo available models found matching '{search_term}'."
+                        f"\n❌ No models found matching '{' '.join(search_terms)}' "
+                        f"(out of {total_count:,} total)"
                     )
+                    self.ui.pt_printer("💡 Try broader search terms or /models --all to see all")
+                    return
+                header = f"📋 Models matching '{' '.join(search_terms)}' on '{endpoint_name}'"
+            else:
+                header = f"📋 Models for '{endpoint_name}'"
+
+            # Count-only mode
+            if count_only:
+                if search_terms:
+                    self.ui.pt_printer(f"\n{header}: {filtered_count:,} matches (of {total_count:,} total)")
                 else:
-                    self.ui.pt_printer("\nNo available models found.")
+                    self.ui.pt_printer(f"\n{header}: {total_count:,} models")
+                return
+
+            # Determine what we're showing
+            showing_count = len(models)
+            if search_terms:
+                count_info = f"{showing_count:,} of {filtered_count:,} matches"
+                if showing_count < filtered_count:
+                    count_info += f" (from {total_count:,} total)"
+            else:
+                count_info = f"{showing_count:,} of {total_count:,}"
+
+            self.ui.pt_printer(f"\n{header} ({count_info})")
+
+            # Print models with numbering for easy reference
+            for i, model_id in enumerate(models, 1):
+                self.ui.pt_printer(f"  {i:3d}. {model_id}")
+
+            # Footer hints
+            if showing_count < filtered_count:
+                remaining = filtered_count - showing_count
+                self.ui.pt_printer(
+                    f"\n💡 {remaining:,} more available. "
+                    f"Use --limit {showing_count + 25} or --all to see more."
+                )
+            elif showing_count == filtered_count and filtered_count > 0:
+                if search_terms:
+                    self.ui.pt_printer(f"\n✨ All {filtered_count:,} matches shown.")
+                elif total_count <= self.DEFAULT_LIMIT:
+                    pass  # Don't clutter when showing everything
+
+            # Always show filter hint if no filter and large result
+            if not search_terms and total_count > self.DEFAULT_LIMIT:
+                self.ui.pt_printer("💡 Use /models <term> to filter (e.g., /models llama 70b)")
 
         # Create a task to run the async code without blocking the UI's event loop.
         asyncio.create_task(_fetch_and_print_models())

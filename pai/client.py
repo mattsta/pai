@@ -124,13 +124,24 @@ class PolyglotClient:
             logging.info(msg)
 
     async def list_models(
-        self, force_refresh: bool = False, search_term: str | None = None
-    ) -> list[str]:
+        self,
+        force_refresh: bool = False,
+        search_terms: list[str] | None = None,
+        limit: int | None = None,
+    ) -> tuple[list[str], int, int]:
         """
         Fetches the list of available models from the provider, using a cache.
-        The cache now stores the full model dictionary from the provider.
-        An optional search term can be provided to filter the results.
-        Returns an empty list on failure, printing an error message.
+
+        Args:
+            force_refresh: If True, bypass cache and fetch from API.
+            search_terms: List of terms to filter by (all must match, case-insensitive).
+            limit: Maximum number of models to return. None means no limit.
+
+        Returns:
+            Tuple of (filtered_models, total_count, filtered_count).
+            - filtered_models: List of model IDs (may be limited)
+            - total_count: Total number of models available
+            - filtered_count: Number of models matching the filter (before limit)
         """
         endpoint_name = self.config.name
         safe_endpoint_name = "".join(
@@ -163,19 +174,34 @@ class PolyglotClient:
                     json.dump(model_data_list, f, indent=2)
             except (httpx.RequestError, httpx.HTTPStatusError) as e:
                 self.display._print(f"❌ Error fetching models: {e}")
-                return []
+                return [], 0, 0
             except (KeyError, TypeError, json.JSONDecodeError):
                 self.display._print(
                     "❌ Error parsing models response. Unexpected format."
                 )
-                return []
+                return [], 0, 0
 
-        # Return a list of model IDs for backward compatibility with callers
+        # Get sorted list of model IDs
         model_ids = sorted([m.get("id", "") for m in model_data_list])
-        if search_term:
-            return [m for m in model_ids if search_term.lower() in m.lower()]
+        total_count = len(model_ids)
 
-        return model_ids
+        # Apply multi-term filter (all terms must match)
+        if search_terms:
+            filtered = []
+            lower_terms = [t.lower() for t in search_terms]
+            for model_id in model_ids:
+                model_lower = model_id.lower()
+                if all(term in model_lower for term in lower_terms):
+                    filtered.append(model_id)
+            model_ids = filtered
+
+        filtered_count = len(model_ids)
+
+        # Apply limit
+        if limit is not None and limit > 0:
+            model_ids = model_ids[:limit]
+
+        return model_ids, total_count, filtered_count
 
     async def get_cached_provider_model_info(
         self, model_id: str

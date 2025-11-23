@@ -82,10 +82,13 @@ class MCPServer:
     config: MCPServerConfig
     status: ServerStatus = ServerStatus.DISCONNECTED
     tools: list[MCPTool] = field(default_factory=list)
-    _process: asyncio.subprocess.Process | None = None
-    _request_id: int = 0
-    _pending_requests: dict[int, asyncio.Future[Any]] = field(default_factory=dict)
-    _read_task: asyncio.Task[None] | None = None
+    _process: asyncio.subprocess.Process | None = field(default=None, repr=False)
+    _request_id: int = field(default=0, repr=False)
+    _pending_requests: dict[int, asyncio.Future[Any]] = field(
+        default_factory=dict, repr=False
+    )
+    _read_task: asyncio.Task[None] | None = field(default=None, repr=False)
+    _stderr_task: asyncio.Task[None] | None = field(default=None, repr=False)
 
     @property
     def name(self) -> str:
@@ -124,8 +127,9 @@ class MCPServer:
                 env=env,
             )
 
-            # Start reading responses
+            # Start reading responses and stderr
             self._read_task = asyncio.create_task(self._read_responses())
+            self._stderr_task = asyncio.create_task(self._read_stderr())
 
             # Initialize the connection
             await self._initialize()
@@ -146,13 +150,16 @@ class MCPServer:
 
     async def disconnect(self) -> None:
         """Stop the MCP server process."""
-        if self._read_task:
-            self._read_task.cancel()
-            try:
-                await self._read_task
-            except asyncio.CancelledError:
-                pass
-            self._read_task = None
+        # Cancel read tasks
+        for task in [self._read_task, self._stderr_task]:
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        self._read_task = None
+        self._stderr_task = None
 
         if self._process:
             try:
@@ -244,6 +251,24 @@ class MCPServer:
             logger.error(f"Error reading from MCP server '{self.name}': {e}")
             self.status = ServerStatus.ERROR
 
+    async def _read_stderr(self) -> None:
+        """Read and log stderr from the server process."""
+        if not self._process or not self._process.stderr:
+            return
+
+        try:
+            while True:
+                line = await self._process.stderr.readline()
+                if not line:
+                    break
+                stderr_msg = line.decode().strip()
+                if stderr_msg:
+                    logger.warning(f"MCP server '{self.name}' stderr: {stderr_msg}")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.debug(f"Error reading stderr from '{self.name}': {e}")
+
     async def _initialize(self) -> None:
         """Initialize the MCP connection."""
         result = await self._send_request(
@@ -279,7 +304,19 @@ class MCPServer:
         logger.info(f"Discovered {len(self.tools)} tools from '{self.name}'")
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
-        """Execute a tool on this server."""
+        """Execute a tool on this server.
+
+        Args:
+            tool_name: Name of the tool (without server prefix)
+            arguments: Tool arguments as a dictionary
+
+        Returns:
+            Tool result as a string
+
+        Raises:
+            MCPConnectionError: If server is not connected
+            MCPToolError: If tool execution fails or returns an error
+        """
         if not self.is_connected:
             raise MCPConnectionError(f"Server '{self.name}' not connected")
 
@@ -288,6 +325,14 @@ class MCPServer:
             {"name": tool_name, "arguments": arguments},
         )
 
+        # Check for isError flag in response
+        if result.get("isError"):
+            error_msg = "Tool execution failed"
+            content = result.get("content", [])
+            if content and content[0].get("type") == "text":
+                error_msg = content[0].get("text", error_msg)
+            raise MCPToolError(f"Tool '{tool_name}' error: {error_msg}")
+
         # MCP returns content array
         content = result.get("content", [])
         if content and len(content) > 0:
@@ -295,6 +340,7 @@ class MCPServer:
             if first_content.get("type") == "text":
                 text_result: str = first_content.get("text", "")
                 return text_result
+            # Handle other content types (image, resource, etc.)
             return json.dumps(first_content)
         return json.dumps(result)
 

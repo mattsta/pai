@@ -59,6 +59,7 @@ Type '/help' for commands, '/quit' to exit.
 *   **Powerful Agentic Tool-Use:** An extensible system allowing models to use local Python functions as tools. Supports native tool-calling APIs (OpenAI, etc.) and provides a legacy agent mode for models that lack this capability.
     *   **To create tools:** See the [Tool System Guide](./docs/TOOLS.md).
     *   **For a walkthrough:** Check out the [Tool Usage Tutorial](./docs/TOOL_TUTORIAL.md).
+*   **MCP (Model Context Protocol) Support:** Connect to external MCP servers to extend tool capabilities with filesystem access, web browsing, database queries, and more. See [MCP Integration Guide](#mcp-integration) below.
 *   **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in `logs/`. Each turn is saved as structured JSON, and the entire conversation—including partial responses from cancelled turns—is rendered into multiple browseable HTML formats.
 *   **Extensible by Design:** Add new providers via a simple plugin system. Add new tools by dropping Python files into a directory. No core code modification needed.
 *   **Multi-Model Arena:** Pit models against each other in a conversational arena, with an optional judge model to provide a final verdict.
@@ -81,6 +82,7 @@ The project is organized to separate concerns, making it modular and easy to nav
 |-- models.py             # Core data models (Conversation, Turn, etc.)
 |-- protocols/            # Provider-specific communication logic (adapters)
 |-- orchestration/        # Business logic for different modes (chat, agent, arena)
+|-- mcp/                  # MCP (Model Context Protocol) client and configuration
 |-- commands.py           # Implementation of all /slash commands
 |-- tools.py              # Core tool system and @tool decorator
 /custom_tools/            # Default directory for user-extendable tools
@@ -88,7 +90,7 @@ The project is organized to separate concerns, making it modular and easy to nav
 /docs/                    # Detailed documentation and guides
 /logs/                    # Auto-generated session logs (git-ignored)
 /session_snapshots/       # User-saved session snapshots (git-ignored)
-pai.toml                  # Main configuration for endpoints, profiles, tools, etc.
+pai.toml                  # Main configuration for endpoints, profiles, tools, MCP servers
 pyproject.toml            # Project definition and dependencies
 ```
 
@@ -193,3 +195,155 @@ Once in interactive mode, use `/` commands to control the session:
 *   `/debug`: Toggles raw protocol-level debugging for network streams.
 
 For more details on session logging, see [`docs/LOGGING.md`](docs/LOGGING.md).
+
+---
+
+## MCP Integration
+
+Polyglot AI supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), Anthropic's open standard for connecting AI models to external tools and data sources. MCP enables your AI assistant to interact with filesystems, databases, web browsers, and custom services.
+
+### Quick Start with MCP
+
+1. **Configure MCP servers in `pai.toml`:**
+
+```toml
+[mcp]
+enabled = true
+
+[mcp.servers.filesystem]
+command = ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"]
+auto_connect = true
+timeout = 30.0
+
+[mcp.servers.brave-search]
+command = ["npx", "-y", "@anthropic/brave-mcp-server"]
+env = { BRAVE_API_KEY = "your-api-key-here" }
+auto_connect = true
+```
+
+2. **Start PAI with tools enabled:**
+
+```bash
+uv run pai --chat --tools
+```
+
+MCP servers will automatically connect on startup. You'll see:
+```
+🔌 MCP support enabled. Loading MCP servers...
+  📦 Configured 2 MCP server(s)
+  ✅ MCP server 'filesystem' connected (11 tools)
+  ✅ MCP server 'brave-search' connected (2 tools)
+```
+
+3. **Use MCP tools naturally in conversation:**
+
+```
+👤 User: List all Python files in the projects directory
+
+🤖 Assistant: I'll use the filesystem tools to list Python files...
+   [Calls mcp__filesystem__list_directory with path="/home/user/projects"]
+
+   Found 15 Python files:
+   - main.py
+   - utils.py
+   ...
+```
+
+### MCP Commands
+
+| Command | Description |
+|---------|-------------|
+| `/mcp status` | Show connection status of all MCP servers |
+| `/mcp list` | List all available MCP tools with descriptions |
+| `/mcp connect <server>` | Manually connect to a specific MCP server |
+| `/mcp disconnect <server>` | Disconnect from an MCP server |
+
+### MCP Configuration Reference
+
+Each MCP server is configured as a subsection under `[mcp.servers]`:
+
+```toml
+[mcp.servers.my-server]
+# Required: Command and arguments to start the server
+command = ["node", "/path/to/server.js", "--arg1", "value"]
+
+# Optional: Environment variables passed to the server
+env = { API_KEY = "secret", DEBUG = "true" }
+
+# Optional: Enable/disable this server (default: true)
+enabled = true
+
+# Optional: Auto-connect when PAI starts with --tools (default: true)
+auto_connect = true
+
+# Optional: Connection timeout in seconds (default: 30.0)
+timeout = 30.0
+```
+
+### Popular MCP Servers
+
+Here are some commonly used MCP servers you can configure:
+
+| Server | Install Command | Description |
+|--------|----------------|-------------|
+| **Filesystem** | `npx -y @modelcontextprotocol/server-filesystem /path` | Read/write files, list directories |
+| **Brave Search** | `npx -y @anthropic/brave-mcp-server` | Web search via Brave API |
+| **GitHub** | `npx -y @anthropic/mcp-server-github` | GitHub API access |
+| **SQLite** | `npx -y @anthropic/mcp-server-sqlite --db-path /path/db.sqlite` | SQLite database queries |
+| **Postgres** | `npx -y @anthropic/mcp-server-postgres` | PostgreSQL database access |
+
+### Example: Full MCP Configuration
+
+```toml
+# pai.toml
+
+[mcp]
+enabled = true
+
+# Local filesystem access (restricted to specific directory)
+[mcp.servers.filesystem]
+command = ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/home/user/workspace"]
+auto_connect = true
+
+# Web search capability
+[mcp.servers.brave]
+command = ["npx", "-y", "@anthropic/brave-mcp-server"]
+env = { BRAVE_API_KEY = "${BRAVE_API_KEY}" }
+auto_connect = true
+
+# Database access (connect manually when needed)
+[mcp.servers.database]
+command = ["npx", "-y", "@anthropic/mcp-server-postgres"]
+env = { POSTGRES_CONNECTION_STRING = "postgresql://user:pass@localhost/mydb" }
+auto_connect = false
+
+# Custom local server
+[mcp.servers.custom]
+command = ["python", "-m", "my_mcp_server"]
+env = { CONFIG_PATH = "./config.json" }
+timeout = 60.0
+```
+
+### How MCP Tools Work
+
+1. **Tool Discovery**: When an MCP server connects, PAI discovers its available tools
+2. **Tool Naming**: MCP tools are prefixed with `mcp__<server>__<tool>` (e.g., `mcp__filesystem__read_file`)
+3. **Seamless Integration**: MCP tools appear alongside native tools in the AI's available functions
+4. **Automatic Routing**: PAI automatically routes tool calls to the appropriate MCP server
+
+### Troubleshooting MCP
+
+**Server won't connect:**
+- Check that the command exists and is executable
+- Verify Node.js/npx is installed for npm-based servers
+- Check server logs: `uv run pai --debug --chat --tools`
+
+**Tools not appearing:**
+- Verify the server is connected: `/mcp status`
+- Check if server discovered tools: `/mcp list`
+
+**Environment variables not working:**
+- Use `env = { VAR = "${VAR}" }` to reference shell environment variables
+- Or set them directly: `env = { VAR = "value" }`
+
+---

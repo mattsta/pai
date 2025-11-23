@@ -71,6 +71,42 @@ chat_adapter = "ollama"
 # Example: directories = ["/abs/path/to/tools", "custom_tools"]
 directories = ["custom_tools"]
 
+# --- MCP (Model Context Protocol) Configuration ---
+# Connect to external MCP servers to extend tool capabilities.
+# See https://modelcontextprotocol.io/ for more information.
+# MCP tools are automatically available when starting with --tools flag.
+
+[mcp]
+# Enable or disable MCP support globally (default: true)
+enabled = true
+
+# Example: Filesystem server for file operations
+# Uncomment and modify the path to enable
+# [mcp.servers.filesystem]
+# command = ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/workspace"]
+# auto_connect = true
+# timeout = 30.0
+
+# Example: Brave Search for web search capabilities
+# Requires BRAVE_API_KEY environment variable
+# [mcp.servers.brave]
+# command = ["npx", "-y", "@anthropic/brave-mcp-server"]
+# env = { BRAVE_API_KEY = "${BRAVE_API_KEY}" }
+# auto_connect = true
+
+# Example: SQLite database server
+# [mcp.servers.sqlite]
+# command = ["npx", "-y", "@anthropic/mcp-server-sqlite", "--db-path", "./data/app.db"]
+# auto_connect = false  # Connect manually with /mcp connect sqlite
+
+# Example: Custom Python MCP server
+# [mcp.servers.custom]
+# command = ["python", "-m", "my_mcp_server", "--config", "./config.json"]
+# env = { DEBUG = "true" }
+# enabled = true
+# auto_connect = true
+# timeout = 60.0
+
 # --- PROFILES ---
 # Define preset configurations for quick use.
 # Any CLI flag can be set in a profile.

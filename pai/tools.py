@@ -3,10 +3,12 @@ import enum
 import importlib
 import inspect
 import json
+import logging
 import pathlib
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -19,6 +21,216 @@ class ToolDefinition:
 
     function: Callable
     schema: dict[str, Any]
+
+
+@dataclass
+class ToolAuditEntry:
+    """A single audit log entry for a tool execution."""
+
+    timestamp: str
+    tool_name: str
+    tool_type: str  # "native" or "mcp"
+    arguments: dict[str, Any]
+    success: bool
+    result_preview: str | None = None
+    error: str | None = None
+    duration_ms: float | None = None
+    session_id: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "timestamp": self.timestamp,
+            "tool_name": self.tool_name,
+            "tool_type": self.tool_type,
+            "arguments": self.arguments,
+            "success": self.success,
+            "result_preview": self.result_preview,
+            "error": self.error,
+            "duration_ms": self.duration_ms,
+            "session_id": self.session_id,
+        }
+
+
+class ToolAuditLogger:
+    """
+    Logs tool executions for security auditing and debugging.
+
+    Supports logging to:
+    - Memory (for session review)
+    - File (JSON lines format)
+    - Python logging module
+
+    Usage:
+        audit_logger = get_audit_logger()
+        audit_logger.enable(log_file="/path/to/audit.jsonl")
+        # ... tool executions are automatically logged ...
+        entries = audit_logger.get_entries()
+    """
+
+    def __init__(self) -> None:
+        self._entries: list[ToolAuditEntry] = []
+        self._enabled: bool = False
+        self._log_file: pathlib.Path | None = None
+        self._session_id: str | None = None
+        self._logger = logging.getLogger("pai.tools.audit")
+
+    def enable(
+        self,
+        log_file: str | pathlib.Path | None = None,
+        session_id: str | None = None,
+    ) -> None:
+        """Enable audit logging.
+
+        Args:
+            log_file: Path to write audit log (JSON lines format)
+            session_id: Session identifier to include in log entries
+        """
+        self._enabled = True
+        self._session_id = session_id
+        if log_file:
+            self._log_file = pathlib.Path(log_file)
+            # Create parent directory if needed
+            self._log_file.parent.mkdir(parents=True, exist_ok=True)
+            self._logger.info(f"Tool audit logging enabled: {self._log_file}")
+
+    def disable(self) -> None:
+        """Disable audit logging."""
+        self._enabled = False
+
+    @property
+    def is_enabled(self) -> bool:
+        """Check if audit logging is enabled."""
+        return self._enabled
+
+    def log(
+        self,
+        tool_name: str,
+        tool_type: str,
+        arguments: dict[str, Any],
+        success: bool,
+        result: Any = None,
+        error: str | None = None,
+        duration_ms: float | None = None,
+    ) -> None:
+        """Log a tool execution.
+
+        Args:
+            tool_name: Name of the executed tool
+            tool_type: "native" or "mcp"
+            arguments: Arguments passed to the tool
+            success: Whether execution succeeded
+            result: Tool result (will be truncated for preview)
+            error: Error message if failed
+            duration_ms: Execution time in milliseconds
+        """
+        if not self._enabled:
+            return
+
+        # Create preview of result (truncate if too long)
+        result_preview = None
+        if result is not None:
+            result_str = str(result)
+            result_preview = result_str[:500] + "..." if len(result_str) > 500 else result_str
+
+        # Sanitize arguments (remove sensitive data patterns)
+        sanitized_args = self._sanitize_arguments(arguments)
+
+        entry = ToolAuditEntry(
+            timestamp=datetime.now().isoformat(),
+            tool_name=tool_name,
+            tool_type=tool_type,
+            arguments=sanitized_args,
+            success=success,
+            result_preview=result_preview,
+            error=error,
+            duration_ms=duration_ms,
+            session_id=self._session_id,
+        )
+
+        self._entries.append(entry)
+
+        # Log to Python logging
+        log_msg = f"Tool: {tool_name} ({tool_type}) - {'OK' if success else 'FAILED'}"
+        if success:
+            self._logger.info(log_msg)
+        else:
+            self._logger.warning(f"{log_msg}: {error}")
+
+        # Write to file if configured
+        if self._log_file:
+            try:
+                with open(self._log_file, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(entry.to_dict()) + "\n")
+            except Exception as e:
+                self._logger.error(f"Failed to write audit log: {e}")
+
+    def _sanitize_arguments(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Sanitize arguments to remove potentially sensitive data."""
+        sensitive_patterns = ("password", "secret", "token", "key", "credential", "auth")
+        sanitized = {}
+
+        for key, value in args.items():
+            key_lower = key.lower()
+            if any(pattern in key_lower for pattern in sensitive_patterns):
+                sanitized[key] = "[REDACTED]"
+            elif isinstance(value, str) and len(value) > 1000:
+                # Truncate very long strings
+                sanitized[key] = value[:1000] + f"... [truncated, {len(value)} chars total]"
+            else:
+                sanitized[key] = value
+
+        return sanitized
+
+    def get_entries(self, limit: int | None = None) -> list[ToolAuditEntry]:
+        """Get audit log entries.
+
+        Args:
+            limit: Maximum number of entries to return (most recent first)
+
+        Returns:
+            List of audit entries
+        """
+        if limit:
+            return self._entries[-limit:]
+        return self._entries.copy()
+
+    def get_summary(self) -> dict[str, Any]:
+        """Get a summary of tool usage."""
+        if not self._entries:
+            return {"total_executions": 0, "tools": {}}
+
+        tool_stats: dict[str, dict[str, int]] = {}
+        for entry in self._entries:
+            if entry.tool_name not in tool_stats:
+                tool_stats[entry.tool_name] = {"success": 0, "failed": 0}
+            if entry.success:
+                tool_stats[entry.tool_name]["success"] += 1
+            else:
+                tool_stats[entry.tool_name]["failed"] += 1
+
+        return {
+            "total_executions": len(self._entries),
+            "successful": sum(1 for e in self._entries if e.success),
+            "failed": sum(1 for e in self._entries if not e.success),
+            "tools": tool_stats,
+        }
+
+    def clear(self) -> None:
+        """Clear all stored entries."""
+        self._entries.clear()
+
+
+# Global audit logger instance
+_audit_logger: ToolAuditLogger | None = None
+
+
+def get_audit_logger() -> ToolAuditLogger:
+    """Get the global audit logger instance."""
+    global _audit_logger
+    if _audit_logger is None:
+        _audit_logger = ToolAuditLogger()
+    return _audit_logger
 
 
 TOOL_REGISTRY: dict[str, ToolDefinition] = {}
@@ -200,6 +412,7 @@ async def execute_tool(name: str, args: dict) -> Any:
     """Execute a tool by name with the given arguments.
 
     Handles both native tools and MCP tools (prefixed with 'mcp__').
+    Automatically logs executions to the audit log when enabled.
 
     Args:
         name: The tool name (or qualified MCP tool name).
@@ -212,13 +425,23 @@ async def execute_tool(name: str, args: dict) -> Any:
         ToolNotFound: If the tool is not found.
         ToolError: If execution fails.
     """
+    import time
+
+    audit = get_audit_logger()
+    start_time = time.perf_counter()
+
     # Route MCP tools to the MCP manager
     if is_mcp_tool(name):
         if _mcp_manager is None:
             raise ToolNotFound(f"MCP tool '{name}' requested but MCP is not enabled.")
         try:
-            return await _mcp_manager.execute_tool(name, args)
+            result = await _mcp_manager.execute_tool(name, args)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            audit.log(name, "mcp", args, success=True, result=result, duration_ms=duration_ms)
+            return result
         except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            audit.log(name, "mcp", args, success=False, error=str(e), duration_ms=duration_ms)
             raise ToolError(f"MCP tool '{name}' failed: {e}") from e
 
     # Handle native tools
@@ -242,18 +465,30 @@ async def execute_tool(name: str, args: dict) -> Any:
                     converted_args[param_name] = arg_value
             # Let Python handle missing args with default values
         if inspect.iscoroutinefunction(func):
-            return await func(**converted_args)
-        # Run synchronous functions in a separate thread to avoid blocking the event loop.
-        return await asyncio.to_thread(func, **converted_args)
+            result = await func(**converted_args)
+        else:
+            # Run synchronous functions in a separate thread to avoid blocking the event loop.
+            result = await asyncio.to_thread(func, **converted_args)
+
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        audit.log(name, "native", args, success=True, result=result, duration_ms=duration_ms)
+        return result
+
     except ValueError as e:
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        audit.log(name, "native", args, success=False, error=str(e), duration_ms=duration_ms)
         # Specifically for enum conversion errors
         raise ToolArgumentError(f"Invalid argument value for tool '{name}': {e}") from e
     except TypeError as e:
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        audit.log(name, "native", args, success=False, error=str(e), duration_ms=duration_ms)
         # Catches missing required arguments.
         raise ToolArgumentError(
             f"Missing or invalid arguments for tool '{name}': {e}"
         ) from e
     except Exception as e:
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        audit.log(name, "native", args, success=False, error=str(e), duration_ms=duration_ms)
         raise ToolError(f"Error executing tool '{name}' with args {args}: {e}") from e
 
 

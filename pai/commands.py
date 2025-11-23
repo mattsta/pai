@@ -2777,6 +2777,141 @@ Subcommands:
         self.ui.pt_printer(f"Disconnecting from '{server_name}'...")
 
 
+class AuditCommand(Command):
+    """View tool execution audit log."""
+
+    @property
+    def name(self):
+        return "audit"
+
+    @property
+    def description(self):
+        return "View tool execution audit log"
+
+    @property
+    def help_text(self):
+        return """Usage: /audit [subcommand]
+
+Subcommands:
+  show [n]   - Show last n audit entries (default: 10)
+  summary    - Show tool usage summary
+  enable     - Enable audit logging
+  disable    - Disable audit logging
+  clear      - Clear audit log entries"""
+
+    @property
+    def examples(self):
+        return [
+            "/audit show      - Show last 10 tool executions",
+            "/audit show 20   - Show last 20 tool executions",
+            "/audit summary   - Show tool usage statistics",
+            "/audit enable    - Enable audit logging",
+        ]
+
+    def execute(self, app: "Application", param: str | None = None):
+        from .tools import get_audit_logger
+
+        audit = get_audit_logger()
+
+        if not param:
+            param = "show"
+
+        parts = param.strip().split(maxsplit=1)
+        subcommand = parts[0].lower()
+        arg = parts[1] if len(parts) > 1 else None
+
+        if subcommand in ("show", "list"):
+            self._show_entries(audit, arg)
+        elif subcommand == "summary":
+            self._show_summary(audit)
+        elif subcommand == "enable":
+            audit.enable()
+            self.ui.pt_printer("✅ Tool audit logging enabled.")
+        elif subcommand == "disable":
+            audit.disable()
+            self.ui.pt_printer("✅ Tool audit logging disabled.")
+        elif subcommand == "clear":
+            audit.clear()
+            self.ui.pt_printer("✅ Audit log cleared.")
+        else:
+            self.ui.pt_printer(f"❌ Unknown subcommand: {subcommand}")
+            self.ui.pt_printer(self.help_text)
+
+    def _show_entries(self, audit, limit_str: str | None):
+        """Show recent audit entries."""
+        limit = 10
+        if limit_str:
+            try:
+                limit = int(limit_str)
+            except ValueError:
+                self.ui.pt_printer(f"❌ Invalid limit: {limit_str}")
+                return
+
+        entries = audit.get_entries(limit=limit)
+        if not entries:
+            self.ui.pt_printer("No tool executions logged.")
+            if not audit.is_enabled:
+                self.ui.pt_printer("Tip: Enable audit logging with /audit enable")
+            return
+
+        console = self.ui.client.display.rich_console
+        table = Table(title=f"Tool Audit Log (last {len(entries)})", title_style="bold magenta")
+        table.add_column("Time", style="dim", width=19)
+        table.add_column("Tool", style="cyan")
+        table.add_column("Type", style="blue")
+        table.add_column("Status", justify="center")
+        table.add_column("Duration", justify="right")
+
+        for entry in entries:
+            time_str = entry.timestamp.split("T")[1].split(".")[0] if "T" in entry.timestamp else entry.timestamp[:8]
+            status = "[green]OK[/green]" if entry.success else f"[red]FAIL[/red]"
+            duration = f"{entry.duration_ms:.0f}ms" if entry.duration_ms else "-"
+            table.add_row(time_str, entry.tool_name, entry.tool_type, status, duration)
+
+        with console.capture() as capture:
+            console.print(table)
+        from prompt_toolkit.formatted_text import ANSI
+
+        self.ui.pt_printer(ANSI(capture.get()))
+
+    def _show_summary(self, audit):
+        """Show audit summary."""
+        summary = audit.get_summary()
+
+        if summary["total_executions"] == 0:
+            self.ui.pt_printer("No tool executions logged.")
+            return
+
+        console = self.ui.client.display.rich_console
+        table = Table(title="Tool Usage Summary", title_style="bold magenta")
+        table.add_column("Tool", style="cyan")
+        table.add_column("Success", justify="right", style="green")
+        table.add_column("Failed", justify="right", style="red")
+        table.add_column("Total", justify="right")
+
+        for tool_name, stats in summary["tools"].items():
+            table.add_row(
+                tool_name,
+                str(stats["success"]),
+                str(stats["failed"]),
+                str(stats["success"] + stats["failed"]),
+            )
+
+        table.add_section()
+        table.add_row(
+            "[bold]Total[/bold]",
+            f"[bold]{summary['successful']}[/bold]",
+            f"[bold]{summary['failed']}[/bold]",
+            f"[bold]{summary['total_executions']}[/bold]",
+        )
+
+        with console.capture() as capture:
+            console.print(table)
+        from prompt_toolkit.formatted_text import ANSI
+
+        self.ui.pt_printer(ANSI(capture.get()))
+
+
 class ToggleModeCommand(Command):
     @property
     def name(self):

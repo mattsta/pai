@@ -70,6 +70,17 @@ Polyglot AI (PAI) is a well-architected, provider-agnostic CLI for AI model inte
 | **Quote handling** | Supports quoted values | ✅ Complete |
 | **Non-override** | Respects existing env vars | ✅ Complete |
 
+### ✅ Tool Audit Logging - NEW
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **ToolAuditLogger class** | Comprehensive audit logging system | ✅ Complete |
+| **Automatic logging** | All tool executions auto-logged | ✅ Complete |
+| **Sensitive data redaction** | Passwords/tokens automatically redacted | ✅ Complete |
+| **Duration tracking** | Execution time in milliseconds | ✅ Complete |
+| **File output** | JSON lines format for analysis | ✅ Complete |
+| **`/audit` command** | View logs, summary, enable/disable | ✅ Complete |
+
 ### New Features Added
 
 - **`/help <command>`** - Detailed help with examples for any command
@@ -85,6 +96,9 @@ Polyglot AI (PAI) is a well-architected, provider-agnostic CLI for AI model inte
 - **`--output <file>`** - Save batch results to JSON
 - **`--env-file <path>`** - Load environment variables from custom .env file
 - **Auto .env loading** - Automatically loads .env from current directory
+- **`/audit show`** - View recent tool execution history
+- **`/audit summary`** - View tool usage statistics
+- **`/audit enable|disable`** - Toggle audit logging
 
 ### Test Coverage Improvement
 

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="app-container">
+    <!-- Header -->
+    <header class="header">
+        <h1>pai</h1>
+        <div class="header-actions">
+            <div id="current-model"
+                 hx-get="/models/current?session_id={{ session_id }}"
+                 hx-trigger="load">
+                <span class="current-model-display">
+                    <strong>{{ current_model }}</strong>
+                    <span class="muted">on {{ current_endpoint }}</span>
+                </span>
+            </div>
+            <div id="stats-bar"
+                 hx-get="/stats?session_id={{ session_id }}"
+                 hx-trigger="load">
+                Loading stats...
+            </div>
+            <button class="btn btn-secondary"
+                    hx-post="/session/new"
+                    hx-swap="none"
+                    title="New Session">
+                New Session
+            </button>
+        </div>
+    </header>
+
+    <!-- Main chat area -->
+    <main class="main-content">
+        <div class="chat-container" id="chat-messages"
+             hx-get="/chat/history?session_id={{ session_id }}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="empty-state">
+                Start a conversation...
+            </div>
+        </div>
+
+        <div class="input-area">
+            <form class="input-form"
+                  hx-post="/chat/send"
+                  hx-target="#chat-messages"
+                  hx-swap="beforeend"
+                  hx-on::after-request="this.reset(); scrollToBottom();">
+                <input type="hidden" name="session_id" value="{{ session_id }}">
+                <textarea name="message"
+                          placeholder="Type your message... (Enter to send)"
+                          rows="1"
+                          onkeydown="handleKeyDown(event, this)"
+                          oninput="autoResize(this)"></textarea>
+                <button type="submit" class="btn btn-primary">Send</button>
+            </form>
+        </div>
+    </main>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <!-- Models section -->
+        <div class="sidebar-section">
+            <h3>Models</h3>
+            <input type="text"
+                   class="search-input"
+                   placeholder="Search models..."
+                   hx-get="/models/search"
+                   hx-trigger="keyup changed delay:300ms"
+                   hx-target="#model-list-container"
+                   hx-swap="innerHTML"
+                   hx-include="[name='session_id_models']"
+                   name="search">
+            <input type="hidden" name="session_id_models" value="{{ session_id }}">
+            <div id="model-list-container"
+                 hx-get="/models/list?session_id={{ session_id }}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                Loading models...
+            </div>
+        </div>
+
+        <!-- Settings section -->
+        <div class="sidebar-section">
+            <h3>Settings</h3>
+            <div id="settings-container"
+                 hx-get="/settings?session_id={{ session_id }}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                Loading settings...
+            </div>
+        </div>
+
+        <!-- Detailed stats -->
+        <div class="sidebar-section">
+            <h3>Statistics</h3>
+            <div id="detailed-stats"
+                 hx-get="/stats/detailed?session_id={{ session_id }}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                Loading statistics...
+            </div>
+        </div>
+    </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Session ID for this page
+    const SESSION_ID = "{{ session_id }}";
+
+    // Auto-resize textarea
+    function autoResize(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    }
+
+    // Handle Enter key in textarea
+    function handleKeyDown(event, textarea) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            textarea.closest('form').requestSubmit();
+        }
+    }
+
+    // Scroll chat to bottom
+    function scrollToBottom() {
+        const container = document.getElementById('chat-messages');
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // SSE streaming for chat responses
+    let eventSource = null;
+
+    function startStream(sessionId) {
+        // Close existing connection
+        if (eventSource) {
+            eventSource.close();
+        }
+
+        const streamTarget = document.getElementById('stream-target');
+        if (!streamTarget) return;
+
+        // Clear the typing indicator
+        streamTarget.innerHTML = '';
+
+        eventSource = new EventSource(`/chat/stream/${sessionId}`);
+
+        eventSource.addEventListener('content', function(e) {
+            // Unescape newlines
+            const content = e.data.replace(/\\n/g, '\n');
+            streamTarget.textContent += content;
+            scrollToBottom();
+        });
+
+        eventSource.addEventListener('done', function(e) {
+            eventSource.close();
+            eventSource = null;
+            // Refresh stats after completion
+            htmx.trigger('#stats-bar', 'load');
+            htmx.trigger('#detailed-stats', 'load');
+        });
+
+        eventSource.addEventListener('error', function(e) {
+            if (e.data) {
+                streamTarget.innerHTML = `<span class="error">${e.data}</span>`;
+            }
+            eventSource.close();
+            eventSource = null;
+        });
+
+        eventSource.addEventListener('cancelled', function(e) {
+            streamTarget.innerHTML += '<span class="muted"> [cancelled]</span>';
+            eventSource.close();
+            eventSource = null;
+        });
+
+        eventSource.onerror = function() {
+            eventSource.close();
+            eventSource = null;
+        };
+    }
+
+    // Scroll to bottom on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(scrollToBottom, 100);
+    });
+
+    // Close SSE on page unload
+    window.addEventListener('beforeunload', function() {
+        if (eventSource) {
+            eventSource.close();
+        }
+    });
+</script>
+{% endblock %}

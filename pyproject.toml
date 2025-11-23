@@ -13,6 +13,8 @@ dependencies = [
     "jinja2>=3.1.4",
     "pyyaml>=6.0.1",
     "pydantic>=2.9.0",
+    "starlette>=0.41.0",
+    "uvicorn>=0.32.0",
 ]
 
 [tool.ruff]
@@ -29,6 +31,7 @@ ignore = ["E402"] # Ignore Module level import not at top of file
 
 [project.scripts]
 pai = "pai.pai:main"
+pai-web = "pai.web:run_server_cli"
 
 [project.entry-points."polyglot_ai.protocols"]
 openai_chat = "pai.protocols.openai_chat_adapter:OpenAIChatAdapter"

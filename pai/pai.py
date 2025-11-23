@@ -1589,6 +1589,21 @@ def run(
         help="Path to a .env file to load environment variables from.",
         show_default=False,
     ),
+    web: bool = typer.Option(
+        False,
+        "--web",
+        help="Start the web interface instead of the CLI.",
+    ),
+    web_host: str = typer.Option(
+        "127.0.0.1",
+        "--web-host",
+        help="Host for the web interface.",
+    ),
+    web_port: int = typer.Option(
+        8080,
+        "--web-port",
+        help="Port for the web interface.",
+    ),
 ):
     """Main application entrypoint."""
     print("🪶 Polyglot AI: A Universal CLI for Any AI Provider 🪶")
@@ -1597,6 +1612,18 @@ def run(
     _load_env_file(env_file)
 
     toml_config = load_toml_config(config)
+
+    # Handle --web flag: start web interface instead of CLI
+    if web:
+        import asyncio
+
+        from .pricing import PricingService
+        from .web import run_server
+
+        pricing_service = PricingService()
+        print(f"\n🌐 Starting web interface at http://{web_host}:{web_port}")
+        asyncio.run(run_server(toml_config, pricing_service, web_host, web_port))
+        return
 
     # Handle profile loading. This must happen before RuntimeConfig is instantiated
     # so that the context can provide the correct default values.

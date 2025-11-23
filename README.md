@@ -142,6 +142,54 @@ For complex tasks, you can then switch into "agent mode" to give the AI a better
 ```
 Now you can ask it to perform tasks that require tools: `Refactor the 'get_current_weather' function in 'pai/tools.py' to handle a 'kelvin' unit.`
 
+**Batch Mode (Non-Interactive Processing)**
+
+Process multiple prompts from a file without interaction:
+
+```bash
+# Process prompts from a text file (one per line)
+uv run pai --batch prompts.txt --output results.json
+
+# Process prompts from a JSON file
+uv run pai --batch prompts.json --output results.json --model gpt-4o
+
+# With a system prompt for all prompts
+uv run pai --batch prompts.txt --system "You are a helpful assistant" --output results.json
+```
+
+Batch file formats supported:
+- **Plain text**: One prompt per line (lines starting with `#` are ignored)
+- **JSON**: Array of strings or array of objects with `prompt` key
+- **YAML**: List of strings or list of objects with `prompt` key
+
+Example `prompts.json`:
+```json
+[
+  "Explain photosynthesis in simple terms",
+  "What is the capital of France?",
+  {"prompt": "Write a haiku about coding", "metadata": "optional"}
+]
+```
+
+**Environment Variables (.env Support)**
+
+PAI automatically loads environment variables from `.env` files:
+
+```bash
+# Auto-detects .env in current directory
+uv run pai --chat
+
+# Specify a custom .env file
+uv run pai --env-file /path/to/custom.env --chat
+```
+
+Example `.env` file:
+```
+OPENAI_API_KEY=sk-your-key-here
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+BRAVE_API_KEY=your-brave-key
+```
+
 ### Interactive Commands
 
 Once in interactive mode, use `/` commands to control the session:

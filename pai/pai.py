@@ -6,7 +6,9 @@ and fixing the circular import error.
 
 import asyncio
 import importlib.metadata
+import json
 import logging
+import os
 import pathlib
 import re
 import sys
@@ -69,6 +71,92 @@ session = PromptSession()
 
 # Precompiled regex for stripping HTML tags from formatted text
 _HTML_TAG_RE = re.compile(r"<[^<]+?>")
+
+
+def _load_env_file(env_file: str | None = None) -> None:
+    """Load environment variables from a .env file.
+
+    If env_file is specified, loads from that path.
+    Otherwise, auto-detects .env in current directory or parent directories.
+    """
+    env_paths = []
+    if env_file:
+        env_paths = [pathlib.Path(env_file)]
+    else:
+        # Auto-detect .env file
+        cwd = pathlib.Path.cwd()
+        env_paths = [cwd / ".env", cwd.parent / ".env"]
+
+    for env_path in env_paths:
+        if env_path.exists():
+            try:
+                with open(env_path, "r") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            key, _, value = line.partition("=")
+                            key = key.strip()
+                            value = value.strip()
+                            # Remove quotes if present
+                            if (value.startswith('"') and value.endswith('"')) or \
+                               (value.startswith("'") and value.endswith("'")):
+                                value = value[1:-1]
+                            # Only set if not already in environment
+                            if key not in os.environ:
+                                os.environ[key] = value
+                print(f"📁 Loaded environment from: {env_path}")
+                return
+            except Exception as e:
+                print(f"⚠️  Warning: Could not load {env_path}: {e}")
+
+
+def _load_batch_prompts(batch_file: str) -> list[str]:
+    """Load prompts from a batch file.
+
+    Supports:
+    - Plain text: One prompt per line
+    - JSON: Array of strings or array of objects with 'prompt' key
+    - YAML: List of strings or list of objects with 'prompt' key
+    """
+    path = pathlib.Path(batch_file)
+    if not path.exists():
+        raise FileNotFoundError(f"Batch file not found: {batch_file}")
+
+    content = path.read_text(encoding="utf-8")
+
+    # Try JSON first
+    if path.suffix.lower() == ".json" or content.strip().startswith("["):
+        try:
+            data = json.loads(content)
+            if isinstance(data, list):
+                prompts = []
+                for item in data:
+                    if isinstance(item, str):
+                        prompts.append(item)
+                    elif isinstance(item, dict) and "prompt" in item:
+                        prompts.append(item["prompt"])
+                return prompts
+        except json.JSONDecodeError:
+            pass
+
+    # Try YAML
+    if path.suffix.lower() in (".yaml", ".yml"):
+        try:
+            data = yaml.safe_load(content)
+            if isinstance(data, list):
+                prompts = []
+                for item in data:
+                    if isinstance(item, str):
+                        prompts.append(item)
+                    elif isinstance(item, dict) and "prompt" in item:
+                        prompts.append(item["prompt"])
+                return prompts
+        except yaml.YAMLError:
+            pass
+
+    # Fall back to plain text (one prompt per line)
+    lines = content.strip().split("\n")
+    return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
 
 
 def print_banner():
@@ -1149,6 +1237,116 @@ def load_toml_config(path: str) -> PolyglotConfig:
         sys.exit(f"❌ FATAL: Error in final merged config: {e}")
 
 
+async def _run_batch_mode(client: "PolyglotClient", runtime_config: RuntimeConfig) -> None:
+    """Run batch mode processing for multiple prompts.
+
+    Reads prompts from a file, processes each one, and optionally writes results to a file.
+    Supports text, JSON, and YAML input formats.
+    """
+    from datetime import datetime
+
+    batch_file = runtime_config.batch_file
+    if not batch_file:
+        return
+
+    typer.echo(f"📦 Batch Mode: Loading prompts from {batch_file}")
+
+    try:
+        prompts = _load_batch_prompts(batch_file)
+    except FileNotFoundError as e:
+        typer.echo(f"❌ Error: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    if not prompts:
+        typer.echo("⚠️  No prompts found in batch file.", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"📝 Found {len(prompts)} prompt(s) to process")
+    typer.echo(f"🔧 Using model: {client.config.model_name}")
+    typer.echo("-" * 60)
+
+    results = []
+    start_time = datetime.now()
+
+    for i, prompt_text in enumerate(prompts, 1):
+        typer.echo(f"\n[{i}/{len(prompts)}] Processing prompt...")
+
+        # Build messages
+        messages = (
+            [{"role": "system", "content": runtime_config.system}]
+            if runtime_config.system
+            else []
+        )
+        messages.append({"role": "user", "content": prompt_text})
+
+        # Create request
+        request = ChatRequest(
+            messages=messages,
+            model=client.config.model_name,
+            max_tokens=runtime_config.max_tokens,
+            temperature=runtime_config.temperature,
+            stream=False,  # Disable streaming for batch mode
+            tools=get_tool_schemas() if client.tools_enabled else [],
+        )
+
+        try:
+            # Generate response
+            response = await client.generate(request, runtime_config.verbose)
+
+            result = {
+                "index": i,
+                "prompt": prompt_text,
+                "response": response if response else "",
+                "model": client.config.model_name,
+                "success": True,
+                "stats": {
+                    "tokens_sent": client.stats.last_request_stats.tokens_sent if client.stats.last_request_stats else 0,
+                    "tokens_received": client.stats.last_request_stats.tokens_received if client.stats.last_request_stats else 0,
+                    "cost": client.stats.last_request_stats.cost.total_cost if client.stats.last_request_stats and client.stats.last_request_stats.cost else 0,
+                },
+            }
+            typer.echo(f"   ✅ Completed ({result['stats']['tokens_received']} tokens)")
+
+        except Exception as e:
+            result = {
+                "index": i,
+                "prompt": prompt_text,
+                "response": None,
+                "model": client.config.model_name,
+                "success": False,
+                "error": str(e),
+            }
+            typer.echo(f"   ❌ Failed: {e}")
+
+        results.append(result)
+
+    # Summary
+    elapsed = datetime.now() - start_time
+    successful = sum(1 for r in results if r["success"])
+    typer.echo("\n" + "=" * 60)
+    typer.echo(f"📊 Batch Complete: {successful}/{len(prompts)} successful")
+    typer.echo(f"⏱️  Total time: {elapsed.total_seconds():.1f}s")
+    typer.echo(f"💰 Total cost: ${client.stats.total_cost:.5f}")
+
+    # Write output file if specified
+    if runtime_config.output_file:
+        output_path = pathlib.Path(runtime_config.output_file)
+        output_data = {
+            "batch_file": batch_file,
+            "model": client.config.model_name,
+            "timestamp": datetime.now().isoformat(),
+            "total_prompts": len(prompts),
+            "successful": successful,
+            "failed": len(prompts) - successful,
+            "elapsed_seconds": elapsed.total_seconds(),
+            "total_cost": client.stats.total_cost,
+            "results": results,
+        }
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+        typer.echo(f"📄 Results written to: {output_path}")
+
+
 async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
     """The core async logic of the application."""
     if runtime_config.log_file:
@@ -1242,8 +1440,11 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
                 pricing_service,
                 version=version_str,
             )
-            if runtime_config.prompt:
-                # Non-interactive mode
+            if runtime_config.batch_file:
+                # Batch mode - process multiple prompts from file
+                await _run_batch_mode(client, runtime_config)
+            elif runtime_config.prompt:
+                # Non-interactive mode - single prompt
                 if runtime_config.chat:
                     messages = (
                         [{"role": "system", "content": runtime_config.system}]
@@ -1368,9 +1569,32 @@ def run(
         help="Path to a custom TOML pricing file. Overrides 'custom-pricing-file' in config.",
         show_default=False,
     ),
+    batch_file: str | None = typer.Option(
+        None,
+        "--batch",
+        "-b",
+        help="Path to a file containing prompts (one per line or JSON array). Runs non-interactively.",
+        show_default=False,
+    ),
+    output_file: str | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output file for batch mode results (JSON format).",
+        show_default=False,
+    ),
+    env_file: str | None = typer.Option(
+        None,
+        "--env-file",
+        help="Path to a .env file to load environment variables from.",
+        show_default=False,
+    ),
 ):
     """Main application entrypoint."""
     print("🪶 Polyglot AI: A Universal CLI for Any AI Provider 🪶")
+
+    # Load environment variables from .env file if specified or auto-detect
+    _load_env_file(env_file)
 
     toml_config = load_toml_config(config)
 
@@ -1411,6 +1635,8 @@ def run(
         log_file=log_file,
         config=config,
         custom_pricing_file=custom_pricing_file,
+        batch_file=batch_file,
+        output_file=output_file,
     )
     asyncio.run(_run(runtime_config, toml_config))
 

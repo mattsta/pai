@@ -51,6 +51,25 @@ Polyglot AI (PAI) is a well-architected, provider-agnostic CLI for AI model inte
 | **mypy errors** | ~100+ | 0 | ✅ Complete |
 | **Type coverage** | Partial | Comprehensive config | ✅ Complete |
 
+### ✅ Batch Mode & Scripting - NEW
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **`--batch` flag** | Process multiple prompts from file | ✅ Complete |
+| **`--output` flag** | Save batch results to JSON | ✅ Complete |
+| **Multi-format input** | Supports .txt, .json, .yaml formats | ✅ Complete |
+| **Progress tracking** | Shows per-prompt progress and stats | ✅ Complete |
+| **Result aggregation** | Total time, cost, success rate | ✅ Complete |
+
+### ✅ .env File Support - NEW
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Auto-detection** | Loads .env from current directory | ✅ Complete |
+| **`--env-file` flag** | Specify custom .env path | ✅ Complete |
+| **Quote handling** | Supports quoted values | ✅ Complete |
+| **Non-override** | Respects existing env vars | ✅ Complete |
+
 ### New Features Added
 
 - **`/help <command>`** - Detailed help with examples for any command
@@ -62,6 +81,10 @@ Polyglot AI (PAI) is a well-architected, provider-agnostic CLI for AI model inte
 - **`/mcp list`** - List all available MCP tools
 - **`/mcp connect <server>`** - Connect to a specific MCP server
 - **`/mcp disconnect <server>`** - Disconnect from an MCP server
+- **`--batch <file>`** - Process multiple prompts from a file
+- **`--output <file>`** - Save batch results to JSON
+- **`--env-file <path>`** - Load environment variables from custom .env file
+- **Auto .env loading** - Automatically loads .env from current directory
 
 ### Test Coverage Improvement
 

@@ -973,3 +973,5 @@ class RuntimeConfig(BaseModel):
     smooth_stream: bool = True
     custom_pricing_file: str | None = Field(None, alias="custom-pricing-file")
     session_budget: float | None = None  # Maximum spend in USD for this session
+    batch_file: str | None = None  # Path to batch prompts file
+    output_file: str | None = None  # Output file for batch results

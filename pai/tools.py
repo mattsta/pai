@@ -58,7 +58,7 @@ class ToolAuditLogger:
 
     Supports logging to:
     - Memory (for session review)
-    - File (JSON lines format)
+    - File (JSON lines format, with buffered writes)
     - Python logging module
 
     Usage:
@@ -68,12 +68,16 @@ class ToolAuditLogger:
         entries = audit_logger.get_entries()
     """
 
+    # Buffer size before auto-flush (number of entries)
+    BUFFER_SIZE = 10
+
     def __init__(self) -> None:
         self._entries: list[ToolAuditEntry] = []
         self._enabled: bool = False
         self._log_file: pathlib.Path | None = None
         self._session_id: str | None = None
         self._logger = logging.getLogger("pai.tools.audit")
+        self._write_buffer: list[str] = []
 
     def enable(
         self,
@@ -95,7 +99,8 @@ class ToolAuditLogger:
             self._logger.info(f"Tool audit logging enabled: {self._log_file}")
 
     def disable(self) -> None:
-        """Disable audit logging."""
+        """Disable audit logging and flush pending writes."""
+        self.flush()  # Ensure all buffered entries are written
         self._enabled = False
 
     @property
@@ -157,13 +162,24 @@ class ToolAuditLogger:
         else:
             self._logger.warning(f"{log_msg}: {error}")
 
-        # Write to file if configured
+        # Buffer writes to file if configured
         if self._log_file:
-            try:
-                with open(self._log_file, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(entry.to_dict()) + "\n")
-            except Exception as e:
-                self._logger.error(f"Failed to write audit log: {e}")
+            self._write_buffer.append(json.dumps(entry.to_dict()) + "\n")
+            # Auto-flush when buffer is full
+            if len(self._write_buffer) >= self.BUFFER_SIZE:
+                self.flush()
+
+    def flush(self) -> None:
+        """Flush buffered writes to file."""
+        if not self._log_file or not self._write_buffer:
+            return
+
+        try:
+            with open(self._log_file, "a", encoding="utf-8") as f:
+                f.writelines(self._write_buffer)
+            self._write_buffer.clear()
+        except Exception as e:
+            self._logger.error(f"Failed to write audit log: {e}")
 
     def _sanitize_arguments(self, args: dict[str, Any]) -> dict[str, Any]:
         """Sanitize arguments to remove potentially sensitive data."""
@@ -217,8 +233,9 @@ class ToolAuditLogger:
         }
 
     def clear(self) -> None:
-        """Clear all stored entries."""
+        """Clear all stored entries and pending writes."""
         self._entries.clear()
+        self._write_buffer.clear()
 
 
 # Global audit logger instance
@@ -237,6 +254,10 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {}
 
 # Global MCP manager instance (initialized lazily)
 _mcp_manager: "MCPManager | None" = None
+
+# Cache for tool schemas to avoid rebuilding on every call
+_tool_schema_cache: list[dict[str, Any]] | None = None
+_tool_schema_cache_version: int = 0  # Incremented when tools change
 
 
 def get_mcp_manager() -> "MCPManager | None":
@@ -322,13 +343,26 @@ def _generate_schema_for_function(func: Callable) -> dict:
 
 def tool(func: Callable) -> Callable:
     """Decorator to register a function as a tool the AI can use."""
+    global _tool_schema_cache
     tool_schema = _generate_schema_for_function(func)
     TOOL_REGISTRY[func.__name__] = ToolDefinition(function=func, schema=tool_schema)
+    # Invalidate cache when new tools are registered
+    _tool_schema_cache = None
     return func
+
+
+def invalidate_tool_cache() -> None:
+    """Invalidate the tool schema cache (call when tools change)."""
+    global _tool_schema_cache, _tool_schema_cache_version
+    _tool_schema_cache = None
+    _tool_schema_cache_version += 1
 
 
 def get_tool_schemas(include_mcp: bool = True) -> list[dict[str, Any]]:
     """Get all tool schemas in OpenAI-compatible format.
+
+    Uses caching to avoid rebuilding schemas on every call.
+    The cache is invalidated when tools are registered or MCP connections change.
 
     Args:
         include_mcp: Whether to include MCP tools (default True).
@@ -336,12 +370,24 @@ def get_tool_schemas(include_mcp: bool = True) -> list[dict[str, Any]]:
     Returns:
         List of tool schemas for all available tools.
     """
+    global _tool_schema_cache
+
+    # For non-MCP requests, we can use a simpler cache
+    if not include_mcp:
+        return [t.schema for t in TOOL_REGISTRY.values()] if TOOL_REGISTRY else []
+
+    # Check if cache is valid
+    if _tool_schema_cache is not None:
+        return _tool_schema_cache
+
+    # Build and cache the schema list
     schemas = [t.schema for t in TOOL_REGISTRY.values()] if TOOL_REGISTRY else []
 
     # Add MCP tools if manager is available
-    if include_mcp and _mcp_manager is not None:
+    if _mcp_manager is not None:
         schemas.extend(_mcp_manager.get_all_tools())
 
+    _tool_schema_cache = schemas
     return schemas
 
 

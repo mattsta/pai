@@ -89,6 +89,7 @@ class MCPServer:
     )
     _read_task: asyncio.Task[None] | None = field(default=None, repr=False)
     _stderr_task: asyncio.Task[None] | None = field(default=None, repr=False)
+    _server_capabilities: dict[str, Any] = field(default_factory=dict, repr=False)
 
     @property
     def name(self) -> str:
@@ -142,6 +143,13 @@ class MCPServer:
                 f"MCP server '{self.name}' connected with {len(self.tools)} tools"
             )
 
+            # Invalidate tool schema cache since new tools are available
+            try:
+                from pai.tools import invalidate_tool_cache
+                invalidate_tool_cache()
+            except ImportError:
+                pass  # Tools module not available
+
         except Exception as e:
             self.status = ServerStatus.ERROR
             logger.error(f"Failed to connect to MCP server '{self.name}': {e}")
@@ -175,6 +183,13 @@ class MCPServer:
         self._pending_requests.clear()
         self.status = ServerStatus.DISCONNECTED
         logger.info(f"MCP server '{self.name}' disconnected")
+
+        # Invalidate tool schema cache since tools are no longer available
+        try:
+            from pai.tools import invalidate_tool_cache
+            invalidate_tool_cache()
+        except ImportError:
+            pass  # Tools module not available
 
     async def _send_request(
         self, method: str, params: dict[str, Any] | None = None
@@ -250,6 +265,14 @@ class MCPServer:
         except Exception as e:
             logger.error(f"Error reading from MCP server '{self.name}': {e}")
             self.status = ServerStatus.ERROR
+        finally:
+            # Clean up any pending requests when the reader exits
+            for request_id, future in list(self._pending_requests.items()):
+                if not future.done():
+                    future.set_exception(
+                        MCPConnectionError(f"Server '{self.name}' connection closed")
+                    )
+            self._pending_requests.clear()
 
     async def _read_stderr(self) -> None:
         """Read and log stderr from the server process."""
@@ -279,6 +302,8 @@ class MCPServer:
                 "clientInfo": {"name": "pai", "version": "0.3.0"},
             },
         )
+        # Store server capabilities for future reference
+        self._server_capabilities = result.get("capabilities", {}) if result else {}
         logger.debug(f"MCP server '{self.name}' initialized: {result}")
 
         # Send initialized notification

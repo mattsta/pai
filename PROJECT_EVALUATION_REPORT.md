@@ -79,7 +79,18 @@ Polyglot AI (PAI) is a well-architected, provider-agnostic CLI for AI model inte
 | **Sensitive data redaction** | Passwords/tokens automatically redacted | ✅ Complete |
 | **Duration tracking** | Execution time in milliseconds | ✅ Complete |
 | **File output** | JSON lines format for analysis | ✅ Complete |
+| **Buffered writes** | Efficient batched file I/O | ✅ Complete |
 | **`/audit` command** | View logs, summary, enable/disable | ✅ Complete |
+
+### ✅ Performance & Correctness Audit - NEW
+
+| Improvement | Description | Status |
+|-------------|-------------|--------|
+| **MCP pending request cleanup** | Clean up requests when reader exits | ✅ Complete |
+| **MCP server capabilities tracking** | Store and log server capabilities | ✅ Complete |
+| **Tool schema caching** | Cache schemas to avoid rebuilds | ✅ Complete |
+| **Cache invalidation** | Auto-invalidate when tools/servers change | ✅ Complete |
+| **Buffered audit writes** | Batch file writes (10 entries) | ✅ Complete |
 
 ### New Features Added
 

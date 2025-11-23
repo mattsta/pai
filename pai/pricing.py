@@ -2,11 +2,11 @@ import dataclasses
 import json
 import pathlib
 import re
+import tomllib
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
-import toml
 import yaml
 
 from .models import (
@@ -108,7 +108,7 @@ class PricingService:
                     content = path.read_text("utf-8")
                     custom_data = None
                     if path.suffix.lower() == ".toml":
-                        custom_data = toml.loads(content)
+                        custom_data = tomllib.loads(content)
                     elif path.suffix.lower() in [".yaml", ".yml"]:
                         custom_data = yaml.safe_load(content)
                     else:
@@ -123,7 +123,7 @@ class PricingService:
                         )
                         print(f"Loaded custom pricing from '{custom_file_path}'")
 
-                except (toml.TomlDecodeError, yaml.YAMLError, Exception) as e:
+                except (tomllib.TOMLDecodeError, yaml.YAMLError, Exception) as e:
                     print(
                         "Warning: Could not parse custom pricing file "
                         f"'{custom_file_path}': {e}"

@@ -10,12 +10,12 @@ import logging
 import pathlib
 import re
 import sys
+import tomllib
 from copy import deepcopy
 from datetime import datetime
 from html import escape
 
 import httpx
-import toml
 import typer
 import yaml
 from prompt_toolkit import PromptSession, print_formatted_text
@@ -29,6 +29,7 @@ from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
 from prompt_toolkit.layout.containers import (
     ConditionalContainer,
+    DynamicContainer,
     HSplit,
     VSplit,
     Window,
@@ -66,6 +67,9 @@ from .tools import get_tool_schemas
 # --- Global Definitions ---
 session = PromptSession()
 
+# Precompiled regex for stripping HTML tags from formatted text
+_HTML_TAG_RE = re.compile(r"<[^<]+?>")
+
 
 def print_banner():
     print("🪶 Polyglot AI: A Universal CLI for the OpenAI API Format 🪶")
@@ -91,6 +95,36 @@ class CommandCompleter(Completer):
 
 
 # Logging and statistics functions have been moved to `pai/log_utils.py`.
+
+
+class DisplayAccessor:
+    """
+    Provides lazy, index-based access to StreamingDisplay objects.
+    Displays are created on-demand when accessed, saving memory when
+    concurrent operations aren't being used.
+    """
+
+    def __init__(self, ui: "InteractiveUI"):
+        self._ui = ui
+
+    def __getitem__(self, index: int) -> StreamingDisplay:
+        """Returns the display at the given index, creating it if necessary."""
+        if index < 0 or index >= self._ui.MAX_CONCURRENT:
+            raise IndexError(
+                f"Display index {index} out of range (0-{self._ui.MAX_CONCURRENT - 1})"
+            )
+        if index not in self._ui._displays:
+            self._ui._create_display(index)
+        return self._ui._displays[index]
+
+    def __iter__(self):
+        """Iterates over existing displays only (does not create new ones)."""
+        for i in sorted(self._ui._displays.keys()):
+            yield self._ui._displays[i]
+
+    def __len__(self):
+        """Returns the number of currently allocated displays."""
+        return len(self._ui._displays)
 
 
 class InteractiveUI:
@@ -136,21 +170,12 @@ class InteractiveUI:
         command_completer = CommandCompleter(self.command_handler.completion_list)
 
         self.active_concurrent_count = 0
-        self.displays = [
-            StreamingDisplay(
-                debug_mode=runtime_config.debug,
-                rich_text_mode=runtime_config.rich_text,
-                smooth_stream_mode=runtime_config.smooth_stream,
-                enhanced_debug_mode=runtime_config.enhanced_debug,
-                clone_id=i,
-            )
-            for i in range(self.MAX_CONCURRENT)
-        ]
-        # Set main default display and link all displays to the UI
-        self.client.display = self.displays[0]
-        for display in self.displays:
-            display.set_printer(self.pt_printer, is_interactive=True)
-            display.ui = self
+        # Lazy-allocated display cache: only create displays when needed
+        # This saves ~14MB of memory by not pre-allocating 50 displays
+        self._displays: dict[int, StreamingDisplay] = {}
+        # Primary display (index 0) is always needed
+        primary_display = self._create_display(0)
+        self.client.display = primary_display
 
         self.streaming_output_buffer = self.client.display.output_buffer
         self.reasoning_output_buffer = self.client.display.reasoning_output_buffer
@@ -187,6 +212,31 @@ class InteractiveUI:
         sanitized = sanitized.replace(" ", "_")
         # Truncate to a reasonable length
         return sanitized[:100]
+
+    def _create_display(self, index: int) -> StreamingDisplay:
+        """Creates and configures a new StreamingDisplay for the given index."""
+        display = StreamingDisplay(
+            debug_mode=self.runtime_config.debug,
+            rich_text_mode=self.runtime_config.rich_text,
+            smooth_stream_mode=self.runtime_config.smooth_stream,
+            enhanced_debug_mode=self.runtime_config.enhanced_debug,
+            clone_id=index,
+        )
+        display.set_printer(self.pt_printer, is_interactive=True)
+        display.ui = self
+        self._displays[index] = display
+        return display
+
+    def _ensure_displays(self, count: int) -> None:
+        """Ensures that displays 0 through count-1 exist, creating them lazily."""
+        for i in range(count):
+            if i not in self._displays:
+                self._create_display(i)
+
+    @property
+    def displays(self) -> "DisplayAccessor":
+        """Returns a display accessor that creates displays on-demand."""
+        return DisplayAccessor(self)
 
     def start_new_log_session(self, title: str | None = None):
         """Starts a new conversation and a new log directory."""
@@ -360,7 +410,7 @@ class InteractiveUI:
                     FormattedTextControl(self._get_prompt_text),
                     # The width must calculate the length of the *unformatted* string.
                     width=lambda: len(
-                        re.sub("<[^<]+?>", "", self._get_prompt_text().value)
+                        _HTML_TAG_RE.sub("", self._get_prompt_text().value)
                     )
                     + 1,
                 ),
@@ -431,28 +481,31 @@ class InteractiveUI:
             ),
         )
 
-        concurrent_output_windows = HSplit(
-            [
-                ConditionalContainer(
-                    Frame(
-                        body=Window(
-                            content=BufferControl(
-                                buffer=self.displays[i].output_buffer
+        def get_concurrent_output_windows():
+            """Dynamically creates concurrent output windows only when needed."""
+            if (
+                not self.generation_in_progress.is_set()
+                or self.active_concurrent_count <= 1
+            ):
+                return Window()  # Empty placeholder
+            # Only create windows for active displays (lazy allocation)
+            windows = []
+            for i in range(self.active_concurrent_count):
+                display = self.displays[i]  # Creates display on-demand via accessor
+                if display.output_buffer.text:
+                    windows.append(
+                        Frame(
+                            body=Window(
+                                content=BufferControl(buffer=display.output_buffer),
+                                wrap_lines=True,
                             ),
-                            wrap_lines=True,
-                        ),
-                        title=lambda i=i: f"Response {i + 1} ({self.displays[i].status})",
-                    ),
-                    filter=Condition(
-                        lambda i=i: i < self.active_concurrent_count
-                        and bool(self.displays[i].output_buffer.text)
-                    ),
-                )
-                for i in range(self.MAX_CONCURRENT)
-            ]
-        )
+                            title=f"Response {i + 1} ({display.status})",
+                        )
+                    )
+            return HSplit(windows) if windows else Window()
+
         concurrent_output_container = ConditionalContainer(
-            concurrent_output_windows,
+            DynamicContainer(get_concurrent_output_windows),
             filter=Condition(
                 lambda: self.generation_in_progress.is_set()
                 and self.active_concurrent_count > 1
@@ -1043,8 +1096,8 @@ def _merge_configs(base: dict, new: dict) -> dict:
 def load_toml_config(path: str) -> PolyglotConfig:
     """Loads a base TOML config and merges any configs from the providers/ dir."""
     try:
-        with open(path, encoding="utf-8") as f:
-            base_data = toml.load(f)
+        with open(path, "rb") as f:
+            base_data = tomllib.load(f)
     except FileNotFoundError:
         # Provide a helpful message if the old config file name is found.
         if path == "pai.toml" and pathlib.Path("polyglot.toml").exists():
@@ -1068,8 +1121,8 @@ def load_toml_config(path: str) -> PolyglotConfig:
 
         for provider_file in provider_files:
             try:
-                with open(provider_file, encoding="utf-8") as f:
-                    provider_data = toml.load(f)
+                with open(provider_file, "rb") as f:
+                    provider_data = tomllib.load(f)
                     merged_data = _merge_configs(merged_data, provider_data)
             except Exception as e:
                 typer.echo(

@@ -72,6 +72,16 @@ class Command(ABC):
         """The detailed help text for the command, shown for incomplete commands."""
         return f"Usage: /{self.name} <parameter>"
 
+    @property
+    def description(self) -> str:
+        """A short one-line description of the command."""
+        return ""
+
+    @property
+    def examples(self) -> list[str]:
+        """List of example usages for the command."""
+        return []
+
     @abstractmethod
     def execute(self, app: "Application", param: str | None = None):
         """The logic to execute when the command is called."""
@@ -157,7 +167,78 @@ class HelpCommand(Command):
     def name(self):
         return "help"
 
+    @property
+    def description(self):
+        return "Show help for commands"
+
+    @property
+    def examples(self):
+        return [
+            "/help           - Show all available commands",
+            "/help switch    - Show detailed help for /switch command",
+            "/help arena     - Show detailed help for /arena command",
+        ]
+
+    def _show_command_help(self, command_name: str):
+        """Show detailed help for a specific command."""
+        handler = self.ui.command_handler
+        # Find the command by name or alias
+        cmd = None
+        for c in handler.commands:
+            if c.name == command_name or command_name in c.aliases:
+                cmd = c
+                break
+
+        if not cmd:
+            # Try prefix matching
+            matches = [c for c in handler.commands if c.name.startswith(command_name)]
+            if len(matches) == 1:
+                cmd = matches[0]
+            elif len(matches) > 1:
+                self.ui.pt_printer(f"Multiple commands match '{command_name}':")
+                for m in matches:
+                    self.ui.pt_printer(f"  /{m.name}")
+                return
+            else:
+                self.ui.pt_printer(f"Unknown command: /{command_name}")
+                return
+
+        # Build detailed help output
+        console = self.ui.client.display.rich_console
+        from prompt_toolkit.formatted_text import ANSI
+
+        # Create a rich panel with command details
+        content = Text()
+        content.append(f"/{cmd.name}", style="bold cyan")
+        if cmd.aliases:
+            content.append(
+                f" (aliases: {', '.join('/' + a for a in cmd.aliases)})", style="dim"
+            )
+        content.append("\n\n")
+
+        if cmd.description:
+            content.append(cmd.description, style="white")
+            content.append("\n\n")
+
+        content.append("Usage:\n", style="bold yellow")
+        content.append(f"  {cmd.help_text}\n", style="white")
+
+        if cmd.examples:
+            content.append("\nExamples:\n", style="bold yellow")
+            for ex in cmd.examples:
+                content.append(f"  {ex}\n", style="green")
+
+        panel = Panel(content, title=f"Help: /{cmd.name}", border_style="blue")
+        with console.capture() as capture:
+            console.print(panel)
+        self.ui.pt_printer(ANSI(capture.get()))
+
     def execute(self, app: "Application", param: str | None = None):
+        # If a command name is provided, show detailed help for that command
+        if param:
+            self._show_command_help(param.strip().lstrip("/"))
+            return
+
         self.ui.pt_printer(
             """
 --- GENERAL COMMANDS ---
@@ -257,6 +338,23 @@ class SwitchCommand(Command):
     def requires_param(self):
         return True
 
+    @property
+    def description(self):
+        return "Switch to a different provider endpoint defined in pai.toml"
+
+    @property
+    def help_text(self):
+        return "Usage: /switch <endpoint_name>"
+
+    @property
+    def examples(self):
+        return [
+            "/switch openai      - Switch to OpenAI endpoint",
+            "/switch anthropic   - Switch to Anthropic endpoint",
+            "/switch ollama      - Switch to local Ollama instance",
+            "/switch together    - Switch to Together.ai endpoint",
+        ]
+
     def execute(self, app: "Application", param: str | None = None):
         if not param:
             self.ui.pt_printer(self.help_text)
@@ -268,6 +366,24 @@ class ModelsCommand(Command):
     @property
     def name(self):
         return "models"
+
+    @property
+    def description(self):
+        return "List available models for the current endpoint"
+
+    @property
+    def help_text(self):
+        return "Usage: /models [search_term] [refresh]"
+
+    @property
+    def examples(self):
+        return [
+            "/models              - List all available models",
+            "/models gpt          - List models containing 'gpt'",
+            "/models claude       - List models containing 'claude'",
+            "/models refresh      - Force refresh the model list from API",
+            "/models gpt refresh  - Search for 'gpt' and refresh from API",
+        ]
 
     def execute(self, app: "Application", param: str | None = None):
         """Fetches and displays available models for the current endpoint."""
@@ -510,6 +626,23 @@ class ModelCommand(Command):
     @property
     def requires_param(self):
         return True
+
+    @property
+    def description(self):
+        return "Set the model for the current session"
+
+    @property
+    def help_text(self):
+        return "Usage: /model <model_name>"
+
+    @property
+    def examples(self):
+        return [
+            "/model gpt-4o                    - Use OpenAI GPT-4o",
+            "/model gpt-4o-mini               - Use GPT-4o mini (faster, cheaper)",
+            "/model claude-3-5-sonnet-latest  - Use Claude 3.5 Sonnet",
+            "/model llama3.2                  - Use Llama 3.2 (on Ollama)",
+        ]
 
     def execute(self, app: "Application", param: str | None = None):
         if not param:
@@ -854,6 +987,20 @@ class ClearCommand(Command):
     def name(self):
         return "clear"
 
+    @property
+    def description(self):
+        return "Clear the conversation history (preserves system prompts)"
+
+    @property
+    def help_text(self):
+        return "Usage: /clear"
+
+    @property
+    def examples(self):
+        return [
+            "/clear  - Clear all messages, keep system prompts",
+        ]
+
     def execute(self, app: "Application", param: str | None = None):
         self.ui.conversation.clear()
         if self.ui.reasoning_output_buffer:
@@ -901,6 +1048,10 @@ class SystemCommand(Command):
         return True
 
     @property
+    def description(self):
+        return "Manage the system prompt stack for guiding model behavior"
+
+    @property
     def help_text(self) -> str:
         return """
 ⚙️ System Prompt Command Help
@@ -914,6 +1065,17 @@ Subcommands:
   <text>         - If no subcommand is given, the entire text replaces the
                    current system prompt stack and clears chat history.
 """
+
+    @property
+    def examples(self):
+        return [
+            "/system You are a helpful coding assistant    - Set system prompt",
+            "/system add Be concise and direct             - Add to stack",
+            "/system add Respond in bullet points         - Stack another",
+            "/system show                                  - View the stack",
+            "/system pop                                   - Remove last added",
+            "/system clear                                 - Clear all prompts",
+        ]
 
     def _execute_add(self, text: str | None):
         if not text:
@@ -2129,6 +2291,151 @@ class SaveCommand(Command):
             self.ui.pt_printer(f"💾 Session snapshot saved to '{snapshot_path}'")
         except Exception as e:
             self.ui.pt_printer(f"❌ Error saving session snapshot: {e}")
+
+
+class ExportCommand(Command):
+    @property
+    def name(self):
+        return "export"
+
+    @property
+    def requires_param(self):
+        return True
+
+    @property
+    def description(self):
+        return "Export the current conversation to a file"
+
+    @property
+    def help_text(self):
+        return "Usage: /export <format> [filename]"
+
+    @property
+    def examples(self):
+        return [
+            "/export md                 - Export to markdown in logs directory",
+            "/export md conversation    - Export to conversation.md",
+            "/export json               - Export to JSON format",
+        ]
+
+    def _export_markdown(self, filename: str | None):
+        """Export conversation to markdown format."""
+        from datetime import datetime
+
+        conversation = self.ui.conversation
+
+        if not conversation.turns:
+            self.ui.pt_printer("❌ No conversation to export.")
+            return
+
+        # Build markdown content
+        lines = []
+        lines.append("# Conversation Export")
+        lines.append("")
+        lines.append(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        lines.append(f"**Endpoint:** {self.ui.client.config.name}")
+        lines.append(f"**Model:** {self.ui.client.config.model_name}")
+        lines.append("")
+
+        # Add system prompts if any
+        system_prompts = conversation.get_system_prompts()
+        if system_prompts:
+            lines.append("## System Prompts")
+            lines.append("")
+            for i, prompt in enumerate(system_prompts, 1):
+                lines.append(f"### System Prompt {i}")
+                lines.append("")
+                lines.append(prompt)
+                lines.append("")
+
+        lines.append("## Conversation")
+        lines.append("")
+
+        # Add turns
+        for turn in conversation.turns:
+            # Get user message from request data
+            request_data = turn.request_data or {}
+            messages = request_data.get("messages", [])
+
+            # Find user message
+            user_msg = None
+            for msg in messages:
+                if msg.get("role") == "user":
+                    user_msg = msg.get("content", "")
+                    break
+            if not user_msg and request_data.get("prompt"):
+                user_msg = request_data.get("prompt")
+
+            if user_msg:
+                lines.append("### User")
+                lines.append("")
+                lines.append(user_msg)
+                lines.append("")
+
+            # Add assistant response
+            if turn.assistant_message:
+                model_info = f" ({turn.model_name})" if turn.model_name else ""
+                lines.append(f"### Assistant{model_info}")
+                lines.append("")
+                lines.append(turn.assistant_message)
+                lines.append("")
+
+                # Add stats if available
+                if turn.stats:
+                    lines.append(
+                        f"*{turn.stats.tokens_received} tokens, {turn.stats.response_time:.2f}s*"
+                    )
+                    lines.append("")
+
+        # Write to file
+        if filename:
+            filepath = self.ui.log_dir / f"{filename}.md"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filepath = self.ui.log_dir / f"export_{timestamp}.md"
+
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+            self.ui.pt_printer(f"📄 Conversation exported to '{filepath}'")
+        except Exception as e:
+            self.ui.pt_printer(f"❌ Error exporting conversation: {e}")
+
+    def _export_json(self, filename: str | None):
+        """Export conversation to JSON format."""
+        from datetime import datetime
+
+        if filename:
+            filepath = self.ui.log_dir / f"{filename}.json"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filepath = self.ui.log_dir / f"export_{timestamp}.json"
+
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(
+                    self.ui.conversation.to_json(), f, indent=2, ensure_ascii=False
+                )
+            self.ui.pt_printer(f"📄 Conversation exported to '{filepath}'")
+        except Exception as e:
+            self.ui.pt_printer(f"❌ Error exporting conversation: {e}")
+
+    def execute(self, app: "Application", param: str | None = None):
+        if not param:
+            self.ui.pt_printer(self.help_text)
+            return
+
+        parts = param.strip().split(maxsplit=1)
+        export_format = parts[0].lower()
+        filename = parts[1] if len(parts) > 1 else None
+
+        if export_format in ("md", "markdown"):
+            self._export_markdown(filename)
+        elif export_format == "json":
+            self._export_json(filename)
+        else:
+            self.ui.pt_printer(f"❌ Unknown export format: {export_format}")
+            self.ui.pt_printer("Supported formats: md, json")
 
 
 class LoadCommand(Command):

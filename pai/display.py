@@ -17,6 +17,9 @@ from rich.panel import Panel
 from .models import RequestStats, SmoothingStats
 from .utils import estimate_tokens
 
+# Precompiled regex for tokenizing text while preserving whitespace
+_WHITESPACE_SPLIT_RE = re.compile(r"(\s+)")
+
 
 class StreamSmoother:
     """
@@ -614,7 +617,7 @@ class StreamingDisplay:
 
             # Stream the reasoning token.
             if self.smooth_stream_mode and not self._smoothing_aborted:
-                tokens = re.split(r"(\s+)", reasoning)
+                tokens = _WHITESPACE_SPLIT_RE.split(reasoning)
                 for token in tokens:
                     if token:
                         await self._word_queue.put(("reasoning", token))
@@ -661,7 +664,7 @@ class StreamingDisplay:
             if self.smooth_stream_mode and not self._smoothing_aborted:
                 # Split the text while preserving whitespace as separate tokens.
                 # This ensures that newlines and multiple spaces are handled correctly.
-                tokens = re.split(r"(\s+)", content)
+                tokens = _WHITESPACE_SPLIT_RE.split(content)
                 for token in tokens:
                     if token:  # Don't queue empty strings
                         await self._word_queue.put(("content", token))

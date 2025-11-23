@@ -775,9 +775,22 @@ class InteractiveUI:
 
         session_tps = total_received / max(total_stream_time, 1)
 
+        # Budget-aware cost display
+        budget = self.runtime_config.session_budget
+        if budget is not None:
+            percent_used = (total_cost / budget) * 100 if budget > 0 else 0
+            if percent_used >= 100:
+                cost_str = f"<style bg='ansired' fg='white'><b>OVER BUDGET:</b> ${total_cost:.4f}/${budget:.2f}</style>"
+            elif percent_used >= 80:
+                cost_str = f"<style fg='ansiyellow'><b>Cost:</b> ${total_cost:.4f}/${budget:.2f} ({percent_used:.0f}%)</style>"
+            else:
+                cost_str = f"<b>Cost:</b> ${total_cost:.4f}/${budget:.2f}"
+        else:
+            cost_str = f"<b>Cost:</b> ${total_cost:.4f}"
+
         parts.extend(
             [
-                f"<b>Cost:</b> ${total_cost:.4f}",
+                cost_str,
                 f"<b>Total:</b> {session_tokens:5d} tk",
                 f"<b>Avg:</b> {session_tps:5.1f} tk/s",
             ]

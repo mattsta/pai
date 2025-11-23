@@ -703,6 +703,76 @@ class TimeoutCommand(Command):
             self.ui.pt_printer("❌ Invalid value. Please provide an integer.")
 
 
+class BudgetCommand(Command):
+    @property
+    def name(self):
+        return "budget"
+
+    @property
+    def description(self):
+        return "Set or view the session cost budget"
+
+    @property
+    def help_text(self):
+        return "Usage: /budget [amount|clear]"
+
+    @property
+    def examples(self):
+        return [
+            "/budget          - Show current budget and spending",
+            "/budget 1.00     - Set budget to $1.00",
+            "/budget 0.50     - Set budget to $0.50",
+            "/budget clear    - Remove budget limit",
+        ]
+
+    def execute(self, app: "Application", param: str | None = None):
+        current_cost = self.ui.client.stats.total_cost
+        current_budget = self.ui.runtime_config.session_budget
+
+        if not param:
+            # Show current budget status
+            if current_budget is not None:
+                remaining = current_budget - current_cost
+                percent_used = (
+                    (current_cost / current_budget) * 100 if current_budget > 0 else 0
+                )
+                status = (
+                    "✅" if percent_used < 80 else ("⚠️" if percent_used < 100 else "🚨")
+                )
+                self.ui.pt_printer(f"{status} Budget: ${current_budget:.4f}")
+                self.ui.pt_printer(
+                    f"   Spent: ${current_cost:.4f} ({percent_used:.1f}%)"
+                )
+                self.ui.pt_printer(f"   Remaining: ${remaining:.4f}")
+            else:
+                self.ui.pt_printer(
+                    f"💰 No budget set. Current session cost: ${current_cost:.4f}"
+                )
+            return
+
+        param = param.strip().lower()
+        if param == "clear":
+            self.ui.runtime_config.session_budget = None
+            self.ui.pt_printer("💰 Budget limit cleared.")
+            return
+
+        try:
+            budget_val = float(param)
+            if budget_val <= 0:
+                self.ui.pt_printer("❌ Budget must be a positive number.")
+                return
+            self.ui.runtime_config.session_budget = budget_val
+            self.ui.pt_printer(f"💰 Session budget set to ${budget_val:.4f}")
+            if current_cost >= budget_val:
+                self.ui.pt_printer(
+                    f"⚠️ Warning: Current spending (${current_cost:.4f}) already exceeds budget!"
+                )
+        except ValueError:
+            self.ui.pt_printer(
+                "❌ Invalid value. Use a number (e.g., 1.00) or 'clear'."
+            )
+
+
 class ToggleStreamCommand(Command):
     @property
     def name(self):
@@ -993,19 +1063,36 @@ class ClearCommand(Command):
 
     @property
     def help_text(self):
-        return "Usage: /clear"
+        return "Usage: /clear [confirm]"
 
     @property
     def examples(self):
         return [
-            "/clear  - Clear all messages, keep system prompts",
+            "/clear          - Shows turns to be cleared, asks for confirmation",
+            "/clear confirm  - Clear immediately without confirmation",
+            "/clear yes      - Same as confirm",
         ]
 
     def execute(self, app: "Application", param: str | None = None):
-        self.ui.conversation.clear()
-        if self.ui.reasoning_output_buffer:
-            self.ui.reasoning_output_buffer.reset()
-        self.ui.pt_printer("🧹 History cleared.")
+        turn_count = len(self.ui.conversation.turns)
+        if turn_count == 0:
+            self.ui.pt_printer("📭 Conversation is already empty.")
+            return
+
+        # Allow immediate clear with confirmation flag
+        if param and param.strip().lower() in ("confirm", "yes", "y"):
+            self.ui.conversation.clear()
+            if self.ui.reasoning_output_buffer:
+                self.ui.reasoning_output_buffer.reset()
+            self.ui.pt_printer(f"🧹 Cleared {turn_count} turn(s) from history.")
+            return
+
+        # Show what will be cleared and ask for confirmation
+        self.ui.pt_printer(
+            f"⚠️  This will clear {turn_count} turn(s) from the conversation."
+        )
+        self.ui.pt_printer("   System prompts will be preserved.")
+        self.ui.pt_printer("\n   To confirm, run: /clear confirm")
 
 
 class NewCommand(Command):

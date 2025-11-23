@@ -954,3 +954,4 @@ class RuntimeConfig(BaseModel):
     keep_reasoning: bool = True
     smooth_stream: bool = True
     custom_pricing_file: str | None = Field(None, alias="custom-pricing-file")
+    session_budget: float | None = None  # Maximum spend in USD for this session

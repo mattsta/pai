@@ -65,6 +65,46 @@ class UIState:
 
 
 @dataclass
+class ModelsResult:
+    """Result from listing available models with filtering."""
+
+    models: list[str]
+    """List of model IDs (may be limited by pagination)."""
+
+    total_count: int
+    """Total number of models available from the provider."""
+
+    filtered_count: int
+    """Number of models matching the filter (before limit applied)."""
+
+    @property
+    def is_filtered(self) -> bool:
+        """True if a filter was applied."""
+        return self.filtered_count != self.total_count
+
+    @property
+    def is_limited(self) -> bool:
+        """True if the result was limited (more available)."""
+        return len(self.models) < self.filtered_count
+
+
+@dataclass
+class CostBreakdown:
+    """Breakdown of token costs for a request."""
+
+    input_cost: float
+    """Cost for input/prompt tokens in USD."""
+
+    output_cost: float
+    """Cost for output/completion tokens in USD."""
+
+    @property
+    def total_cost(self) -> float:
+        """Total cost in USD."""
+        return self.input_cost + self.output_cost
+
+
+@dataclass
 class Turn:
     """Represents a single request-response cycle in a conversation."""
 
@@ -141,12 +181,11 @@ class RequestCost:
         if output_tokens is not None:
             self.output_tokens = output_tokens
 
-        (
-            self.input_cost,
-            self.output_cost,
-        ) = self._pricing_service.calculate_cost(
+        cost = self._pricing_service.calculate_cost(
             self._model_pricing, self.input_tokens, self.output_tokens
         )
+        self.input_cost = cost.input_cost
+        self.output_cost = cost.output_cost
 
     @property
     def total_cost(self) -> float:

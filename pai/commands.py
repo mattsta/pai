@@ -455,23 +455,23 @@ Filter Terms:
                 f"⏳ {action_desc} models{filter_desc} for '{self.ui.client.config.name}' {source_desc}..."
             )
 
-            models, total_count, filtered_count = await self.ui.client.list_models(
+            result = await self.ui.client.list_models(
                 force_refresh=force_refresh,
                 search_terms=search_terms if search_terms else None,
                 limit=None if count_only else effective_limit,
             )
 
-            if total_count == 0:
+            if result.total_count == 0:
                 self.ui.pt_printer("No models available from this endpoint.")
                 return
 
             # Build header
             endpoint_name = self.ui.client.config.name
             if search_terms:
-                if filtered_count == 0:
+                if result.filtered_count == 0:
                     self.ui.pt_printer(
                         f"\n❌ No models found matching '{' '.join(search_terms)}' "
-                        f"(out of {total_count:,} total)"
+                        f"(out of {result.total_count:,} total)"
                     )
                     self.ui.pt_printer("💡 Try broader search terms or /models --all to see all")
                     return
@@ -482,41 +482,41 @@ Filter Terms:
             # Count-only mode
             if count_only:
                 if search_terms:
-                    self.ui.pt_printer(f"\n{header}: {filtered_count:,} matches (of {total_count:,} total)")
+                    self.ui.pt_printer(f"\n{header}: {result.filtered_count:,} matches (of {result.total_count:,} total)")
                 else:
-                    self.ui.pt_printer(f"\n{header}: {total_count:,} models")
+                    self.ui.pt_printer(f"\n{header}: {result.total_count:,} models")
                 return
 
             # Determine what we're showing
-            showing_count = len(models)
+            showing_count = len(result.models)
             if search_terms:
-                count_info = f"{showing_count:,} of {filtered_count:,} matches"
-                if showing_count < filtered_count:
-                    count_info += f" (from {total_count:,} total)"
+                count_info = f"{showing_count:,} of {result.filtered_count:,} matches"
+                if result.is_limited:
+                    count_info += f" (from {result.total_count:,} total)"
             else:
-                count_info = f"{showing_count:,} of {total_count:,}"
+                count_info = f"{showing_count:,} of {result.total_count:,}"
 
             self.ui.pt_printer(f"\n{header} ({count_info})")
 
             # Print models with numbering for easy reference
-            for i, model_id in enumerate(models, 1):
+            for i, model_id in enumerate(result.models, 1):
                 self.ui.pt_printer(f"  {i:3d}. {model_id}")
 
             # Footer hints
-            if showing_count < filtered_count:
-                remaining = filtered_count - showing_count
+            if result.is_limited:
+                remaining = result.filtered_count - showing_count
                 self.ui.pt_printer(
                     f"\n💡 {remaining:,} more available. "
                     f"Use --limit {showing_count + 25} or --all to see more."
                 )
-            elif showing_count == filtered_count and filtered_count > 0:
+            elif showing_count == result.filtered_count and result.filtered_count > 0:
                 if search_terms:
-                    self.ui.pt_printer(f"\n✨ All {filtered_count:,} matches shown.")
-                elif total_count <= self.DEFAULT_LIMIT:
+                    self.ui.pt_printer(f"\n✨ All {result.filtered_count:,} matches shown.")
+                elif result.total_count <= self.DEFAULT_LIMIT:
                     pass  # Don't clutter when showing everything
 
             # Always show filter hint if no filter and large result
-            if not search_terms and total_count > self.DEFAULT_LIMIT:
+            if not search_terms and result.total_count > self.DEFAULT_LIMIT:
                 self.ui.pt_printer("💡 Use /models <term> to filter (e.g., /models llama 70b)")
 
         # Create a task to run the async code without blocking the UI's event loop.

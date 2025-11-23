@@ -10,6 +10,7 @@ import httpx
 import yaml
 
 from .models import (
+    CostBreakdown,
     ModelPricing,
     TieredCost,
     TimeWindowPricing,
@@ -314,7 +315,7 @@ class PricingService:
 
     def calculate_cost(
         self, model_pricing: ModelPricing, input_tokens: int, output_tokens: int
-    ) -> tuple[float, float]:
+    ) -> CostBreakdown:
         """
         Calculates the cost for a given number of input and output tokens
         based on the model's specific pricing rules (flat, tiered, time-based).
@@ -326,7 +327,7 @@ class PricingService:
             output_tokens: The number of output tokens.
 
         Returns:
-            A tuple containing (input_cost, output_cost).
+            CostBreakdown with input_cost and output_cost fields.
         """
         now_utc = datetime.now(UTC)
         current_hour = now_utc.hour
@@ -369,4 +370,4 @@ class PricingService:
         else:
             output_cost = (output_tokens / 1_000_000) * active_output_cost_rate
 
-        return input_cost, output_cost
+        return CostBreakdown(input_cost=input_cost, output_cost=output_cost)

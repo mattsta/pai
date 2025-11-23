@@ -12,6 +12,7 @@ from .models import (
     ChatRequest,
     CompletionRequest,
     EndpointConfig,
+    ModelsResult,
     PolyglotConfig,
     RuntimeConfig,
     SessionStats,
@@ -128,7 +129,7 @@ class PolyglotClient:
         force_refresh: bool = False,
         search_terms: list[str] | None = None,
         limit: int | None = None,
-    ) -> tuple[list[str], int, int]:
+    ) -> ModelsResult:
         """
         Fetches the list of available models from the provider, using a cache.
 
@@ -138,10 +139,7 @@ class PolyglotClient:
             limit: Maximum number of models to return. None means no limit.
 
         Returns:
-            Tuple of (filtered_models, total_count, filtered_count).
-            - filtered_models: List of model IDs (may be limited)
-            - total_count: Total number of models available
-            - filtered_count: Number of models matching the filter (before limit)
+            ModelsResult with models list and count metadata.
         """
         endpoint_name = self.config.name
         safe_endpoint_name = "".join(
@@ -174,12 +172,12 @@ class PolyglotClient:
                     json.dump(model_data_list, f, indent=2)
             except (httpx.RequestError, httpx.HTTPStatusError) as e:
                 self.display._print(f"❌ Error fetching models: {e}")
-                return [], 0, 0
+                return ModelsResult(models=[], total_count=0, filtered_count=0)
             except (KeyError, TypeError, json.JSONDecodeError):
                 self.display._print(
                     "❌ Error parsing models response. Unexpected format."
                 )
-                return [], 0, 0
+                return ModelsResult(models=[], total_count=0, filtered_count=0)
 
         # Get sorted list of model IDs
         model_ids = sorted([m.get("id", "") for m in model_data_list])
@@ -201,7 +199,11 @@ class PolyglotClient:
         if limit is not None and limit > 0:
             model_ids = model_ids[:limit]
 
-        return model_ids, total_count, filtered_count
+        return ModelsResult(
+            models=model_ids,
+            total_count=total_count,
+            filtered_count=filtered_count,
+        )
 
     async def get_cached_provider_model_info(
         self, model_id: str

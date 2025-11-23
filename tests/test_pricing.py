@@ -50,11 +50,10 @@ async def test_load_and_merge_custom_pricing(
 def test_calculate_flat_cost(pricing_service: PricingService):
     """Test cost calculation with simple flat rates."""
     pricing = ModelPricing(input_cost_per_token=1.0, output_cost_per_token=2.0)
-    input_cost, output_cost = pricing_service.calculate_cost(
-        pricing, 1_000_000, 2_000_000
-    )
-    assert input_cost == pytest.approx(1.0)
-    assert output_cost == pytest.approx(4.0)
+    cost = pricing_service.calculate_cost(pricing, 1_000_000, 2_000_000)
+    assert cost.input_cost == pytest.approx(1.0)
+    assert cost.output_cost == pytest.approx(4.0)
+    assert cost.total_cost == pytest.approx(5.0)
 
 
 def test_calculate_tiered_cost(pricing_service: PricingService):
@@ -74,10 +73,10 @@ def test_calculate_tiered_cost(pricing_service: PricingService):
     # (1000 tokens * $20/M) = $0.02
     expected_output_cost = 1000 / 1_000_000 * 20.0
 
-    input_cost, output_cost = pricing_service.calculate_cost(pricing, 1500, 1000)
+    cost = pricing_service.calculate_cost(pricing, 1500, 1000)
 
-    assert input_cost == pytest.approx(expected_input_cost)
-    assert output_cost == pytest.approx(expected_output_cost)
+    assert cost.input_cost == pytest.approx(expected_input_cost)
+    assert cost.output_cost == pytest.approx(expected_output_cost)
 
 
 def test_calculate_time_based_cost(
@@ -103,27 +102,21 @@ def test_calculate_time_based_cost(
 
     # --- Test Peak Hours (e.g., 10:00 UTC) ---
     mock_dt.now.return_value = datetime(2025, 1, 1, 10, 0, 0)
-    input_cost, output_cost = pricing_service.calculate_cost(
-        pricing, 1_000_000, 1_000_000
-    )
-    assert input_cost == pytest.approx(50.0)
-    assert output_cost == pytest.approx(60.0)
+    cost = pricing_service.calculate_cost(pricing, 1_000_000, 1_000_000)
+    assert cost.input_cost == pytest.approx(50.0)
+    assert cost.output_cost == pytest.approx(60.0)
 
     # --- Test Off-Peak Hours (e.g., 23:00 UTC) ---
     mock_dt.now.return_value = datetime(2025, 1, 1, 23, 0, 0)
-    input_cost, output_cost = pricing_service.calculate_cost(
-        pricing, 1_000_000, 1_000_000
-    )
-    assert input_cost == pytest.approx(5.0)
-    assert output_cost == pytest.approx(10.0)
+    cost = pricing_service.calculate_cost(pricing, 1_000_000, 1_000_000)
+    assert cost.input_cost == pytest.approx(5.0)
+    assert cost.output_cost == pytest.approx(10.0)
 
     # --- Test Fallback Hours (e.g., 08:00 UTC) ---
     mock_dt.now.return_value = datetime(2025, 1, 1, 8, 0, 0)
-    input_cost, output_cost = pricing_service.calculate_cost(
-        pricing, 1_000_000, 1_000_000
-    )
-    assert input_cost == pytest.approx(1.0)
-    assert output_cost == pytest.approx(2.0)
+    cost = pricing_service.calculate_cost(pricing, 1_000_000, 1_000_000)
+    assert cost.input_cost == pytest.approx(1.0)
+    assert cost.output_cost == pytest.approx(2.0)
 
 
 def test_calculate_complex_time_and_tiered_cost(
@@ -154,7 +147,7 @@ def test_calculate_complex_time_and_tiered_cost(
     # 3000 output tokens = (2048 @ $18/M) + (952 @ $30/M)
     expected_output_cost = (2048 / 1_000_000 * 18.0) + (952 / 1_000_000 * 30.0)
 
-    input_cost, output_cost = pricing_service.calculate_cost(pricing, 1_000_000, 3000)
+    cost = pricing_service.calculate_cost(pricing, 1_000_000, 3000)
 
-    assert input_cost == pytest.approx(7.0)
-    assert output_cost == pytest.approx(expected_output_cost)
+    assert cost.input_cost == pytest.approx(7.0)
+    assert cost.output_cost == pytest.approx(expected_output_cost)

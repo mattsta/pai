@@ -5,8 +5,12 @@ import logging
 import re
 import statistics
 import time
+from collections.abc import Callable
 from html import escape
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    pass
 
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import ANSI, HTML
@@ -93,7 +97,7 @@ class StreamingDisplay:
         self.actor_name = "🤖 Assistant"
         self.current_model_name: str | None = None
         self.rich_console = Console()
-        self._word_queue = asyncio.Queue()
+        self._word_queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
         self._smoother_task: asyncio.Task | None = None
         self._smoother: StreamSmoother | None = None
         self._inter_chunk_deltas: list[float] = []
@@ -121,7 +125,7 @@ class StreamingDisplay:
         self._full_response_text: str = ""
         self.first_token_received = False
 
-    def set_printer(self, printer: callable, is_interactive: bool):
+    def set_printer(self, printer: Callable[..., Any], is_interactive: bool):
         """Sets the function used for printing to the console."""
         self._printer = printer
         self._is_interactive = is_interactive
@@ -159,7 +163,7 @@ class StreamingDisplay:
             self.output_buffer.reset()
 
         # Create a new queue, discarding the old one, to prevent processing stale data.
-        self._word_queue = asyncio.Queue()
+        self._word_queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue()
         self._inter_chunk_deltas = []
 
         self.actor_name = actor_name or "🤖 Assistant"

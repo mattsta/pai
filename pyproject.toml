@@ -50,7 +50,17 @@ dev = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.0.0",
     "ruff>=0.12.1",
+    "mypy>=1.11.0",
+    "types-PyYAML>=6.0.0",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+# Disable some strict checks that conflict with TYPE_CHECKING patterns
+disable_error_code = ["has-type", "no-redef"]

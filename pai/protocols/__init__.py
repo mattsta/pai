@@ -1,7 +1,8 @@
 # This file serves as a registry for all protocol adapters.
 
 import importlib.metadata
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .base_adapter import BaseProtocolAdapter
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
 ADAPTER_MAP: dict[str, "BaseProtocolAdapter"] = {}
 
 
-def load_protocol_adapters(printer: callable = print):
+def load_protocol_adapters(printer: Callable[..., Any] = print):
     """
     Discovers and loads protocol adapters using package metadata entry points.
     """

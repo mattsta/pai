@@ -31,6 +31,26 @@ Polyglot AI (PAI) is a well-architected, provider-agnostic CLI for AI model inte
 | **Confirmation for `/clear`** | Prevent accidental data loss | ✅ Complete |
 | **Orchestrator unit tests** | 9 new tests, 29 total | ✅ Complete |
 
+### ✅ MCP (Model Context Protocol) Support - NEW
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **MCP Client Module** | Full MCP 2024-11-05 protocol support via JSON-RPC | ✅ Complete |
+| **Server Management** | MCPServer, MCPManager classes for lifecycle | ✅ Complete |
+| **Tool Discovery** | Automatic tool discovery from connected servers | ✅ Complete |
+| **Tool Execution** | Seamless MCP tool execution via `mcp__server__tool` naming | ✅ Complete |
+| **Configuration** | TOML-based server configuration in pai.toml | ✅ Complete |
+| **`/mcp` Command** | Status, list, connect, disconnect subcommands | ✅ Complete |
+| **Auto-Connect** | Servers auto-connect when tools enabled | ✅ Complete |
+| **MCP Tests** | 18 comprehensive unit tests | ✅ Complete |
+
+### ✅ Type Safety Improvements
+
+| Metric | Before | After | Status |
+|--------|--------|-------|--------|
+| **mypy errors** | ~100+ | 0 | ✅ Complete |
+| **Type coverage** | Partial | Comprehensive config | ✅ Complete |
+
 ### New Features Added
 
 - **`/help <command>`** - Detailed help with examples for any command
@@ -38,13 +58,18 @@ Polyglot AI (PAI) is a well-architected, provider-agnostic CLI for AI model inte
 - **`/export json [filename]`** - Export conversation to JSON
 - **`/budget [amount|clear]`** - Set session cost budget with live toolbar alerts
 - **Budget alerts in toolbar** - Yellow at 80%, red when over budget
+- **`/mcp status`** - Show status of all MCP servers
+- **`/mcp list`** - List all available MCP tools
+- **`/mcp connect <server>`** - Connect to a specific MCP server
+- **`/mcp disconnect <server>`** - Disconnect from an MCP server
 
 ### Test Coverage Improvement
 
 | Before | After | Change |
 |--------|-------|--------|
-| 20 tests | 29 tests | +45% |
+| 20 tests | 47 tests | +135% |
 | 0 orchestrator tests | 9 orchestrator tests | +9 |
+| 0 MCP tests | 18 MCP tests | +18 |
 
 ---
 

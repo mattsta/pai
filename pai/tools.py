@@ -7,7 +7,10 @@ import pathlib
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .mcp import MCPManager
 
 
 @dataclass
@@ -19,6 +22,20 @@ class ToolDefinition:
 
 
 TOOL_REGISTRY: dict[str, ToolDefinition] = {}
+
+# Global MCP manager instance (initialized lazily)
+_mcp_manager: "MCPManager | None" = None
+
+
+def get_mcp_manager() -> "MCPManager | None":
+    """Get the global MCP manager instance."""
+    return _mcp_manager
+
+
+def set_mcp_manager(manager: "MCPManager") -> None:
+    """Set the global MCP manager instance."""
+    global _mcp_manager
+    _mcp_manager = manager
 
 
 class ToolError(Exception):
@@ -98,37 +115,113 @@ def tool(func: Callable) -> Callable:
     return func
 
 
-def get_tool_schemas() -> list[dict[str, Any]]:
-    return [t.schema for t in TOOL_REGISTRY.values()] if TOOL_REGISTRY else []
+def get_tool_schemas(include_mcp: bool = True) -> list[dict[str, Any]]:
+    """Get all tool schemas in OpenAI-compatible format.
+
+    Args:
+        include_mcp: Whether to include MCP tools (default True).
+
+    Returns:
+        List of tool schemas for all available tools.
+    """
+    schemas = [t.schema for t in TOOL_REGISTRY.values()] if TOOL_REGISTRY else []
+
+    # Add MCP tools if manager is available
+    if include_mcp and _mcp_manager is not None:
+        schemas.extend(_mcp_manager.get_all_tools())
+
+    return schemas
 
 
-def get_tool_manifest() -> str:
-    """Generates a text manifest of all registered tools for legacy models."""
-    if not TOOL_REGISTRY:
+def is_mcp_tool(name: str) -> bool:
+    """Check if a tool name refers to an MCP tool."""
+    return name.startswith("mcp__")
+
+
+def get_tool_manifest(include_mcp: bool = True) -> str:
+    """Generates a text manifest of all registered tools for legacy models.
+
+    Args:
+        include_mcp: Whether to include MCP tools (default True).
+
+    Returns:
+        Text manifest of all available tools.
+    """
+    lines = []
+
+    # Native tools
+    if TOOL_REGISTRY:
+        lines.append("Native Tools:")
+        for name, info in TOOL_REGISTRY.items():
+            schema = info.schema["function"]
+            lines.append(f"- Name: {name}")
+            lines.append(f"  Description: {schema['description']}")
+            if properties := schema["parameters"]["properties"]:
+                lines.append("  Arguments:")
+                for arg_name, details in properties.items():
+                    arg_type = details.get("type", "any")
+                    enum_values = details.get("enum")
+                    if enum_values:
+                        arg_type = f"string (enum: {', '.join(enum_values)})"
+                    lines.append(
+                        f"    - {arg_name} ({arg_type}): {details.get('description', '')}"
+                    )
+            else:
+                lines.append("  Arguments: None")
+            lines.append("")
+
+    # MCP tools
+    if include_mcp and _mcp_manager is not None:
+        mcp_tools = _mcp_manager.get_all_tools()
+        if mcp_tools:
+            lines.append("MCP Tools:")
+            for tool_schema in mcp_tools:
+                func = tool_schema["function"]
+                lines.append(f"- Name: {func['name']}")
+                lines.append(f"  Description: {func['description']}")
+                if properties := func["parameters"].get("properties", {}):
+                    lines.append("  Arguments:")
+                    for arg_name, details in properties.items():
+                        arg_type = details.get("type", "any")
+                        lines.append(
+                            f"    - {arg_name} ({arg_type}): {details.get('description', '')}"
+                        )
+                else:
+                    lines.append("  Arguments: None")
+                lines.append("")
+
+    if not lines:
         return "No tools available."
 
-    manifest = "You have access to the following tools:\n\n"
-    for name, info in TOOL_REGISTRY.items():
-        schema = info.schema["function"]
-        manifest += f"- Name: {name}\n"
-        manifest += f"  Description: {schema['description']}\n"
-        if properties := schema["parameters"]["properties"]:
-            manifest += "  Arguments:\n"
-            for arg_name, details in properties.items():
-                arg_type = details.get("type", "any")
-                enum_values = details.get("enum")
-                if enum_values:
-                    arg_type = f"string (enum: {', '.join(enum_values)})"
-                manifest += (
-                    f"    - {arg_name} ({arg_type}): {details.get('description', '')}\n"
-                )
-        else:
-            manifest += "  Arguments: None\n"
-        manifest += "\n"
-    return manifest
+    return "You have access to the following tools:\n\n" + "\n".join(lines)
 
 
 async def execute_tool(name: str, args: dict) -> Any:
+    """Execute a tool by name with the given arguments.
+
+    Handles both native tools and MCP tools (prefixed with 'mcp__').
+
+    Args:
+        name: The tool name (or qualified MCP tool name).
+        args: Dictionary of tool arguments.
+
+    Returns:
+        The tool execution result.
+
+    Raises:
+        ToolNotFound: If the tool is not found.
+        ToolError: If execution fails.
+    """
+    # Route MCP tools to the MCP manager
+    if is_mcp_tool(name):
+        if _mcp_manager is None:
+            raise ToolNotFound(f"MCP tool '{name}' requested but MCP is not enabled.")
+        try:
+            return await _mcp_manager.execute_tool(name, args)
+        except Exception as e:
+            raise ToolError(f"MCP tool '{name}' failed: {e}") from e
+
+    # Handle native tools
     if name not in TOOL_REGISTRY:
         raise ToolNotFound(f"Tool '{name}' not found.")
 

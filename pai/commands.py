@@ -2594,6 +2594,189 @@ class LoadCommand(Command):
             self.ui.pt_printer(f"❌ Error loading session: {e}")
 
 
+class MCPCommand(Command):
+    """Manage MCP (Model Context Protocol) server connections."""
+
+    @property
+    def name(self):
+        return "mcp"
+
+    @property
+    def description(self):
+        return "Manage MCP server connections and tools"
+
+    @property
+    def help_text(self):
+        return """Usage: /mcp <subcommand>
+
+Subcommands:
+  status    - Show status of all MCP servers
+  list      - List all available MCP tools
+  connect   - Connect to a specific server
+  disconnect - Disconnect from a server"""
+
+    @property
+    def examples(self):
+        return [
+            "/mcp status     - Show MCP server status",
+            "/mcp list       - List all MCP tools",
+            "/mcp connect filesystem   - Connect to 'filesystem' server",
+            "/mcp disconnect filesystem - Disconnect from 'filesystem' server",
+        ]
+
+    def execute(self, app: "Application", param: str | None = None):
+        from .tools import get_mcp_manager
+
+        manager = get_mcp_manager()
+
+        if not param:
+            self.ui.pt_printer(self.help_text)
+            return
+
+        parts = param.strip().split(maxsplit=1)
+        subcommand = parts[0].lower()
+        arg = parts[1] if len(parts) > 1 else None
+
+        if subcommand == "status":
+            self._show_status(manager)
+        elif subcommand == "list":
+            self._list_tools(manager)
+        elif subcommand == "connect":
+            self._connect_server(manager, arg)
+        elif subcommand == "disconnect":
+            self._disconnect_server(manager, arg)
+        else:
+            self.ui.pt_printer(f"❌ Unknown subcommand: {subcommand}")
+            self.ui.pt_printer(self.help_text)
+
+    def _show_status(self, manager):
+        """Show status of all MCP servers."""
+        if manager is None:
+            self.ui.pt_printer("MCP is not enabled.")
+            self.ui.pt_printer("Add [mcp] section to pai.toml to enable.")
+            return
+
+        console = self.ui.client.display.rich_console
+        table = Table(title="MCP Server Status", title_style="bold magenta")
+        table.add_column("Server", style="cyan")
+        table.add_column("Status", style="green")
+        table.add_column("Tools", justify="right")
+
+        for name, server in manager.servers.items():
+            status_style = {
+                "connected": "[green]connected[/green]",
+                "disconnected": "[dim]disconnected[/dim]",
+                "connecting": "[yellow]connecting[/yellow]",
+                "error": "[red]error[/red]",
+            }.get(server.status.value, server.status.value)
+
+            tool_count = str(len(server.tools)) if server.is_connected else "-"
+            table.add_row(name, status_style, tool_count)
+
+        if not manager.servers:
+            self.ui.pt_printer("No MCP servers configured.")
+        else:
+            with console.capture() as capture:
+                console.print(table)
+            from prompt_toolkit.formatted_text import ANSI
+
+            self.ui.pt_printer(ANSI(capture.get()))
+
+    def _list_tools(self, manager):
+        """List all available MCP tools."""
+        if manager is None:
+            self.ui.pt_printer("MCP is not enabled.")
+            return
+
+        tools = manager.get_all_tools()
+        if not tools:
+            self.ui.pt_printer("No MCP tools available.")
+            self.ui.pt_printer("Connect to MCP servers with /mcp connect <server>")
+            return
+
+        console = self.ui.client.display.rich_console
+        table = Table(title="Available MCP Tools", title_style="bold magenta")
+        table.add_column("Tool", style="cyan", no_wrap=True)
+        table.add_column("Description", style="white")
+
+        for tool_schema in tools:
+            func = tool_schema["function"]
+            name = func["name"]
+            desc = func["description"][:60] + "..." if len(func["description"]) > 60 else func["description"]
+            table.add_row(name, desc)
+
+        with console.capture() as capture:
+            console.print(table)
+        from prompt_toolkit.formatted_text import ANSI
+
+        self.ui.pt_printer(ANSI(capture.get()))
+
+    def _connect_server(self, manager, server_name: str | None):
+        """Connect to a specific MCP server."""
+        if manager is None:
+            self.ui.pt_printer("MCP is not enabled.")
+            return
+
+        if not server_name:
+            self.ui.pt_printer("Usage: /mcp connect <server_name>")
+            return
+
+        if server_name not in manager.servers:
+            available = ", ".join(manager.servers.keys()) if manager.servers else "none"
+            self.ui.pt_printer(f"❌ Server '{server_name}' not found.")
+            self.ui.pt_printer(f"Available servers: {available}")
+            return
+
+        server = manager.servers[server_name]
+        if server.is_connected:
+            self.ui.pt_printer(f"✅ Server '{server_name}' is already connected.")
+            return
+
+        # Schedule the async connect
+        import asyncio
+
+        async def do_connect():
+            try:
+                await server.connect()
+                self.ui.pt_printer(f"✅ Connected to '{server_name}' ({len(server.tools)} tools)")
+            except Exception as e:
+                self.ui.pt_printer(f"❌ Failed to connect to '{server_name}': {e}")
+
+        asyncio.create_task(do_connect())
+        self.ui.pt_printer(f"Connecting to '{server_name}'...")
+
+    def _disconnect_server(self, manager, server_name: str | None):
+        """Disconnect from a specific MCP server."""
+        if manager is None:
+            self.ui.pt_printer("MCP is not enabled.")
+            return
+
+        if not server_name:
+            self.ui.pt_printer("Usage: /mcp disconnect <server_name>")
+            return
+
+        if server_name not in manager.servers:
+            self.ui.pt_printer(f"❌ Server '{server_name}' not found.")
+            return
+
+        server = manager.servers[server_name]
+        if not server.is_connected:
+            self.ui.pt_printer(f"Server '{server_name}' is not connected.")
+            return
+
+        import asyncio
+
+        async def do_disconnect():
+            try:
+                await server.disconnect()
+                self.ui.pt_printer(f"✅ Disconnected from '{server_name}'")
+            except Exception as e:
+                self.ui.pt_printer(f"❌ Error disconnecting from '{server_name}': {e}")
+
+        asyncio.create_task(do_disconnect())
+        self.ui.pt_printer(f"Disconnecting from '{server_name}'...")
+
+
 class ToggleModeCommand(Command):
     @property
     def name(self):

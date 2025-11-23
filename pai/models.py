@@ -908,6 +908,23 @@ class TomlToolConfig(BaseModel):
     directories: list[str] = []
 
 
+class TomlMCPServer(BaseModel):
+    """Configuration for an MCP server in pai.toml."""
+
+    command: list[str]
+    env: dict[str, str] = Field(default_factory=dict)
+    enabled: bool = True
+    auto_connect: bool = True
+    timeout: float = 30.0
+
+
+class TomlMCPConfig(BaseModel):
+    """MCP configuration section in pai.toml."""
+
+    enabled: bool = True
+    servers: dict[str, TomlMCPServer] = Field(default_factory=dict)
+
+
 class TomlEndpoint(BaseModel):
     name: str
     base_url: str
@@ -924,6 +941,7 @@ class PolyglotConfig(BaseModel):
     custom_pricing_file: str | None = Field(None, alias="custom-pricing-file")
     endpoints: list[TomlEndpoint] = Field(default_factory=list)
     tool_config: TomlToolConfig | None = None
+    mcp: TomlMCPConfig | None = None
     arenas: dict[str, TomlArena] = Field(default_factory=dict)
     profiles: dict[str, TomlProfile] = Field(default_factory=dict)
 

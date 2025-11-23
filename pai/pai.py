@@ -62,7 +62,7 @@ from .pricing import PricingService
 
 # --- Protocol Adapter Imports ---
 from .protocols import load_protocol_adapters
-from .tools import get_tool_schemas
+from .tools import get_tool_schemas, set_mcp_manager
 
 # --- Global Definitions ---
 session = PromptSession()
@@ -1174,6 +1174,36 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
         else:
             typer.echo("  (No 'tool_config' section in pai.toml)")
 
+        # Initialize MCP if configured
+        if toml_config.mcp and toml_config.mcp.enabled:
+            typer.echo("🔌 MCP support enabled. Loading MCP servers...")
+            from .mcp import MCPConfig, MCPManager, MCPServerConfig
+
+            # Convert TomlMCPConfig to MCPConfig
+            mcp_servers = []
+            for name, server_toml in toml_config.mcp.servers.items():
+                mcp_servers.append(
+                    MCPServerConfig(
+                        name=name,
+                        command=server_toml.command,
+                        env=server_toml.env,
+                        enabled=server_toml.enabled,
+                        auto_connect=server_toml.auto_connect,
+                        timeout=server_toml.timeout,
+                    )
+                )
+            mcp_config = MCPConfig(enabled=True, servers=mcp_servers)
+
+            # Create and set the global MCP manager
+            mcp_manager = MCPManager()
+            mcp_manager.load_config(mcp_config)
+            set_mcp_manager(mcp_manager)
+
+            typer.echo(f"  📦 Configured {len(mcp_servers)} MCP server(s)")
+            if mcp_servers:
+                typer.echo("  Use /mcp status to see server status")
+                typer.echo("  MCP servers will auto-connect when tools are requested")
+
     # Validate arena configurations
     for arena_name, arena_config in toml_config.arenas.items():
         for p_id, participant in arena_config.participants.items():
@@ -1241,8 +1271,21 @@ async def _run(runtime_config: RuntimeConfig, toml_config: PolyglotConfig):
                 print_stats(client.stats)
             else:
                 # Interactive mode
-                ui = InteractiveUI(client, runtime_config)
-                await ui.run()
+                from .tools import get_mcp_manager
+
+                mcp_manager = get_mcp_manager()
+
+                # Auto-connect MCP servers if tools are enabled
+                if mcp_manager and runtime_config.tools:
+                    await mcp_manager.connect_all(printer=typer.echo)
+
+                try:
+                    ui = InteractiveUI(client, runtime_config)
+                    await ui.run()
+                finally:
+                    # Clean up MCP connections on exit
+                    if mcp_manager:
+                        await mcp_manager.disconnect_all()
         except (APIError, ValueError, httpx.RequestError, ConnectionError) as e:
             # Typer/rich will print a nice error message, no need to print it ourselves.
             raise typer.Exit(code=1) from e

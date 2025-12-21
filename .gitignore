@@ -21,3 +21,5 @@ wheels/
 logs/
 session_snapshots/
 providers/
+
+curl*.sh

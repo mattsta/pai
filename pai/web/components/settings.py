@@ -123,11 +123,11 @@ class SettingsComponent(Component):
             session.runtime_config.max_tokens = max(1, min(32000, max_tokens))
             session.runtime_config.stream = stream
 
-            return HTMLResponse('''
+            return HTMLResponse("""
             <div class="success">
                 Settings saved successfully
             </div>
-            ''')
+            """)
 
         except (ValueError, TypeError) as e:
             return HTMLResponse(

@@ -251,27 +251,8 @@ class Conversation:
         """Adds a completed turn and updates the message history."""
         self.turns.append(turn)
 
-        # For CHAT mode, we rebuild the message history from the turn data
-        # to ensure it's always in sync with what the model saw.
-        if "messages" in turn.request_data:
-            # Set the message history from the request, excluding the system prompt.
-            self._messages = [
-                m
-                for m in turn.request_data.get("messages", [])
-                if m["role"] != "system"
-            ]
-            # Append the final assistant message object from the response data.
-            if choices := turn.response_data.get("choices"):
-                if message := choices[0].get("message"):
-                    if message.get("content") or message.get("tool_calls"):
-                        self._messages.append(message)
-        # For COMPLETION mode, the history is not cumulative. We replace the
-        # message log with just the last prompt/response pair.
-        elif "prompt" in turn.request_data:
-            self._messages = [
-                {"role": "user", "content": turn.request_data["prompt"]},
-                {"role": "assistant", "content": turn.assistant_message},
-            ]
+        # Don't rebuild _messages here - get_history() will build complete history from turns
+        # This ensures history accuracy by including all turn data
 
         # The old token counting is replaced by a full recalculation.
         self._recalculate_token_count()
@@ -291,8 +272,41 @@ class Conversation:
         return messages
 
     def get_history(self) -> list[dict[str, str]]:
-        """Returns the current message history."""
-        return self._messages
+        """Returns the current message history with complete accuracy."""
+        # Start with the base messages
+        history = []
+
+        for turn in self.turns:
+            # Add user messages from this turn
+            if "messages" in turn.request_data:
+                for msg in turn.request_data.get("messages", []):
+                    if msg["role"] != "system":
+                        history.append(msg.copy())
+            elif "prompt" in turn.request_data:
+                # Completion mode
+                history.append({"role": "user", "content": turn.request_data["prompt"]})
+
+            # Add assistant response
+            if choices := turn.response_data.get("choices"):
+                if message := choices[0].get("message"):
+                    assistant_msg = {
+                        "role": "assistant",
+                        "content": message.get("content", ""),
+                    }
+                    if tool_calls := message.get("tool_calls"):
+                        assistant_msg["tool_calls"] = tool_calls
+                    history.append(assistant_msg)
+
+            # Add reasoning if present
+            if turn.assistant_reasoning:
+                history.append(
+                    {
+                        "role": "assistant",
+                        "content": f"<thinking>\n{turn.assistant_reasoning}\n</thinking>",
+                    }
+                )
+
+        return history
 
     def clear(self):
         """Clears the turn history, but preserves the system prompt stack."""

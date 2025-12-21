@@ -366,7 +366,7 @@ class ModelsCommand(Command):
     """List and filter available models with smart defaults for large lists."""
 
     # Default number of models to show (prevents terminal flooding)
-    DEFAULT_LIMIT = 25
+    DEFAULT_LIMIT = None  # Show all models by default
 
     @property
     def name(self):
@@ -381,8 +381,7 @@ class ModelsCommand(Command):
         return """Usage: /models [terms...] [options]
 
 Options:
-  --all        Show all models (no limit)
-  --limit N    Show first N models (default: 25)
+  --limit N    Show first N models (default: all)
   --count      Show count only, no list
   refresh      Refresh from API (bypass cache)
 
@@ -393,14 +392,13 @@ Filter Terms:
     @property
     def examples(self):
         return [
-            "/models              - Show first 25 models",
+            "/models              - Show all models",
             "/models gpt          - Models containing 'gpt'",
             "/models llama 70b    - Models containing 'llama' AND '70b'",
-            "/models --all        - Show ALL models (may be slow)",
             "/models --limit 50   - Show first 50 models",
             "/models --count      - Just show count",
-            "/models refresh      - Refresh cache, show first 25",
-            "/models gpt --all    - All models containing 'gpt'",
+            "/models refresh      - Refresh cache, show all models",
+            "/models gpt --limit 20 - First 20 models containing 'gpt'",
         ]
 
     def execute(self, app: "Application", param: str | None = None):
@@ -419,8 +417,7 @@ Filter Terms:
                 part = parts[i].lower()
                 if part == "refresh":
                     force_refresh = True
-                elif part == "--all":
-                    show_all = True
+
                 elif part == "--count":
                     count_only = True
                 elif part == "--limit":
@@ -429,7 +426,9 @@ Filter Terms:
                             limit = int(parts[i + 1])
                             i += 1
                         except ValueError:
-                            self.ui.pt_printer(f"❌ Invalid limit value: {parts[i + 1]}")
+                            self.ui.pt_printer(
+                                f"❌ Invalid limit value: {parts[i + 1]}"
+                            )
                             return
                     else:
                         self.ui.pt_printer("❌ --limit requires a number")
@@ -439,8 +438,8 @@ Filter Terms:
                     search_terms.append(parts[i])
                 i += 1
 
-        # Determine effective limit
-        effective_limit: int | None = None if show_all else limit
+        # Determine effective limit (None means show all)
+        effective_limit: int | None = limit
 
         async def _fetch_and_print_models():
             """The async part of the command's execution."""
@@ -450,7 +449,9 @@ Filter Terms:
                 action_desc = "Fetching"
                 source_desc = "(from API)"
 
-            filter_desc = f" matching '{' '.join(search_terms)}'" if search_terms else ""
+            filter_desc = (
+                f" matching '{' '.join(search_terms)}'" if search_terms else ""
+            )
             self.ui.pt_printer(
                 f"⏳ {action_desc} models{filter_desc} for '{self.ui.client.config.name}' {source_desc}..."
             )
@@ -473,7 +474,7 @@ Filter Terms:
                         f"\n❌ No models found matching '{' '.join(search_terms)}' "
                         f"(out of {result.total_count:,} total)"
                     )
-                    self.ui.pt_printer("💡 Try broader search terms or /models --all to see all")
+                    self.ui.pt_printer("💡 Try broader search terms")
                     return
                 header = f"📋 Models matching '{' '.join(search_terms)}' on '{endpoint_name}'"
             else:
@@ -482,7 +483,9 @@ Filter Terms:
             # Count-only mode
             if count_only:
                 if search_terms:
-                    self.ui.pt_printer(f"\n{header}: {result.filtered_count:,} matches (of {result.total_count:,} total)")
+                    self.ui.pt_printer(
+                        f"\n{header}: {result.filtered_count:,} matches (of {result.total_count:,} total)"
+                    )
                 else:
                     self.ui.pt_printer(f"\n{header}: {result.total_count:,} models")
                 return
@@ -511,13 +514,19 @@ Filter Terms:
                 )
             elif showing_count == result.filtered_count and result.filtered_count > 0:
                 if search_terms:
-                    self.ui.pt_printer(f"\n✨ All {result.filtered_count:,} matches shown.")
-                elif result.total_count <= self.DEFAULT_LIMIT:
+                    self.ui.pt_printer(
+                        f"\n✨ All {result.filtered_count:,} matches shown."
+                    )
+                elif effective_limit is None:  # Showing all models
                     pass  # Don't clutter when showing everything
 
             # Always show filter hint if no filter and large result
-            if not search_terms and result.total_count > self.DEFAULT_LIMIT:
-                self.ui.pt_printer("💡 Use /models <term> to filter (e.g., /models llama 70b)")
+            if (
+                not search_terms and result.total_count > 50
+            ):  # Show hint for large results
+                self.ui.pt_printer(
+                    "💡 Use /models <term> to filter (e.g., /models llama 70b)"
+                )
 
         # Create a task to run the async code without blocking the UI's event loop.
         asyncio.create_task(_fetch_and_print_models())
@@ -1157,14 +1166,12 @@ class ClearCommand(Command):
 
     @property
     def help_text(self):
-        return "Usage: /clear [confirm]"
+        return "Usage: /clear"
 
     @property
     def examples(self):
         return [
-            "/clear          - Shows turns to be cleared, asks for confirmation",
-            "/clear confirm  - Clear immediately without confirmation",
-            "/clear yes      - Same as confirm",
+            "/clear  - Clear the conversation history immediately",
         ]
 
     def execute(self, app: "Application", param: str | None = None):
@@ -1173,20 +1180,11 @@ class ClearCommand(Command):
             self.ui.pt_printer("📭 Conversation is already empty.")
             return
 
-        # Allow immediate clear with confirmation flag
-        if param and param.strip().lower() in ("confirm", "yes", "y"):
-            self.ui.conversation.clear()
-            if self.ui.reasoning_output_buffer:
-                self.ui.reasoning_output_buffer.reset()
-            self.ui.pt_printer(f"🧹 Cleared {turn_count} turn(s) from history.")
-            return
-
-        # Show what will be cleared and ask for confirmation
-        self.ui.pt_printer(
-            f"⚠️  This will clear {turn_count} turn(s) from the conversation."
-        )
-        self.ui.pt_printer("   System prompts will be preserved.")
-        self.ui.pt_printer("\n   To confirm, run: /clear confirm")
+        # Clear immediately without confirmation
+        self.ui.conversation.clear()
+        if self.ui.reasoning_output_buffer:
+            self.ui.reasoning_output_buffer.reset()
+        self.ui.pt_printer(f"🧹 Cleared {turn_count} turn(s) from history.")
 
 
 class NewCommand(Command):
@@ -2796,7 +2794,11 @@ Subcommands:
         for tool_schema in tools:
             func = tool_schema["function"]
             name = func["name"]
-            desc = func["description"][:60] + "..." if len(func["description"]) > 60 else func["description"]
+            desc = (
+                func["description"][:60] + "..."
+                if len(func["description"]) > 60
+                else func["description"]
+            )
             table.add_row(name, desc)
 
         with console.capture() as capture:
@@ -2832,7 +2834,9 @@ Subcommands:
         async def do_connect():
             try:
                 await server.connect()
-                self.ui.pt_printer(f"✅ Connected to '{server_name}' ({len(server.tools)} tools)")
+                self.ui.pt_printer(
+                    f"✅ Connected to '{server_name}' ({len(server.tools)} tools)"
+                )
             except Exception as e:
                 self.ui.pt_printer(f"❌ Failed to connect to '{server_name}': {e}")
 
@@ -2949,7 +2953,9 @@ Subcommands:
             return
 
         console = self.ui.client.display.rich_console
-        table = Table(title=f"Tool Audit Log (last {len(entries)})", title_style="bold magenta")
+        table = Table(
+            title=f"Tool Audit Log (last {len(entries)})", title_style="bold magenta"
+        )
         table.add_column("Time", style="dim", width=19)
         table.add_column("Tool", style="cyan")
         table.add_column("Type", style="blue")
@@ -2957,7 +2963,11 @@ Subcommands:
         table.add_column("Duration", justify="right")
 
         for entry in entries:
-            time_str = entry.timestamp.split("T")[1].split(".")[0] if "T" in entry.timestamp else entry.timestamp[:8]
+            time_str = (
+                entry.timestamp.split("T")[1].split(".")[0]
+                if "T" in entry.timestamp
+                else entry.timestamp[:8]
+            )
             status = "[green]OK[/green]" if entry.success else f"[red]FAIL[/red]"
             duration = f"{entry.duration_ms:.0f}ms" if entry.duration_ms else "-"
             table.add_row(time_str, entry.tool_name, entry.tool_type, status, duration)

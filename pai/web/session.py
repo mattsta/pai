@@ -125,8 +125,7 @@ class SessionManager:
         """Remove expired sessions."""
         async with self._lock:
             expired = [
-                sid for sid, session in self._sessions.items()
-                if session.is_expired
+                sid for sid, session in self._sessions.items() if session.is_expired
             ]
             for sid in expired:
                 del self._sessions[sid]

@@ -90,7 +90,7 @@ def _load_env_file(env_file: str | None = None) -> None:
     for env_path in env_paths:
         if env_path.exists():
             try:
-                with open(env_path, "r") as f:
+                with open(env_path) as f:
                     for line in f:
                         line = line.strip()
                         if line and not line.startswith("#") and "=" in line:
@@ -98,8 +98,9 @@ def _load_env_file(env_file: str | None = None) -> None:
                             key = key.strip()
                             value = value.strip()
                             # Remove quotes if present
-                            if (value.startswith('"') and value.endswith('"')) or \
-                               (value.startswith("'") and value.endswith("'")):
+                            if (value.startswith('"') and value.endswith('"')) or (
+                                value.startswith("'") and value.endswith("'")
+                            ):
                                 value = value[1:-1]
                             # Only set if not already in environment
                             if key not in os.environ:
@@ -1237,7 +1238,9 @@ def load_toml_config(path: str) -> PolyglotConfig:
         sys.exit(f"❌ FATAL: Error in final merged config: {e}")
 
 
-async def _run_batch_mode(client: "PolyglotClient", runtime_config: RuntimeConfig) -> None:
+async def _run_batch_mode(
+    client: "PolyglotClient", runtime_config: RuntimeConfig
+) -> None:
     """Run batch mode processing for multiple prompts.
 
     Reads prompts from a file, processes each one, and optionally writes results to a file.
@@ -1300,9 +1303,16 @@ async def _run_batch_mode(client: "PolyglotClient", runtime_config: RuntimeConfi
                 "model": client.config.model_name,
                 "success": True,
                 "stats": {
-                    "tokens_sent": client.stats.last_request_stats.tokens_sent if client.stats.last_request_stats else 0,
-                    "tokens_received": client.stats.last_request_stats.tokens_received if client.stats.last_request_stats else 0,
-                    "cost": client.stats.last_request_stats.cost.total_cost if client.stats.last_request_stats and client.stats.last_request_stats.cost else 0,
+                    "tokens_sent": client.stats.last_request_stats.tokens_sent
+                    if client.stats.last_request_stats
+                    else 0,
+                    "tokens_received": client.stats.last_request_stats.tokens_received
+                    if client.stats.last_request_stats
+                    else 0,
+                    "cost": client.stats.last_request_stats.cost.total_cost
+                    if client.stats.last_request_stats
+                    and client.stats.last_request_stats.cost
+                    else 0,
                 },
             }
             typer.echo(f"   ✅ Completed ({result['stats']['tokens_received']} tokens)")
@@ -1615,8 +1625,6 @@ def run(
 
     # Handle --web flag: start web interface instead of CLI
     if web:
-        import asyncio
-
         from .pricing import PricingService
         from .web import run_server
 

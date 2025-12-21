@@ -1,6 +1,7 @@
 """Tests for MCP (Model Context Protocol) functionality."""
 
 import asyncio
+
 import pytest
 
 from pai.mcp import MCPConfig, MCPManager, MCPServerConfig, MCPTool
@@ -174,9 +175,7 @@ class TestMCPManager:
     def test_status_summary_with_servers(self):
         """Test status summary with servers."""
         manager = MCPManager()
-        config = MCPConfig(
-            servers=[MCPServerConfig(name="test", command=["cmd"])]
-        )
+        config = MCPConfig(servers=[MCPServerConfig(name="test", command=["cmd"])])
         manager.load_config(config)
         summary = manager.get_status_summary()
 
@@ -215,7 +214,7 @@ class TestMCPToolIntegration:
     @pytest.mark.asyncio
     async def test_execute_mcp_tool_no_manager(self):
         """Test executing MCP tool when manager is not set."""
-        from pai.tools import execute_tool, set_mcp_manager, ToolNotFound
+        from pai.tools import ToolNotFound, execute_tool, set_mcp_manager
 
         # Ensure no manager is set
         set_mcp_manager(None)  # type: ignore

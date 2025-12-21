@@ -18,7 +18,12 @@ from starlette.staticfiles import StaticFiles
 
 from ..models import PolyglotConfig
 from ..pricing import PricingService
-from .components import ChatComponent, ModelsComponent, SettingsComponent, StatsComponent
+from .components import (
+    ChatComponent,
+    ModelsComponent,
+    SettingsComponent,
+    StatsComponent,
+)
 from .session import SessionManager
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -89,7 +94,9 @@ class WebServer:
 
         # Static files (if directory exists)
         if STATIC_DIR.exists():
-            routes.append(Mount("/static", StaticFiles(directory=STATIC_DIR), name="static"))
+            routes.append(
+                Mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+            )
 
         return Starlette(
             debug=False,
@@ -133,12 +140,12 @@ class WebServer:
         session = await self.session_manager.create_session()
 
         # Return redirect script to reload with new session
-        response = HTMLResponse(f'''
+        response = HTMLResponse(f"""
         <script>
             document.cookie = "pai_session={session.session_id}; path=/; max-age=3600; samesite=lax";
             window.location.reload();
         </script>
-        ''')
+        """)
         response.set_cookie(
             "pai_session",
             session.session_id,
@@ -185,9 +192,9 @@ async def run_server(
     )
     server_instance = uvicorn.Server(config)
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"  pai web interface")
     print(f"  Running at: http://{host}:{port}")
-    print(f"{'='*50}\n")
+    print(f"{'=' * 50}\n")
 
     await server_instance.serve()

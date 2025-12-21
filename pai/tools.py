@@ -136,7 +136,9 @@ class ToolAuditLogger:
         result_preview = None
         if result is not None:
             result_str = str(result)
-            result_preview = result_str[:500] + "..." if len(result_str) > 500 else result_str
+            result_preview = (
+                result_str[:500] + "..." if len(result_str) > 500 else result_str
+            )
 
         # Sanitize arguments (remove sensitive data patterns)
         sanitized_args = self._sanitize_arguments(arguments)
@@ -183,7 +185,14 @@ class ToolAuditLogger:
 
     def _sanitize_arguments(self, args: dict[str, Any]) -> dict[str, Any]:
         """Sanitize arguments to remove potentially sensitive data."""
-        sensitive_patterns = ("password", "secret", "token", "key", "credential", "auth")
+        sensitive_patterns = (
+            "password",
+            "secret",
+            "token",
+            "key",
+            "credential",
+            "auth",
+        )
         sanitized = {}
 
         for key, value in args.items():
@@ -192,7 +201,9 @@ class ToolAuditLogger:
                 sanitized[key] = "[REDACTED]"
             elif isinstance(value, str) and len(value) > 1000:
                 # Truncate very long strings
-                sanitized[key] = value[:1000] + f"... [truncated, {len(value)} chars total]"
+                sanitized[key] = (
+                    value[:1000] + f"... [truncated, {len(value)} chars total]"
+                )
             else:
                 sanitized[key] = value
 
@@ -483,11 +494,15 @@ async def execute_tool(name: str, args: dict) -> Any:
         try:
             result = await _mcp_manager.execute_tool(name, args)
             duration_ms = (time.perf_counter() - start_time) * 1000
-            audit.log(name, "mcp", args, success=True, result=result, duration_ms=duration_ms)
+            audit.log(
+                name, "mcp", args, success=True, result=result, duration_ms=duration_ms
+            )
             return result
         except Exception as e:
             duration_ms = (time.perf_counter() - start_time) * 1000
-            audit.log(name, "mcp", args, success=False, error=str(e), duration_ms=duration_ms)
+            audit.log(
+                name, "mcp", args, success=False, error=str(e), duration_ms=duration_ms
+            )
             raise ToolError(f"MCP tool '{name}' failed: {e}") from e
 
     # Handle native tools
@@ -517,24 +532,32 @@ async def execute_tool(name: str, args: dict) -> Any:
             result = await asyncio.to_thread(func, **converted_args)
 
         duration_ms = (time.perf_counter() - start_time) * 1000
-        audit.log(name, "native", args, success=True, result=result, duration_ms=duration_ms)
+        audit.log(
+            name, "native", args, success=True, result=result, duration_ms=duration_ms
+        )
         return result
 
     except ValueError as e:
         duration_ms = (time.perf_counter() - start_time) * 1000
-        audit.log(name, "native", args, success=False, error=str(e), duration_ms=duration_ms)
+        audit.log(
+            name, "native", args, success=False, error=str(e), duration_ms=duration_ms
+        )
         # Specifically for enum conversion errors
         raise ToolArgumentError(f"Invalid argument value for tool '{name}': {e}") from e
     except TypeError as e:
         duration_ms = (time.perf_counter() - start_time) * 1000
-        audit.log(name, "native", args, success=False, error=str(e), duration_ms=duration_ms)
+        audit.log(
+            name, "native", args, success=False, error=str(e), duration_ms=duration_ms
+        )
         # Catches missing required arguments.
         raise ToolArgumentError(
             f"Missing or invalid arguments for tool '{name}': {e}"
         ) from e
     except Exception as e:
         duration_ms = (time.perf_counter() - start_time) * 1000
-        audit.log(name, "native", args, success=False, error=str(e), duration_ms=duration_ms)
+        audit.log(
+            name, "native", args, success=False, error=str(e), duration_ms=duration_ms
+        )
         raise ToolError(f"Error executing tool '{name}' with args {args}: {e}") from e
 
 

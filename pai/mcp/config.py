@@ -10,7 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field
 class MCPServerConfig(BaseModel):
     """Configuration for a single MCP server."""
 
-    model_config = ConfigDict(extra="allow")  # Allow additional fields for extensibility
+    model_config = ConfigDict(
+        extra="allow"
+    )  # Allow additional fields for extensibility
 
     name: str = Field(..., description="Unique identifier for this server")
     command: list[str] = Field(
@@ -23,9 +25,7 @@ class MCPServerConfig(BaseModel):
     auto_connect: bool = Field(
         default=True, description="Connect automatically on startup"
     )
-    timeout: float = Field(
-        default=30.0, description="Connection timeout in seconds"
-    )
+    timeout: float = Field(default=30.0, description="Connection timeout in seconds")
 
 
 class MCPConfig(BaseModel):

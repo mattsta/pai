@@ -215,19 +215,19 @@ class ChatComponent(Component):
             if turn.request_data and turn.request_data.get("messages"):
                 user_msg = turn.request_data["messages"][-1].get("content", "")
                 if user_msg:
-                    html_parts.append(f'''
+                    html_parts.append(f"""
                     <div class="message user-message">
                         <div class="message-content">{html.escape(user_msg)}</div>
                     </div>
-                    ''')
+                    """)
 
             # Assistant message
             if turn.assistant_message:
-                html_parts.append(f'''
+                html_parts.append(f"""
                 <div class="message assistant-message">
                     <div class="message-content">{html.escape(turn.assistant_message)}</div>
                 </div>
-                ''')
+                """)
 
         if not html_parts:
             return HTMLResponse('<div class="empty-state">No messages yet</div>')

@@ -20,7 +20,9 @@ app = typer.Typer(
 
 @app.command()
 def serve(
-    host: Annotated[str, typer.Option("--host", "-h", help="Host to bind to")] = "127.0.0.1",
+    host: Annotated[
+        str, typer.Option("--host", "-h", help="Host to bind to")
+    ] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", "-p", help="Port to bind to")] = 8080,
     config: Annotated[
         Path | None,

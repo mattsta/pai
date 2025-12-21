@@ -4,7 +4,6 @@
 
 Polyglot AI is an interactive, provider-agnostic CLI for developers, researchers, and AI enthusiasts. It provides a single, unified interface to test, debug, and converse with AI models from any provider, featuring a plug-and-play architecture for easy extension.
 
-
 ### Sample Output
 
 ```
@@ -52,24 +51,24 @@ Type '/help' for commands, '/quit' to exit.
 
 ### Key Features
 
-*   **Universal Provider Support:** Seamlessly switch between different AI providers and profiles in a single session using `/switch` and `/profile`.
-*   **Advanced Interactive TUI:** A rich, terminal-based chat experience built on `prompt-toolkit`, featuring persistent history, multiline input, and a live status toolbar with default smooth-stream rendering that provides real-time feedback on cost, performance, and agent status.
-*   **Deep Introspection & Debugging:** A first-class, verbose debug mode (`--debug`) to inspect raw API traffic, and a powerful `/stats` command to see detailed performance metrics for every request.
-*   **Customizable Pricing Engine:** While default pricing is fetched automatically, you can provide a custom YAML or TOML file to override costs, define pricing for local models, and even specify complex tiered or time-based pricing rules. See the [Custom Pricing Guide](./docs/PRICING.md) for details.
-*   **Powerful Agentic Tool-Use:** An extensible system allowing models to use local Python functions as tools. Supports native tool-calling APIs (OpenAI, etc.) and provides a legacy agent mode for models that lack this capability.
-    *   **To create tools:** See the [Tool System Guide](./docs/TOOLS.md).
-    *   **For a walkthrough:** Check out the [Tool Usage Tutorial](./docs/TOOL_TUTORIAL.md).
-*   **MCP (Model Context Protocol) Support:** Connect to external MCP servers to extend tool capabilities with filesystem access, web browsing, database queries, and more. See [MCP Integration Guide](#mcp-integration) below.
-*   **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in `logs/`. Each turn is saved as structured JSON, and the entire conversation—including partial responses from cancelled turns—is rendered into multiple browseable HTML formats.
-*   **Extensible by Design:** Add new providers via a simple plugin system. Add new tools by dropping Python files into a directory. No core code modification needed.
-*   **Multi-Model Arena:** Pit models against each other in a conversational arena, with an optional judge model to provide a final verdict.
+- **Universal Provider Support:** Seamlessly switch between different AI providers and profiles in a single session using `/switch` and `/profile`.
+- **Advanced Interactive TUI:** A rich, terminal-based chat experience built on `prompt-toolkit`, featuring persistent history, multiline input, and a live status toolbar with default smooth-stream rendering that provides real-time feedback on cost, performance, and agent status.
+- **Deep Introspection & Debugging:** A first-class, verbose debug mode (`--debug`) to inspect raw API traffic, and a powerful `/stats` command to see detailed performance metrics for every request.
+- **Customizable Pricing Engine:** While default pricing is fetched automatically, you can provide a custom YAML or TOML file to override costs, define pricing for local models, and even specify complex tiered or time-based pricing rules. See the [Custom Pricing Guide](./docs/PRICING.md) for details.
+- **Powerful Agentic Tool-Use:** An extensible system allowing models to use local Python functions as tools. Supports native tool-calling APIs (OpenAI, etc.) and provides a legacy agent mode for models that lack this capability.
+  - **To create tools:** See the [Tool System Guide](./docs/TOOLS.md).
+  - **For a walkthrough:** Check out the [Tool Usage Tutorial](./docs/TOOL_TUTORIAL.md).
+- **MCP (Model Context Protocol) Support:** Connect to external MCP servers to extend tool capabilities with filesystem access, web browsing, database queries, and more. See [MCP Integration Guide](#mcp-integration) below.
+- **Automatic Session Logging:** Every interactive session is automatically saved to a timestamped folder in `logs/`. Each turn is saved as structured JSON, and the entire conversation—including partial responses from cancelled turns—is rendered into multiple browseable HTML formats.
+- **Extensible by Design:** Add new providers via a simple plugin system. Add new tools by dropping Python files into a directory. No core code modification needed.
+- **Multi-Model Arena:** Pit models against each other in a conversational arena, with an optional judge model to provide a final verdict.
 
 ### Getting Started
 
 #### 1. Prerequisites
 
-*   Python 3.12+
-*   See `pyproject.toml` for a full list of dependencies.
+- Python 3.12+
+- See `pyproject.toml` for a full list of dependencies.
 
 #### 2. Project Structure
 
@@ -105,24 +104,29 @@ export OPENAI_API_KEY="sk-your-openai-key"
 #### 4. Running the Framework
 
 **Install dependencies and run:**
+
 ```bash
 pip install uv -U
 uv sync -U
 ```
+
 This prepares a `pai` command and its dependencies locally.
 
 **Start in Interactive Mode (Default: OpenAI)**
+
 ```bash
 uv run pai --chat
 ```
 
 **Using a Profile**
 You can define preset configurations in `pai.toml` and use them with the `--profile` flag. This is great for switching between common setups.
+
 ```bash
 uv run pai --profile research_haiku --chat
 ```
 
 **Run a Single, Non-Interactive Prompt**
+
 ```bash
 # This will stream the response by default.
 uv run pai --endpoint openai --prompt "Explain quantum computing in one sentence."
@@ -132,14 +136,18 @@ uv run pai --endpoint openai --prompt "Explain quantum computing in one sentence
 ```
 
 **Using Tools**
-To load and enable tools, you must start `pai` with the `--tools` flag. This gives the AI the *capability* to see and use tools.
+To load and enable tools, you must start `pai` with the `--tools` flag. This gives the AI the _capability_ to see and use tools.
+
 ```bash
 uv run pai --chat --endpoint openai --model gpt-4o --tools
 ```
+
 For complex tasks, you can then switch into "agent mode" to give the AI a better reasoning framework for using those tools.
+
 ```
 /agent
 ```
+
 Now you can ask it to perform tasks that require tools: `Refactor the 'get_current_weather' function in 'pai/tools.py' to handle a 'kelvin' unit.`
 
 **Batch Mode (Non-Interactive Processing)**
@@ -158,16 +166,18 @@ uv run pai --batch prompts.txt --system "You are a helpful assistant" --output r
 ```
 
 Batch file formats supported:
+
 - **Plain text**: One prompt per line (lines starting with `#` are ignored)
 - **JSON**: Array of strings or array of objects with `prompt` key
 - **YAML**: List of strings or list of objects with `prompt` key
 
 Example `prompts.json`:
+
 ```json
 [
   "Explain photosynthesis in simple terms",
   "What is the capital of France?",
-  {"prompt": "Write a haiku about coding", "metadata": "optional"}
+  { "prompt": "Write a haiku about coding", "metadata": "optional" }
 ]
 ```
 
@@ -184,6 +194,7 @@ uv run pai --env-file /path/to/custom.env --chat
 ```
 
 Example `.env` file:
+
 ```
 OPENAI_API_KEY=sk-your-key-here
 ANTHROPIC_API_KEY=sk-ant-your-key-here
@@ -194,53 +205,58 @@ BRAVE_API_KEY=your-brave-key
 
 Once in interactive mode, use `/` commands to control the session:
 
-*   `/help`: Shows this list of commands.
-*   `/stats`: Displays performance and cost statistics for the current session.
-*   `/quit` or `/q`: Exits the application.
+- `/help`: Shows this list of commands.
+- `/stats`: Displays performance and cost statistics for the current session.
+- `/quit` or `/q`: Exits the application.
 
 **Provider & Model Controls:**
-*   `/endpoints`: Lists all available provider endpoints from your config file.
-*   `/switch <name>`: Switches to a different provider endpoint (e.g., `/switch anthropic`).
-*   `/model <name>`: Changes the model for the current session (e.g., `/model gpt-4o-mini`).
-*   `/models [term] [refresh]`: Lists and filters models (add 'refresh' to bypass cache).
-*   `/info [model_id]`: Shows detailed model info (params, memory, etc.). Defaults to the current model.
-*   `/temp <value>`: Changes the generation temperature (e.g., `/temp 0.9`).
-*   `/tokens <num>`: Changes the maximum number of tokens for the response (e.g., `/tokens 4000`).
-*   `/timeout <seconds>`: Changes the network request timeout (e.g., `/timeout 120`).
+
+- `/endpoints`: Lists all available provider endpoints from your config file.
+- `/switch <name>`: Switches to a different provider endpoint (e.g., `/switch anthropic`).
+- `/model <name>`: Changes the model for the current session (e.g., `/model gpt-4o-mini`).
+- `/models [term] [refresh]`: Lists and filters models (add 'refresh' to bypass cache).
+- `/info [model_id]`: Shows detailed model info (params, memory, etc.). Defaults to the current model.
+- `/temp <value>`: Changes the generation temperature (e.g., `/temp 0.9`).
+- `/tokens <num>`: Changes the maximum number of tokens for the response (e.g., `/tokens 4000`).
+- `/timeout <seconds>`: Changes the network request timeout (e.g., `/timeout 120`).
 
 **Agent & Tool Controls:**
-*   `/agent`: Enables agent mode by loading the `code_editor` system prompt. Requires starting with `--tools`.
-*   `/legacy_agent`: Enables agent mode for models that don't support native tool-calling.
-*   `/tools`: Toggles the tool-use capability on or off for the current session. (Requires starting `pai` with `--tools`).
-*   `/confirm on|off`: Toggles whether the agent must ask for confirmation before executing a tool.
+
+- `/agent`: Enables agent mode by loading the `code_editor` system prompt. Requires starting with `--tools`.
+- `/legacy_agent`: Enables agent mode for models that don't support native tool-calling.
+- `/tools`: Toggles the tool-use capability on or off for the current session. (Requires starting `pai` with `--tools`).
+- `/confirm on|off`: Toggles whether the agent must ask for confirmation before executing a tool.
 
 **Chat & History Management:**
-*   `/mode`: Toggles between `chat` and `completion` modes. Clears history.
-*   `/system <text>`: Replaces the entire system prompt stack with new text.
-*   `/system add <text>`: Adds a new system prompt to the top of the stack.
-*   `/system pop`: Removes the most recent system prompt from the stack.
-*   `/system show`: Shows all system prompts currently in the stack.
-*   `/system clear`: Clears all system prompts.
-*   `/prompts`: Lists all available, loadable system prompts from the `prompts/` directory.
-*   `/prompt <name>`: Loads a prompt from the `prompts/` directory and adds it to the system prompt stack.
-*   `/clear`: Clears the current conversation history.
-*   `/history`: Shows the raw message history for the current conversation.
-*   `/save <name>`: Saves the current chat session snapshot to a file in `session_snapshots/`.
-*   `/load <name>`: Loads a chat session snapshot from a file.
+
+- `/mode`: Toggles between `chat` and `completion` modes. Clears history.
+- `/system <text>`: Replaces the entire system prompt stack with new text.
+- `/system add <text>`: Adds a new system prompt to the top of the stack.
+- `/system pop`: Removes the most recent system prompt from the stack.
+- `/system show`: Shows all system prompts currently in the stack.
+- `/system clear`: Clears all system prompts.
+- `/prompts`: Lists all available, loadable system prompts from the `prompts/` directory.
+- `/prompt <name>`: Loads a prompt from the `prompts/` directory and adds it to the system prompt stack.
+- `/clear`: Clears the current conversation history.
+- `/history`: Shows the raw message history for the current conversation.
+- `/save <name>`: Saves the current chat session snapshot to a file in `session_snapshots/`.
+- `/load <name>`: Loads a chat session snapshot from a file.
 
 **Multi-Model Arena:**
-*   `/arena <name> [turns]`: Starts a multi-model arena conversation defined in `pai.toml`.
-*   `/pause`: Pauses the arena conversation after the current model's turn.
-*   `/resume`: Resumes a paused arena.
-*   `/say <message>`: While paused, interjects with a message to steer the conversation.
+
+- `/arena <name> [turns]`: Starts a multi-model arena conversation defined in `pai.toml`.
+- `/pause`: Pauses the arena conversation after the current model's turn.
+- `/resume`: Resumes a paused arena.
+- `/say <message>`: While paused, interjects with a message to steer the conversation.
 
 **UI & Debugging:**
-*   `/multiline`: Toggles multi-line input mode (use `Esc+Enter` to submit).
-*   `/stream`: Toggles response streaming on or off.
-*   `/rich`: Toggles rich Markdown rendering for final output.
-*   `/smooth`: Toggles the adaptive smooth streaming mode (ON by default).
-*   `/verbose`: Toggles verbose logging of request parameters.
-*   `/debug`: Toggles raw protocol-level debugging for network streams.
+
+- `/multiline`: Toggles multi-line input mode (use `Esc+Enter` to submit).
+- `/stream`: Toggles response streaming on or off.
+- `/rich`: Toggles rich Markdown rendering for final output.
+- `/smooth`: Toggles the adaptive smooth streaming mode (ON by default).
+- `/verbose`: Toggles verbose logging of request parameters.
+- `/debug`: Toggles raw protocol-level debugging for network streams.
 
 For more details on session logging, see [`docs/LOGGING.md`](docs/LOGGING.md).
 
@@ -276,6 +292,7 @@ uv run pai --chat --tools
 ```
 
 MCP servers will automatically connect on startup. You'll see:
+
 ```
 🔌 MCP support enabled. Loading MCP servers...
   📦 Configured 2 MCP server(s)
@@ -299,12 +316,12 @@ MCP servers will automatically connect on startup. You'll see:
 
 ### MCP Commands
 
-| Command | Description |
-|---------|-------------|
-| `/mcp status` | Show connection status of all MCP servers |
-| `/mcp list` | List all available MCP tools with descriptions |
-| `/mcp connect <server>` | Manually connect to a specific MCP server |
-| `/mcp disconnect <server>` | Disconnect from an MCP server |
+| Command                    | Description                                    |
+| -------------------------- | ---------------------------------------------- |
+| `/mcp status`              | Show connection status of all MCP servers      |
+| `/mcp list`                | List all available MCP tools with descriptions |
+| `/mcp connect <server>`    | Manually connect to a specific MCP server      |
+| `/mcp disconnect <server>` | Disconnect from an MCP server                  |
 
 ### MCP Configuration Reference
 
@@ -332,13 +349,13 @@ timeout = 30.0
 
 Here are some commonly used MCP servers you can configure:
 
-| Server | Install Command | Description |
-|--------|----------------|-------------|
-| **Filesystem** | `npx -y @modelcontextprotocol/server-filesystem /path` | Read/write files, list directories |
-| **Brave Search** | `npx -y @anthropic/brave-mcp-server` | Web search via Brave API |
-| **GitHub** | `npx -y @anthropic/mcp-server-github` | GitHub API access |
-| **SQLite** | `npx -y @anthropic/mcp-server-sqlite --db-path /path/db.sqlite` | SQLite database queries |
-| **Postgres** | `npx -y @anthropic/mcp-server-postgres` | PostgreSQL database access |
+| Server           | Install Command                                                 | Description                        |
+| ---------------- | --------------------------------------------------------------- | ---------------------------------- |
+| **Filesystem**   | `npx -y @modelcontextprotocol/server-filesystem /path`          | Read/write files, list directories |
+| **Brave Search** | `npx -y @anthropic/brave-mcp-server`                            | Web search via Brave API           |
+| **GitHub**       | `npx -y @anthropic/mcp-server-github`                           | GitHub API access                  |
+| **SQLite**       | `npx -y @anthropic/mcp-server-sqlite --db-path /path/db.sqlite` | SQLite database queries            |
+| **Postgres**     | `npx -y @anthropic/mcp-server-postgres`                         | PostgreSQL database access         |
 
 ### Example: Full MCP Configuration
 
@@ -382,15 +399,18 @@ timeout = 60.0
 ### Troubleshooting MCP
 
 **Server won't connect:**
+
 - Check that the command exists and is executable
 - Verify Node.js/npx is installed for npm-based servers
 - Check server logs: `uv run pai --debug --chat --tools`
 
 **Tools not appearing:**
+
 - Verify the server is connected: `/mcp status`
 - Check if server discovered tools: `/mcp list`
 
 **Environment variables not working:**
+
 - Use `env = { VAR = "${VAR}" }` to reference shell environment variables
 - Or set them directly: `env = { VAR = "value" }`
 

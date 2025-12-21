@@ -58,90 +58,96 @@ This document outlines the high-level architecture of the Polyglot AI framework.
 ### Core Components
 
 1.  **`pai/pai.py` (The UI and App Entrypoint)**
-    *   **Entrypoint:** Contains the `typer` application and `run` command, which orchestrates the setup and teardown of the application.
-    *   **`InteractiveUI`:** This class encapsulates all logic for the text user interface. It creates and manages a persistent `prompt_toolkit.Application` and is responsible for UI layout, state management (`UIMode`), and command dispatch. It no longer contains business logic for generation loops.
-    *   **`CommandHandler` (`pai/commands.py`):** A dedicated class that parses and executes all `/` commands. Each command is its own class, making the system clean and easy to extend. The `CommandHandler` is instantiated by `InteractiveUI`.
-    *   **Orchestrator System (`pai/orchestration/`)**: A new layer responsible for the business logic of different interaction modes. `InteractiveUI` instantiates and runs the appropriate orchestrator (`DefaultOrchestrator`, `ArenaOrchestrator`, etc.) based on the current `UIMode`. This cleanly separates UI concerns from logical flow.
+
+    - **Entrypoint:** Contains the `typer` application and `run` command, which orchestrates the setup and teardown of the application.
+    - **`InteractiveUI`:** This class encapsulates all logic for the text user interface. It creates and manages a persistent `prompt_toolkit.Application` and is responsible for UI layout, state management (`UIMode`), and command dispatch. It no longer contains business logic for generation loops.
+    - **`CommandHandler` (`pai/commands.py`):** A dedicated class that parses and executes all `/` commands. Each command is its own class, making the system clean and easy to extend. The `CommandHandler` is instantiated by `InteractiveUI`.
+    - **Orchestrator System (`pai/orchestration/`)**: A new layer responsible for the business logic of different interaction modes. `InteractiveUI` instantiates and runs the appropriate orchestrator (`DefaultOrchestrator`, `ArenaOrchestrator`, etc.) based on the current `UIMode`. This cleanly separates UI concerns from logical flow.
 
 2.  **`pai/client.py` (The Client Controller)**
-    *   **`PolyglotClient` Class:** This is the central controller. It holds the session state (`SessionStats`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It is passed to the `InteractiveUI` to orchestrate the flow from user input to protocol adapter execution.
+
+    - **`PolyglotClient` Class:** This is the central controller. It holds the session state (`SessionStats`), the display handler (`StreamingDisplay`), endpoint configurations (`EndpointConfig`), and manages communication. It is passed to the `InteractiveUI` to orchestrate the flow from user input to protocol adapter execution.
 
 3.  **Protocol Adapter System (`pai/protocols/`)**
-    *   **`__init__.py`:** This file implements a dynamic plugin system for protocol adapters. The `load_protocol_adapters()` function uses Python's `importlib.metadata` to discover and load any installed packages that provide an entry point for `polyglot_ai.protocols`. This populates a global `ADAPTER_MAP` at runtime, making the system highly extensible.
-    *   **`base_adapter.py`:** Defines the `BaseProtocolAdapter` abstract class and the `ProtocolContext` data structure. This is the contract that all protocol adapters must adhere to. It requires a `generate()` method, ensuring a consistent interface for the `PolyglotClient`.
-    *   **Concrete Adapters (`openai_chat_adapter.py`, etc.):** Each built-in adapter is registered via an entry point in `pyproject.toml`, serving as the reference implementation for the plugin system. They are responsible for:
-        *   Formatting the request payload for a specific API schema.
-        *   Parsing the response stream, with robust error handling.
-        *   Handling protocol-specific features like tool-calling.
-        *   Calling back to the `ProtocolContext` to update stats and display output.
-    *   **Adding New Providers:** The system is now a formal plugin architecture. To add a new provider, you create a new installable Python package that exposes its adapter class via the `polyglot_ai.protocols` entry point. For a detailed guide, see [`How to Add a New Provider`](docs/providers/ANTHROPIC.md).
+
+    - **`__init__.py`:** This file implements a dynamic plugin system for protocol adapters. The `load_protocol_adapters()` function uses Python's `importlib.metadata` to discover and load any installed packages that provide an entry point for `polyglot_ai.protocols`. This populates a global `ADAPTER_MAP` at runtime, making the system highly extensible.
+    - **`base_adapter.py`:** Defines the `BaseProtocolAdapter` abstract class and the `ProtocolContext` data structure. This is the contract that all protocol adapters must adhere to. It requires a `generate()` method, ensuring a consistent interface for the `PolyglotClient`.
+    - **Concrete Adapters (`openai_chat_adapter.py`, etc.):** Each built-in adapter is registered via an entry point in `pyproject.toml`, serving as the reference implementation for the plugin system. They are responsible for:
+      - Formatting the request payload for a specific API schema.
+      - Parsing the response stream, with robust error handling.
+      - Handling protocol-specific features like tool-calling.
+      - Calling back to the `ProtocolContext` to update stats and display output.
+    - **Adding New Providers:** The system is now a formal plugin architecture. To add a new provider, you create a new installable Python package that exposes its adapter class via the `polyglot_ai.protocols` entry point. For a detailed guide, see [`How to Add a New Provider`](docs/providers/ANTHROPIC.md).
 
 4.  **Tool System (`pai/tools.py`)**
-    *   A highly extensible system for defining and executing local functions that the AI can call.
-    *   `@tool` Decorator: Registers functions into a `TOOL_REGISTRY`. It introspects the function's signature (supporting `str`, `int`, `float`, `bool`, and `Enum`) and docstring to automatically generate a JSON Schema for the provider API.
-    *   `execute_tool()`: A robust dispatcher that takes a tool name and arguments, correctly converts `Enum` types, runs the tool, and returns the result.
-    *   **Dynamic Loading:** The framework can automatically discover and load custom tools from user-defined directories, making it easy to add new capabilities without modifying core code. For a detailed guide, see [`docs/TOOLS.md`](./TOOLS.md).
+
+    - A highly extensible system for defining and executing local functions that the AI can call.
+    - `@tool` Decorator: Registers functions into a `TOOL_REGISTRY`. It introspects the function's signature (supporting `str`, `int`, `float`, `bool`, and `Enum`) and docstring to automatically generate a JSON Schema for the provider API.
+    - `execute_tool()`: A robust dispatcher that takes a tool name and arguments, correctly converts `Enum` types, runs the tool, and returns the result.
+    - **Dynamic Loading:** The framework can automatically discover and load custom tools from user-defined directories, making it easy to add new capabilities without modifying core code. For a detailed guide, see [`docs/TOOLS.md`](./TOOLS.md).
 
 5.  **Core Data Models (`pai/models.py`)**
-    *   **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. A `Conversation` holds a list of `Turn` objects and also tracks `session_token_count`, which is the running total of tokens for the current conversation since the last `/clear`. `Turn` objects include optional fields for `participant_name` and `model_name` to support advanced logging scenarios.
-    *   **`SessionStats` & `RequestStats`:** These dataclasses track all metrics. `SessionStats` is the accumulator for the entire application lifetime (total tokens, errors etc.). `RequestStats` holds detailed metrics for a single request, including `ttft` and `finish_reason`, and is used to power the live stats in the UI toolbar.
-    *   **`Arena` & `ArenaParticipant`:** To support multi-model conversations, these dataclasses model an "arena" session. The `Arena` holds the configuration for the overall session, including a dictionary of `ArenaParticipant` objects. Each participant has its own model configuration and a dedicated `Conversation` history object.
-    *   **`StreamingDisplay` (`pai/display.py`):** This critical component now lives in its own file. It manages all console output and ensures that streaming responses do not corrupt the `prompt-toolkit` interface. It uses a swappable "printer" function to either print normally (for non-interactive use) or use `prompt-toolkit`'s thread-safe method (for interactive mode). It also tracks and exposes live state like `status` ("Waiting", "Streaming", etc.) and `live_tok_per_sec` (a smoothed average over the current stream's duration) to power the real-time UI toolbar.
-        *   **`StreamSmoother`:** For smooth streaming mode, the `StreamingDisplay` uses a `StreamSmoother` instance. This class contains the adaptive rendering logic designed to convert a jittery, bursty stream from a provider into a smooth, consistently paced output for the user. It works as a classic proportional controller.
 
-            The controller's goal is to maintain a small buffer of text (e.g., 1.5 seconds worth) to print from, absorbing the "gaps" in network delivery.
+    - **`Conversation` & `Turn`:** These dataclasses provide robust, object-oriented state management for conversations. A `Conversation` holds a list of `Turn` objects and also tracks `session_token_count`, which is the running total of tokens for the current conversation since the last `/clear`. `Turn` objects include optional fields for `participant_name` and `model_name` to support advanced logging scenarios.
+    - **`SessionStats` & `RequestStats`:** These dataclasses track all metrics. `SessionStats` is the accumulator for the entire application lifetime (total tokens, errors etc.). `RequestStats` holds detailed metrics for a single request, including `ttft` and `finish_reason`, and is used to power the live stats in the UI toolbar.
+    - **`Arena` & `ArenaParticipant`:** To support multi-model conversations, these dataclasses model an "arena" session. The `Arena` holds the configuration for the overall session, including a dictionary of `ArenaParticipant` objects. Each participant has its own model configuration and a dedicated `Conversation` history object.
+    - **`StreamingDisplay` (`pai/display.py`):** This critical component now lives in its own file. It manages all console output and ensures that streaming responses do not corrupt the `prompt-toolkit` interface. It uses a swappable "printer" function to either print normally (for non-interactive use) or use `prompt-toolkit`'s thread-safe method (for interactive mode). It also tracks and exposes live state like `status` ("Waiting", "Streaming", etc.) and `live_tok_per_sec` (a smoothed average over the current stream's duration) to power the real-time UI toolbar.
 
-            ```
-            +---------+     +----------------+     +--------------+
-            | Live    | --> | Base Render    | --> | Render Delay |
-            | TPS     |     | Speed (WPS)    |     | Controller   | ----> Final Render Delay
-            +---------+     +----------------+     +--------------+
-                ^                                        | (Feedback Loop)
-                |                                        |
-                +----------------------------------------+
-                | Buffer Error (Current Drain Time - Target Drain Time) |
-                +-------------------------------------------------------+
-            ```
+      - **`StreamSmoother`:** For smooth streaming mode, the `StreamingDisplay` uses a `StreamSmoother` instance. This class contains the adaptive rendering logic designed to convert a jittery, bursty stream from a provider into a smooth, consistently paced output for the user. It works as a classic proportional controller.
 
-            1.  **Calculate Base Render Speed:** It takes the live tokens-per-second (TPS) from the provider and converts it to a base words-per-second (WPS) rendering speed. This speed is a direct, not a smoothed, reflection of the current network conditions, making the system highly responsive.
-            2.  **Calculate Buffer Error:** It calculates the `current_drain_time` of the render queue (in seconds) at the base render speed. It compares this to a fixed `target_buffer_s` (e.g., 1.5 seconds). The difference is the `buffer_error`.
-            3.  **Adjust Delay with P-Controller:** It feeds this error into a proportional controller.
-                -   If the buffer is **too large** (error > 0), the controller *decreases* the rendering delay, speeding up printing to drain the buffer.
-                -   If the buffer is **too small** (error < 0), the controller *increases* the delay, slowing down printing to rebuild the buffer.
-            4.  **Result:** This system acts as a shock absorber. It uses the buffer to smooth over network gaps and then intelligently speeds up rendering to catch up, ensuring the user sees a continuous, predictable stream of text without falling behind. This logic is encapsulated entirely within the `StreamSmoother` class in `pai/display.py`.
+        The controller's goal is to maintain a small buffer of text (e.g., 1.5 seconds worth) to print from, absorbing the "gaps" in network delivery.
+
+        ```
+        +---------+     +----------------+     +--------------+
+        | Live    | --> | Base Render    | --> | Render Delay |
+        | TPS     |     | Speed (WPS)    |     | Controller   | ----> Final Render Delay
+        +---------+     +----------------+     +--------------+
+            ^                                        | (Feedback Loop)
+            |                                        |
+            +----------------------------------------+
+            | Buffer Error (Current Drain Time - Target Drain Time) |
+            +-------------------------------------------------------+
+        ```
+
+        1.  **Calculate Base Render Speed:** It takes the live tokens-per-second (TPS) from the provider and converts it to a base words-per-second (WPS) rendering speed. This speed is a direct, not a smoothed, reflection of the current network conditions, making the system highly responsive.
+        2.  **Calculate Buffer Error:** It calculates the `current_drain_time` of the render queue (in seconds) at the base render speed. It compares this to a fixed `target_buffer_s` (e.g., 1.5 seconds). The difference is the `buffer_error`.
+        3.  **Adjust Delay with P-Controller:** It feeds this error into a proportional controller.
+            - If the buffer is **too large** (error > 0), the controller _decreases_ the rendering delay, speeding up printing to drain the buffer.
+            - If the buffer is **too small** (error < 0), the controller _increases_ the delay, slowing down printing to rebuild the buffer.
+        4.  **Result:** This system acts as a shock absorber. It uses the buffer to smooth over network gaps and then intelligently speeds up rendering to catch up, ensuring the user sees a continuous, predictable stream of text without falling behind. This logic is encapsulated entirely within the `StreamSmoother` class in `pai/display.py`.
 
 ### Architectural Evolution: A History of Refactoring
 
 The framework underwent a series of planned refactoring phases to arrive at its current clean and modular state. This effort focused on:
 
-*   **State Management (`Phase 1`):** The initial implementation used several boolean flags in `InteractiveUI` to manage state. This was refactored into a more robust `UIMode` enum and a central `UIState` dataclass, simplifying state management and making it easier to extend.
-*   **Orchestrator Extraction (`Phase 2`):** Business logic for different modes (e.g., arena loops, agent loops) was extracted from `InteractiveUI` into a dedicated `pai/orchestration` layer. This decoupled the UI from the application's core logic, improving testability and clarity.
-*   **Decoupling (`Phase 3`):** Direct state manipulation from `Command` classes was removed. Instead, commands now call dedicated setter/toggler methods on `InteractiveUI` and `PolyglotClient`, enforcing clear API boundaries and encapsulating state.
-*   **Tool System Refinement (`Phase 4`):** The `tools.py` module and all custom tools were refactored to improve robustness. Instead of returning simple error strings, all tools now return a standardized JSON object (`{"status": "success", "result": ...}` or `{"status": "failure", "reason": ...}`). This makes agentic behavior more predictable. The `execute_tool` function was also enhanced to raise typed exceptions for invocation errors (`ToolNotFound`, `ToolArgumentError`).
-*   **UI Stabilization (`Phase 5`):** All UI rendering was migrated from a simple `PromptSession` loop to a persistent `prompt_toolkit.Application`. This solved numerous rendering bugs by embracing a state-driven UI model, where background tasks update state and the `Application` handles all drawing. For a detailed breakdown of this transition, see [`docs/UI_ARCHITECTURE.md`](./docs/UI_ARCHITECTURE.md).
-*   **Data Model Standardization (`Phase 6`):** Key data structures that were previously dictionaries (e.g., for tool definitions and smoothing statistics) were refactored into strongly-typed `dataclasses` (`ToolDefinition`, `SmoothingStats`). This improved type safety, readability, and code completion throughout the project.
+- **State Management (`Phase 1`):** The initial implementation used several boolean flags in `InteractiveUI` to manage state. This was refactored into a more robust `UIMode` enum and a central `UIState` dataclass, simplifying state management and making it easier to extend.
+- **Orchestrator Extraction (`Phase 2`):** Business logic for different modes (e.g., arena loops, agent loops) was extracted from `InteractiveUI` into a dedicated `pai/orchestration` layer. This decoupled the UI from the application's core logic, improving testability and clarity.
+- **Decoupling (`Phase 3`):** Direct state manipulation from `Command` classes was removed. Instead, commands now call dedicated setter/toggler methods on `InteractiveUI` and `PolyglotClient`, enforcing clear API boundaries and encapsulating state.
+- **Tool System Refinement (`Phase 4`):** The `tools.py` module and all custom tools were refactored to improve robustness. Instead of returning simple error strings, all tools now return a standardized JSON object (`{"status": "success", "result": ...}` or `{"status": "failure", "reason": ...}`). This makes agentic behavior more predictable. The `execute_tool` function was also enhanced to raise typed exceptions for invocation errors (`ToolNotFound`, `ToolArgumentError`).
+- **UI Stabilization (`Phase 5`):** All UI rendering was migrated from a simple `PromptSession` loop to a persistent `prompt_toolkit.Application`. This solved numerous rendering bugs by embracing a state-driven UI model, where background tasks update state and the `Application` handles all drawing. For a detailed breakdown of this transition, see [`docs/UI_ARCHITECTURE.md`](./docs/UI_ARCHITECTURE.md).
+- **Data Model Standardization (`Phase 6`):** Key data structures that were previously dictionaries (e.g., for tool definitions and smoothing statistics) were refactored into strongly-typed `dataclasses` (`ToolDefinition`, `SmoothingStats`). This improved type safety, readability, and code completion throughout the project.
 
 ### Multi-Model Arena
 
 The framework supports a "Multi-Model Arena" mode where two AI models can converse with each other. This is handled by the `ArenaOrchestrator`.
 
-*   **Configuration:** Arenas are defined in `polyglot.toml`. They consist of two or more `participants` and an optional `judge`. These are loaded into `Arena` and `ArenaParticipant` data models.
-*   **Orchestration:** The `ArenaOrchestrator` manages the pausable, turn-based conversation. Crucially, it maintains a separate `Conversation` object for each participant, ensuring each model receives a valid, alternating `user`/`assistant` history from its own perspective.
-*   **Judge Model:** After the primary dialogue concludes (or is cancelled), the `ArenaOrchestrator` can invoke an optional judge model. The judge is provided with the *entire unified conversation history* and a special prompt to generate a final summary and verdict.
-*   **Unified Logging:** While each participant has a private conversation history for generating its next turn, all turns—including the final verdict from the judge—are added to a **single, unified `Conversation` object** managed by the `InteractiveUI`. This unified history is what gets saved to the session log, providing a complete, interleaved record of the entire multi-model session.
+- **Configuration:** Arenas are defined in `polyglot.toml`. They consist of two or more `participants` and an optional `judge`. These are loaded into `Arena` and `ArenaParticipant` data models.
+- **Orchestration:** The `ArenaOrchestrator` manages the pausable, turn-based conversation. Crucially, it maintains a separate `Conversation` object for each participant, ensuring each model receives a valid, alternating `user`/`assistant` history from its own perspective.
+- **Judge Model:** After the primary dialogue concludes (or is cancelled), the `ArenaOrchestrator` can invoke an optional judge model. The judge is provided with the _entire unified conversation history_ and a special prompt to generate a final summary and verdict.
+- **Unified Logging:** While each participant has a private conversation history for generating its next turn, all turns—including the final verdict from the judge—are added to a **single, unified `Conversation` object** managed by the `InteractiveUI`. This unified history is what gets saved to the session log, providing a complete, interleaved record of the entire multi-model session.
 
 ### Session Persistence and Logging
 
 A key feature of the framework is its ability to automatically log all interactive sessions for review and debugging. This process is handled by a few key components:
 
-*   **`logs/` directory:** When `interactive_mode` starts, it creates a unique, timestamped subdirectory within `logs/`. This folder contains all artifacts for that specific session.
-*   **`save_conversation_formats()`:** After every turn is completed (including successful, failed, or cancelled turns), this function is called.
-*   **`pai/templates/`:** This directory contains `Jinja2` templates for rendering conversation logs.
-    *   `conversation.html`: A modern, styled view of the conversation.
-    *   `gptwink_format.html`: A legacy-compatible format.
-*   **Output Files:** `save_conversation_formats` generates:
-    1.  A JSON file for each individual `Turn` (`<turn_id>-turn.json`).
-    2.  An HTML file for each registered template, which is overwritten and updated after every turn.
+- **`logs/` directory:** When `interactive_mode` starts, it creates a unique, timestamped subdirectory within `logs/`. This folder contains all artifacts for that specific session.
+- **`save_conversation_formats()`:** After every turn is completed (including successful, failed, or cancelled turns), this function is called.
+- **`pai/templates/`:** This directory contains `Jinja2` templates for rendering conversation logs.
+  - `conversation.html`: A modern, styled view of the conversation.
+  - `gptwink_format.html`: A legacy-compatible format.
+- **Output Files:** `save_conversation_formats` generates:
+  1.  A JSON file for each individual `Turn` (`<turn_id>-turn.json`).
+  2.  An HTML file for each registered template, which is overwritten and updated after every turn.
 
 This system ensures that no data is lost and provides multiple, easy-to-review formats for every interaction. For more details, see the `docs/LOGGING.md` file.
 
@@ -158,7 +164,7 @@ This system ensures that no data is lost and provides multiple, easy-to-review f
 9.  The adapter parses this tool call. Instead of finishing, it calls `execute_tool("get_current_weather", ...)` from `tools.py`.
 10. The tool runs and returns a JSON string: `{"location": "Tokyo", ...}`.
 11. The adapter appends both the model's `tool_calls` request and the local `tool` result to its internal message list for the next iteration.
-12. It **loops**, sending the *entire new history* back to the API in a second API call.
+12. It **loops**, sending the _entire new history_ back to the API in a second API call.
 13. The model, now having the weather data, generates the final text response: "The weather in Tokyo is 15°C and cloudy."
 14. This text is streamed to the `StreamingDisplay`. The adapter returns the final request data, response data, and assistant text.
 15. Back in `interactive_mode`, a `Turn` object is created with this data. It is added to the `Conversation` object, updating the managed history.

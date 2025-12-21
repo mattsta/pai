@@ -56,22 +56,22 @@ class ModelsComponent(Component):
 
             # Header with counts
             if result.is_filtered:
-                html_parts.append(f'''
+                html_parts.append(f"""
                 <div class="models-header">
                     <span class="model-count">
                         Showing {len(result.models)} of {result.filtered_count} matches
                         (from {result.total_count} total)
                     </span>
                 </div>
-                ''')
+                """)
             else:
-                html_parts.append(f'''
+                html_parts.append(f"""
                 <div class="models-header">
                     <span class="model-count">
                         Showing {len(result.models)} of {result.total_count} models
                     </span>
                 </div>
-                ''')
+                """)
 
             # Model list
             html_parts.append('<div class="model-list">')
@@ -80,7 +80,9 @@ class ModelsComponent(Component):
             for model_id in result.models:
                 is_current = model_id == current_model
                 current_class = "model-item current" if is_current else "model-item"
-                current_badge = '<span class="badge">current</span>' if is_current else ""
+                current_badge = (
+                    '<span class="badge">current</span>' if is_current else ""
+                )
 
                 html_parts.append(f'''
                 <div class="{current_class}"
@@ -98,7 +100,7 @@ class ModelsComponent(Component):
             # Show more button if limited
             if result.is_limited:
                 new_limit = limit + 25
-                html_parts.append(f'''
+                html_parts.append(f"""
                 <div class="load-more">
                     <button hx-get="/models/list?session_id={session.session_id}&search={html.escape(search)}&limit={new_limit}"
                             hx-target="#model-list-container"
@@ -107,7 +109,7 @@ class ModelsComponent(Component):
                         Load more ({result.filtered_count - len(result.models)} remaining)
                     </button>
                 </div>
-                ''')
+                """)
 
             return HTMLResponse("".join(html_parts))
 
@@ -138,12 +140,12 @@ class ModelsComponent(Component):
 
         session.client.set_model(model_id)
 
-        return HTMLResponse(f'''
+        return HTMLResponse(f"""
         <span class="current-model-display">
             <strong>{html.escape(model_id)}</strong>
             <span class="success-indicator">switched</span>
         </span>
-        ''')
+        """)
 
     async def search_models(self, request: Request) -> HTMLResponse:
         """Search models with live filtering (for search-as-you-type)."""
@@ -161,9 +163,9 @@ class ModelsComponent(Component):
         model = session.client.config.model_name
         endpoint = session.client.config.name
 
-        return HTMLResponse(f'''
+        return HTMLResponse(f"""
         <span class="current-model-display">
             <strong>{html.escape(model)}</strong>
             <span class="muted">on {html.escape(endpoint)}</span>
         </span>
-        ''')
+        """)

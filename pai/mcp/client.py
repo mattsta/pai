@@ -112,7 +112,9 @@ class MCPServer:
             return
 
         self.status = ServerStatus.CONNECTING
-        logger.info(f"Starting MCP server '{self.name}': {' '.join(self.config.command)}")
+        logger.info(
+            f"Starting MCP server '{self.name}': {' '.join(self.config.command)}"
+        )
 
         try:
             # Prepare environment
@@ -146,6 +148,7 @@ class MCPServer:
             # Invalidate tool schema cache since new tools are available
             try:
                 from pai.tools import invalidate_tool_cache
+
                 invalidate_tool_cache()
             except ImportError:
                 pass  # Tools module not available
@@ -173,7 +176,7 @@ class MCPServer:
             try:
                 self._process.terminate()
                 await asyncio.wait_for(self._process.wait(), timeout=5.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._process.kill()
             except Exception:
                 pass
@@ -187,6 +190,7 @@ class MCPServer:
         # Invalidate tool schema cache since tools are no longer available
         try:
             from pai.tools import invalidate_tool_cache
+
             invalidate_tool_cache()
         except ImportError:
             pass  # Tools module not available
@@ -223,7 +227,7 @@ class MCPServer:
             result = await asyncio.wait_for(future, timeout=self.config.timeout)
             return result
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._pending_requests.pop(request_id, None)
             raise MCPError(f"Request '{method}' timed out") from None
         except Exception as e:
@@ -249,7 +253,9 @@ class MCPServer:
                         future = self._pending_requests.pop(request_id)
                         if "error" in response:
                             future.set_exception(
-                                MCPError(response["error"].get("message", "Unknown error"))
+                                MCPError(
+                                    response["error"].get("message", "Unknown error")
+                                )
                             )
                         else:
                             future.set_result(response.get("result"))
@@ -308,7 +314,10 @@ class MCPServer:
 
         # Send initialized notification
         if self._process and self._process.stdin:
-            notification = json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n"
+            notification = (
+                json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"})
+                + "\n"
+            )
             self._process.stdin.write(notification.encode())
             await self._process.stdin.drain()
 
@@ -321,7 +330,9 @@ class MCPServer:
             tool = MCPTool(
                 name=tool_data["name"],
                 description=tool_data.get("description", ""),
-                input_schema=tool_data.get("inputSchema", {"type": "object", "properties": {}}),
+                input_schema=tool_data.get(
+                    "inputSchema", {"type": "object", "properties": {}}
+                ),
                 server_name=self.name,
             )
             self.tools.append(tool)
@@ -407,7 +418,9 @@ class MCPManager:
             if server.config.enabled and server.config.auto_connect:
                 try:
                     await server.connect()
-                    printer(f"  ✅ MCP server '{server.name}' connected ({len(server.tools)} tools)")
+                    printer(
+                        f"  ✅ MCP server '{server.name}' connected ({len(server.tools)} tools)"
+                    )
                 except MCPConnectionError as e:
                     printer(f"  ❌ MCP server '{server.name}' failed: {e}")
 
@@ -493,9 +506,7 @@ class MCPManager:
                 return (server, tool)
         return None
 
-    async def execute_tool(
-        self, qualified_name: str, arguments: dict[str, Any]
-    ) -> str:
+    async def execute_tool(self, qualified_name: str, arguments: dict[str, Any]) -> str:
         """
         Execute an MCP tool by its qualified name.
 

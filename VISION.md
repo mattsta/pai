@@ -16,15 +16,15 @@ It is a single, powerful, and transparent command-line interface that provides a
 
 ## Who Is This For?
 
-*   **AI Engineers & Researchers:** Rapidly prototype, debug, and compare models from different providers in a single, reproducible environment. Use the Multi-Model Arena to systematically evaluate model performance on specific tasks.
-*   **Software Developers:** Leverage powerful, tool-using agents to assist with coding, refactoring, and documentation. Interact with local and remote models as a seamless part of your development workflow.
-*   **Power Users & Enthusiasts:** Go beyond simple web UIs. Gain fine-grained control over your interactions, manage complex conversational histories, and automate tasks with a powerful command-line interface.
+- **AI Engineers & Researchers:** Rapidly prototype, debug, and compare models from different providers in a single, reproducible environment. Use the Multi-Model Arena to systematically evaluate model performance on specific tasks.
+- **Software Developers:** Leverage powerful, tool-using agents to assist with coding, refactoring, and documentation. Interact with local and remote models as a seamless part of your development workflow.
+- **Power Users & Enthusiasts:** Go beyond simple web UIs. Gain fine-grained control over your interactions, manage complex conversational histories, and automate tasks with a powerful command-line interface.
 
 ## Guiding Principles
 
-1.  **Provider Agnostic, Not Abstracted Away:** We support any provider through a simple, extensible plugin system. But we do not hide their unique features. The goal is to provide a common *interface*, not a lowest-common-denominator abstraction. If a provider supports unique features like tool-calling, they are exposed and celebrated through our protocol adapter system.
+1.  **Provider Agnostic, Not Abstracted Away:** We support any provider through a simple, extensible plugin system. But we do not hide their unique features. The goal is to provide a common _interface_, not a lowest-common-denominator abstraction. If a provider supports unique features like tool-calling, they are exposed and celebrated through our protocol adapter system.
 
-2.  **Introspection and Debuggability First:** The primary use case is a human-in-the-loop. The user must *always* have the ability to inspect the state, view the raw data flow (`/debug` mode), and understand exactly what the system is doing. This transparency is crucial for debugging provider issues, comparing model behaviors, and building trust in the tool. The live status toolbar, with its real-time cost and performance metrics, is a manifestation of this core principle. There is no "magic."
+2.  **Introspection and Debuggability First:** The primary use case is a human-in-the-loop. The user must _always_ have the ability to inspect the state, view the raw data flow (`/debug` mode), and understand exactly what the system is doing. This transparency is crucial for debugging provider issues, comparing model behaviors, and building trust in the tool. The live status toolbar, with its real-time cost and performance metrics, is a manifestation of this core principle. There is no "magic."
 
 3.  **Agentic Empowerment:** Polyglot AI is designed to be the premier environment for developing and experimenting with AI agents. We provide the robust building blocks—a powerful tool system, native and legacy agent modes, confirmation flows, and multi-model arenas—that empower users to construct, test, and refine complex agentic workflows locally.
 

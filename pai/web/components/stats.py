@@ -39,15 +39,15 @@ class StatsComponent(Component):
         session = await self.session_manager.get_session(session_id)
 
         if not session:
-            return HTMLResponse('''
+            return HTMLResponse("""
             <div class="stats-compact">
                 <span class="stat-item">No active session</span>
             </div>
-            ''')
+            """)
 
         stats = session.client.stats
 
-        return HTMLResponse(f'''
+        return HTMLResponse(f"""
         <div class="stats-compact"
              hx-get="/stats?session_id={session.session_id}"
              hx-trigger="every 5s"
@@ -69,7 +69,7 @@ class StatsComponent(Component):
                 <span class="stat-value">${stats.total_cost:.4f}</span>
             </span>
         </div>
-        ''')
+        """)
 
     async def get_detailed_stats(self, request: Request) -> HTMLResponse:
         """Get detailed session statistics."""
@@ -77,11 +77,11 @@ class StatsComponent(Component):
         session = await self.session_manager.get_session(session_id)
 
         if not session:
-            return HTMLResponse('''
+            return HTMLResponse("""
             <div class="stats-panel empty">
                 <p>No active session</p>
             </div>
-            ''')
+            """)
 
         stats = session.client.stats
         session_stats = session.get_stats_dict()
@@ -98,7 +98,7 @@ class StatsComponent(Component):
             else 0
         )
 
-        return HTMLResponse(f'''
+        return HTMLResponse(f"""
         <div class="stats-panel"
              hx-get="/stats/detailed?session_id={session.session_id}"
              hx-trigger="every 10s"
@@ -152,4 +152,4 @@ class StatsComponent(Component):
                 </div>
             </div>
         </div>
-        ''')
+        """)

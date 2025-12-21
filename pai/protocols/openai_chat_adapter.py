@@ -317,9 +317,11 @@ class OpenAIChatAdapter(BaseProtocolAdapter):
                     # This ensures the model sees its own preceding text.
                     assistant_message = {
                         "role": "assistant",
-                        "content": partial_text or None,
                         "tool_calls": tool_calls,
                     }
+                    # Only include content if it's not empty
+                    if partial_text:
+                        assistant_message["content"] = partial_text
                     messages.append(assistant_message)
 
                     tasks = [_execute_and_format_tool_call(tc) for tc in tool_calls]

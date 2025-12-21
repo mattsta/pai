@@ -257,6 +257,30 @@ class StreamingDisplay:
             # For non-interactive, we can just print the character.
             self._print(text, end="", flush=True)
 
+    def _parse_think_tags(self, text: str) -> tuple[str, str]:
+        """Parse <think> tags from text and extract reasoning content.
+
+        Returns:
+            tuple: (cleaned_content, extracted_reasoning)
+        """
+        import re
+
+        # Pattern to match <think>...</think> tags (case insensitive)
+        think_pattern = re.compile(r"<think>(.*?)</think>", re.IGNORECASE | re.DOTALL)
+
+        extracted_reasoning = ""
+        cleaned_content = text
+
+        # Find all <think> tags and extract their content
+        matches = think_pattern.findall(text)
+        if matches:
+            # Combine all reasoning content
+            extracted_reasoning = " ".join(matches).strip()
+            # Remove the <think> tags from the main content
+            cleaned_content = think_pattern.sub("", text).strip()
+
+        return cleaned_content, extracted_reasoning
+
     def _render_reasoning(self, text: str):
         """Renders reasoning text, updating the internal state and live buffer."""
         self.current_reasoning += text
@@ -770,6 +794,17 @@ class StreamingDisplay:
                 self.current_request_stats.tokens_received = estimate_tokens(
                     self.current_response
                 )
+
+        # Parse <think> tags from the final response and extract reasoning
+        if self.current_response:
+            parsed_response, think_reasoning = self._parse_think_tags(
+                self.current_response
+            )
+            if think_reasoning:
+                # Add the extracted reasoning to the current reasoning buffer
+                self.current_reasoning = think_reasoning
+                # Update the response to remove the <think> tags
+                self.current_response = parsed_response
 
         # If any reasoning text is lingering, commit it.
         # This handles cases where the stream ends with a reasoning block.

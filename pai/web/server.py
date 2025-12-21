@@ -4,10 +4,8 @@ Single responsibility: HTTP server setup and routing coordination.
 Self-managing: Handles lifecycle of session manager and components.
 """
 
-import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.applications import Starlette
@@ -193,7 +191,7 @@ async def run_server(
     server_instance = uvicorn.Server(config)
 
     print(f"\n{'=' * 50}")
-    print(f"  pai web interface")
+    print("  pai web interface")
     print(f"  Running at: http://{host}:{port}")
     print(f"{'=' * 50}\n")
 

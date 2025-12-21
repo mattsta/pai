@@ -405,7 +405,6 @@ Filter Terms:
         """Fetches and displays available models with filtering and limiting."""
         # Parse arguments
         force_refresh = False
-        show_all = False
         count_only = False
         limit = self.DEFAULT_LIMIT
         search_terms: list[str] = []
@@ -2968,7 +2967,7 @@ Subcommands:
                 if "T" in entry.timestamp
                 else entry.timestamp[:8]
             )
-            status = "[green]OK[/green]" if entry.success else f"[red]FAIL[/red]"
+            status = "[green]OK[/green]" if entry.success else "[red]FAIL[/red]"
             duration = f"{entry.duration_ms:.0f}ms" if entry.duration_ms else "-"
             table.add_row(time_str, entry.tool_name, entry.tool_type, status, duration)
 

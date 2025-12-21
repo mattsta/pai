@@ -212,7 +212,7 @@ class Conversation:
         token_count = 0
         if system_content := self._get_combined_system_prompt():
             token_count += estimate_tokens(system_content)
-        for msg in self._messages:
+        for msg in self.get_history():
             # Handle different message structures (text content, tool calls)
             if isinstance(content := msg.get("content"), str):
                 token_count += estimate_tokens(content)
@@ -276,7 +276,12 @@ class Conversation:
         # Start with the base messages
         history = []
 
-        for turn in self.turns:
+        # Check if we're in completion mode (last turn has "prompt" instead of "messages")
+        # In completion mode, history is non-cumulative - only the last turn matters
+        is_completion_mode = self.turns and "prompt" in self.turns[-1].request_data
+        turns_to_process = [self.turns[-1]] if is_completion_mode else self.turns
+
+        for turn in turns_to_process:
             # Add user messages from this turn
             if "messages" in turn.request_data:
                 for msg in turn.request_data.get("messages", []):
@@ -296,6 +301,9 @@ class Conversation:
                     if tool_calls := message.get("tool_calls"):
                         assistant_msg["tool_calls"] = tool_calls
                     history.append(assistant_msg)
+            elif turn.assistant_message:
+                # Fallback for completion mode where response_data doesn't have choices
+                history.append({"role": "assistant", "content": turn.assistant_message})
 
             # Add reasoning if present
             if turn.assistant_reasoning:

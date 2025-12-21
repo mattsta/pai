@@ -39,7 +39,7 @@ class ModelsComponent(Component):
         session_id = request.query_params.get("session_id", "")
         search = request.query_params.get("search", "").strip()
         limit = int(request.query_params.get("limit", "25"))
-        offset = int(request.query_params.get("offset", "0"))
+        int(request.query_params.get("offset", "0"))
 
         session = await self.session_manager.get_or_create_session(session_id)
 

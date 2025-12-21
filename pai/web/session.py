@@ -15,10 +15,8 @@ import httpx
 from ..client import PolyglotClient
 from ..models import (
     Conversation,
-    EndpointConfig,
     PolyglotConfig,
     RuntimeConfig,
-    SessionStats,
 )
 from ..pricing import PricingService
 

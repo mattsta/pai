@@ -1,7 +1,5 @@
 """Tests for MCP (Model Context Protocol) functionality."""
 
-import asyncio
-
 import pytest
 
 from pai.mcp import MCPConfig, MCPManager, MCPServerConfig, MCPTool
